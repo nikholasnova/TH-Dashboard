@@ -3,15 +3,19 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Deployment,
+  Reading,
   getActiveDeployment,
   createDeployment,
   endDeployment,
   updateDeployment,
+  deleteDeployment,
 } from '@/lib/supabase';
 
 interface DeploymentModalProps {
   deviceId: string;
   deviceName: string;
+  reading?: Reading | null;
+  existingDeployment?: Deployment | null; // If provided, manage this specific deployment
   isOpen: boolean;
   onClose: () => void;
   onDeploymentChange: () => void;
@@ -26,10 +30,15 @@ interface FormData {
 export function DeploymentModal({
   deviceId,
   deviceName,
+  reading,
+  existingDeployment,
   isOpen,
   onClose,
   onDeploymentChange,
 }: DeploymentModalProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const isDeviceConnected = !!reading;
+  const isViewingSpecific = !!existingDeployment;
   const [currentDeployment, setCurrentDeployment] = useState<Deployment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -39,6 +48,18 @@ export function DeploymentModal({
 
   const fetchDeployment = useCallback(async () => {
     setIsLoading(true);
+    // If viewing a specific deployment, use it directly
+    if (existingDeployment) {
+      setCurrentDeployment(existingDeployment);
+      setEditFormData({
+        name: existingDeployment.name,
+        location: existingDeployment.location,
+        notes: existingDeployment.notes || '',
+      });
+      setIsLoading(false);
+      return;
+    }
+    // Otherwise fetch active deployment for device
     const deployment = await getActiveDeployment(deviceId);
     setCurrentDeployment(deployment);
     if (deployment) {
@@ -49,7 +70,7 @@ export function DeploymentModal({
       });
     }
     setIsLoading(false);
-  }, [deviceId]);
+  }, [deviceId, existingDeployment]);
 
   useEffect(() => {
     if (isOpen) {
@@ -118,6 +139,16 @@ export function DeploymentModal({
     setIsSaving(false);
   };
 
+  const handleDeleteDeployment = async () => {
+    if (!currentDeployment) return;
+    setIsSaving(true);
+    await deleteDeployment(currentDeployment.id);
+    setCurrentDeployment(null);
+    setShowDeleteConfirm(false);
+    onDeploymentChange();
+    setIsSaving(false);
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString([], {
@@ -162,6 +193,14 @@ export function DeploymentModal({
           </button>
         </div>
 
+        {!isDeviceConnected && (
+          <div className="mb-6 p-4 rounded-xl bg-[#ffb547]/10 border border-[#ffb547]/30">
+            <p className="text-sm text-[#ffb547]">
+              <span className="font-semibold">No device connected.</span> You can still create a deployment, but no data will be collected until the device connects.
+            </p>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="space-y-4">
             <div className="skeleton h-6 w-3/4"></div>
@@ -173,8 +212,17 @@ export function DeploymentModal({
             {currentDeployment && (
               <div className="mb-8">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-2 h-2 rounded-full bg-[#01b574] animate-pulse" />
-                  <h3 className="text-lg font-semibold text-white">Active Deployment</h3>
+                  {currentDeployment.ended_at ? (
+                    <>
+                      <div className="w-2 h-2 rounded-full bg-[#a0aec0]/40" />
+                      <h3 className="text-lg font-semibold text-white">Ended Deployment</h3>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-2 h-2 rounded-full bg-[#01b574] animate-pulse" />
+                      <h3 className="text-lg font-semibold text-white">Active Deployment</h3>
+                    </>
+                  )}
                 </div>
 
                 {isEditing ? (
@@ -234,16 +282,23 @@ export function DeploymentModal({
                       <p className="text-sm text-[#a0aec0]/80 mb-3 italic">{currentDeployment.notes}</p>
                     )}
                     <p className="text-sm text-[#a0aec0]">Started: {formatDate(currentDeployment.started_at)}</p>
-                    <p className="text-xs text-[#a0aec0]/60 mt-1">({getTimeAgo(currentDeployment.started_at)})</p>
+                    {currentDeployment.ended_at && (
+                      <p className="text-sm text-[#a0aec0]">Ended: {formatDate(currentDeployment.ended_at)}</p>
+                    )}
+                    {!currentDeployment.ended_at && (
+                      <p className="text-xs text-[#a0aec0]/60 mt-1">({getTimeAgo(currentDeployment.started_at)})</p>
+                    )}
 
-                    <div className="flex gap-3 mt-4">
-                      <button
-                        onClick={handleEndDeployment}
-                        disabled={isSaving}
-                        className="btn-glass px-4 py-2 text-sm font-semibold text-[#ffb547] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isSaving ? 'Ending...' : 'End Deployment'}
-                      </button>
+                    <div className="flex flex-wrap gap-3 mt-4">
+                      {!currentDeployment.ended_at && (
+                        <button
+                          onClick={handleEndDeployment}
+                          disabled={isSaving}
+                          className="btn-glass px-4 py-2 text-sm font-semibold text-[#ffb547] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isSaving ? 'Ending...' : 'End Deployment'}
+                        </button>
+                      )}
                       <button
                         onClick={() => setIsEditing(true)}
                         disabled={isSaving}
@@ -251,18 +306,48 @@ export function DeploymentModal({
                       >
                         Edit
                       </button>
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        disabled={isSaving}
+                        className="px-4 py-2 text-sm font-medium text-[#e31a1a] hover:text-[#ff4444] transition-colors"
+                      >
+                        Delete
+                      </button>
                     </div>
+
+                    {showDeleteConfirm && (
+                      <div className="mt-4 p-4 rounded-xl bg-[#e31a1a]/10 border border-[#e31a1a]/30">
+                        <p className="text-sm text-white mb-3">Are you sure you want to delete this deployment? This cannot be undone.</p>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={handleDeleteDeployment}
+                            disabled={isSaving}
+                            className="btn-glass px-4 py-2 text-sm font-semibold text-[#e31a1a] disabled:opacity-50"
+                          >
+                            {isSaving ? 'Deleting...' : 'Yes, Delete'}
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(false)}
+                            disabled={isSaving}
+                            className="px-4 py-2 text-sm text-[#a0aec0] hover:text-white transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {!currentDeployment && (
+            {!currentDeployment && !isViewingSpecific && (
               <div className="mb-8 p-5 rounded-xl bg-white/5 border border-white/10 text-center">
                 <p className="text-[#a0aec0]">No active deployment for this device.</p>
               </div>
             )}
 
+            {!isViewingSpecific && (
             <div>
               <h3 className="text-lg font-semibold text-white mb-4">
                 {currentDeployment ? 'Start New Deployment' : 'Create Deployment'}
@@ -312,6 +397,7 @@ export function DeploymentModal({
                 </button>
               </div>
             </div>
+            )}
           </>
         )}
       </div>

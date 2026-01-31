@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { LiveReadingCard } from '@/components/LiveReadingCard';
 import { AIChat } from '@/components/AIChat';
 import { DeploymentModal } from '@/components/DeploymentModal';
+import { AuthGate } from '@/components/AuthGate';
 import { Reading, Deployment, getLatestReading, getActiveDeployment } from '@/lib/supabase';
+import { UserMenu } from '@/components/UserMenu';
 import Link from 'next/link';
 
 const DEVICES = [
@@ -59,105 +61,85 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen">
-      <div className="container-responsive">
-        {/* Header */}
-        <header className="mb-10">
-          <h1 className="text-4xl font-bold text-white mb-2">
-            Dashboard
-          </h1>
-          <p className="text-lg text-[#a0aec0]">
-            Real-time temperature & humidity monitoring
-          </p>
-        </header>
+    <AuthGate>
+      <div className="min-h-screen">
+        <div className="container-responsive">
+          {/* Header */}
+          <header className="mb-10">
+            <h1 className="text-4xl font-bold text-white mb-2">
+              Dashboard
+            </h1>
+            <p className="text-lg text-[#a0aec0]">
+              Real-time temperature & humidity monitoring
+            </p>
+          </header>
 
-        {/* Navigation */}
-        <nav className="glass-card p-2 mb-10 inline-flex gap-2">
-          <Link
-            href="/"
-            className="nav-active px-6 py-3 text-white text-sm font-semibold"
-          >
-            Live
-          </Link>
-          <Link
-            href="/charts"
-            className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
-          >
-            Charts
-          </Link>
-          <Link
-            href="/compare"
-            className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
-          >
-            Compare
-          </Link>
-          <Link
-            href="/deployments"
-            className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
-          >
-            Deployments
-          </Link>
-        </nav>
-
-        {/* Live Readings */}
-        <div className="grid lg:grid-cols-2 gap-8">
-          {DEVICES.map((device) => (
-            <div key={device.id}>
-              {isLoading ? (
-                <div className="glass-card p-8 card-reading">
-                  <div className="flex items-center justify-between mb-8">
-                    <div>
-                      <div className="skeleton h-8 w-28 mb-2"></div>
-                      <div className="skeleton h-4 w-16"></div>
-                    </div>
-                    <div className="skeleton h-6 w-14 rounded-full"></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-8 mb-8">
-                    <div className="glass-card p-6 !rounded-xl !border-white/10">
-                      <div className="skeleton h-4 w-24 mb-3"></div>
-                      <div className="skeleton h-10 w-28 mb-2"></div>
-                      <div className="skeleton h-4 w-16"></div>
-                    </div>
-                    <div className="glass-card p-6 !rounded-xl !border-white/10">
-                      <div className="skeleton h-4 w-20 mb-3"></div>
-                      <div className="skeleton h-10 w-24"></div>
-                    </div>
-                  </div>
-                  <div className="skeleton h-4 w-36"></div>
-                </div>
-              ) : (
-                <div className="fade-in">
-                  <LiveReadingCard
-                    deviceId={device.id}
-                    deviceName={device.name}
-                    reading={readings[device.id]}
-                    activeDeployment={deployments[device.id]}
-                    onClick={() => setSelectedDevice(device)}
-                    onRefresh={fetchReadings}
-                    lastRefresh={lastRefresh}
-                  />
-                </div>
-              )}
+          {/* Navigation */}
+          <nav className="flex items-center justify-between mb-10 gap-4">
+            <div className="glass-card p-2 inline-flex gap-2">
+              <Link
+                href="/"
+                className="nav-active px-6 py-3 text-white text-sm font-semibold"
+              >
+                Live
+              </Link>
+              <Link
+                href="/charts"
+                className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
+              >
+                Charts
+              </Link>
+              <Link
+                href="/compare"
+                className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
+              >
+                Compare
+              </Link>
+              <Link
+                href="/deployments"
+                className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
+              >
+                Deployments
+              </Link>
             </div>
-          ))}
+            <UserMenu />
+          </nav>
+
+          {/* Live Readings */}
+          <div className="grid lg:grid-cols-2 gap-8">
+            {DEVICES.map((device) => (
+              <LiveReadingCard
+                key={device.id}
+                deviceId={device.id}
+                deviceName={device.name}
+                reading={readings[device.id]}
+                activeDeployment={deployments[device.id]}
+                isLoading={isLoading}
+                onClick={() => setSelectedDevice(device)}
+                onRefresh={fetchReadings}
+                lastRefresh={lastRefresh}
+              />
+            ))}
+          </div>
+
+          {/* AI Chat */}
+          <div className="mt-10">
+            <AIChat />
+          </div>
         </div>
 
-        {/* AI Chat */}
-        <div className="mt-10">
-          <AIChat />
-        </div>
+        {/* Deployment Modal */}
+        {selectedDevice && (
+          <DeploymentModal
+            deviceId={selectedDevice.id}
+            deviceName={selectedDevice.name}
+            reading={readings[selectedDevice.id]}
+            isOpen={!!selectedDevice}
+            onClose={() => setSelectedDevice(null)}
+            onDeploymentChange={handleDeploymentChange}
+          />
+        )}
       </div>
-
-      {/* Deployment Modal */}
-      {selectedDevice && (
-        <DeploymentModal
-          deviceId={selectedDevice.id}
-          deviceName={selectedDevice.name}
-          isOpen={!!selectedDevice}
-          onClose={() => setSelectedDevice(null)}
-          onDeploymentChange={handleDeploymentChange}
-        />
-      )}
-    </div>
+    </AuthGate>
   );
 }

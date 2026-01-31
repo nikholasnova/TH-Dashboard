@@ -111,7 +111,7 @@ export function AIChat() {
       >
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center">
-            <p className="text-[#a0aec0] mb-8 text-3xl font-medium">Ask me about your sensor data</p>
+            <p className="text-[#a0aec0] mb-8 text-3xl font-medium">Ask about your data</p>
             <div className="flex flex-wrap gap-3 justify-center">
               {suggestedQuestions.map((q) => (
                 <button
@@ -160,7 +160,7 @@ export function AIChat() {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask about your sensor data..."
+          placeholder="Ask about your data..."
           disabled={isLoading}
           className="flex-1 px-6 py-3 rounded-full bg-white/5 border border-white/20 text-white placeholder-[#a0aec0]/50 focus:outline-none focus:border-white/40 transition-colors disabled:opacity-50"
         />

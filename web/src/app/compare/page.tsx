@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { AuthGate } from '@/components/AuthGate';
+import { UserMenu } from '@/components/UserMenu';
 import {
   DeviceStats,
   DeploymentWithCount,
@@ -125,18 +127,22 @@ export default function ComparePage() {
   const depTempStdF = deploymentStats?.temp_stddev != null ? celsiusDeltaToFahrenheit(deploymentStats.temp_stddev) : undefined;
 
   return (
-    <div className="min-h-screen">
-      <div className="container-responsive">
-        <header className="mb-10">
-          <h1 className="text-4xl font-bold text-white mb-2">Compare</h1>
-          <p className="text-lg text-[#a0aec0]">Side-by-side sensor statistics</p>
-        </header>
+    <AuthGate>
+      <div className="min-h-screen">
+        <div className="container-responsive">
+          <header className="mb-10">
+            <h1 className="text-4xl font-bold text-white mb-2">Compare</h1>
+            <p className="text-lg text-[#a0aec0]">Side-by-side sensor statistics</p>
+          </header>
 
-        <nav className="glass-card p-2 mb-10 inline-flex gap-2">
-          <Link href="/" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Live</Link>
-          <Link href="/charts" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Charts</Link>
-          <Link href="/compare" className="nav-active px-6 py-3 text-white text-sm font-semibold">Compare</Link>
-          <Link href="/deployments" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Deployments</Link>
+        <nav className="flex items-center justify-between mb-10 gap-4">
+          <div className="glass-card p-2 inline-flex gap-2">
+            <Link href="/" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Live</Link>
+            <Link href="/charts" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Charts</Link>
+            <Link href="/compare" className="nav-active px-6 py-3 text-white text-sm font-semibold">Compare</Link>
+            <Link href="/deployments" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Deployments</Link>
+          </div>
+          <UserMenu />
         </nav>
 
         {/* Controls */}
@@ -198,23 +204,33 @@ export default function ComparePage() {
 
         {isLoading ? (
           <>
-            <div className="glass-card p-8 mb-8">
-              <div className="skeleton h-8 w-48 mb-6"></div>
-              <div className="space-y-4">
-                {[1,2,3,4].map(i => <div key={i} className="skeleton h-12"></div>)}
+            <div className="glass-card card-stats p-8 mb-8">
+              <h2 className="text-2xl font-bold text-white mb-6">Temperature (°F)</h2>
+              <div className="flex flex-col items-center justify-center flex-1">
+                <div className="flex gap-1 mb-3">
+                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <p className="text-sm text-[#a0aec0]">Loading stats...</p>
               </div>
             </div>
-            <div className="glass-card p-8">
-              <div className="skeleton h-8 w-40 mb-6"></div>
-              <div className="space-y-4">
-                {[1,2,3,4].map(i => <div key={i} className="skeleton h-12"></div>)}
+            <div className="glass-card card-stats p-8">
+              <h2 className="text-2xl font-bold text-white mb-6">Humidity (%)</h2>
+              <div className="flex flex-col items-center justify-center flex-1">
+                <div className="flex gap-1 mb-3">
+                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <p className="text-sm text-[#a0aec0]">Loading stats...</p>
               </div>
             </div>
           </>
         ) : deploymentStats ? (
           // Single deployment view
           <div className="fade-in">
-            <div className="glass-card p-8 mb-8">
+            <div className="glass-card card-stats p-8 mb-8">
               <h2 className="text-2xl font-bold text-white mb-6">Temperature (°F) - {deploymentStats.deployment_name}</h2>
               <div className="grid grid-cols-4 gap-6 text-center">
                 <div><p className="text-[#a0aec0] text-sm mb-2">Average</p><p className="text-3xl font-bold text-white">{formatValue(depTempAvgF)}</p></div>
@@ -223,7 +239,7 @@ export default function ComparePage() {
                 <div><p className="text-[#a0aec0] text-sm mb-2">Std Dev</p><p className="text-3xl font-bold text-white">{formatValue(depTempStdF, 2)}</p></div>
               </div>
             </div>
-            <div className="glass-card p-8">
+            <div className="glass-card card-stats p-8">
               <h2 className="text-2xl font-bold text-white mb-6">Humidity (%) - {deploymentStats.deployment_name}</h2>
               <div className="grid grid-cols-4 gap-6 text-center">
                 <div><p className="text-[#a0aec0] text-sm mb-2">Average</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_avg)}</p></div>
@@ -231,13 +247,13 @@ export default function ComparePage() {
                 <div><p className="text-[#a0aec0] text-sm mb-2">Maximum</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_max)}</p></div>
                 <div><p className="text-[#a0aec0] text-sm mb-2">Std Dev</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_stddev, 2)}</p></div>
               </div>
-              <p className="text-center text-[#a0aec0] mt-6">{deploymentStats.reading_count.toLocaleString()} readings</p>
+              <p className="text-center text-[#a0aec0] mt-6">{(deploymentStats.reading_count ?? 0).toLocaleString()} readings</p>
             </div>
           </div>
         ) : (
           // Standard device comparison view
           <div className="fade-in">
-            <div className="glass-card p-8 mb-8">
+            <div className="glass-card card-stats p-8 mb-8">
               <h2 className="text-2xl font-bold text-white mb-6">Temperature (°F)</h2>
               <table className="w-full text-lg">
                 <thead>
@@ -277,7 +293,7 @@ export default function ComparePage() {
               </table>
             </div>
 
-            <div className="glass-card p-8">
+            <div className="glass-card card-stats p-8">
               <h2 className="text-2xl font-bold text-white mb-6">Humidity (%)</h2>
               <table className="w-full text-lg">
                 <thead>
@@ -320,5 +336,6 @@ export default function ComparePage() {
         )}
       </div>
     </div>
+    </AuthGate>
   );
 }

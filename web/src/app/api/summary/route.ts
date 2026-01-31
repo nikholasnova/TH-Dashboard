@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
+import { getServerUser } from '@/lib/serverAuth';
 
+// Use service role key to bypass RLS (auth is verified at request level)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 const RATE_LIMIT_MINUTES = 15; // Minimum minutes between summary requests
@@ -44,6 +46,12 @@ function celsiusToFahrenheit(c: number): number {
 }
 
 export async function POST() {
+  // Check authentication
+  const user = await getServerUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   // Check rate limit
   const windowStart = new Date(Date.now() - RATE_LIMIT_MINUTES * 60 * 1000);
 

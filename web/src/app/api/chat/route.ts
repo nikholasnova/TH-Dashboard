@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI, SchemaType, FunctionDeclaration } from '@google/generative-ai';
 import { executeTool } from '@/lib/aiTools';
+import { getServerUser } from '@/lib/serverAuth';
 
 const SYSTEM_PROMPT = `You are an AI assistant for an IoT temperature and humidity monitoring system.
 You help users understand their sensor data across different deployments and locations.
@@ -65,6 +66,15 @@ const getReadingsDecl: FunctionDeclaration = {
 
 export async function POST(req: Request) {
   try {
+    // Check authentication
+    const user = await getServerUser();
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const { message } = await req.json();
 
     if (!message || typeof message !== 'string') {

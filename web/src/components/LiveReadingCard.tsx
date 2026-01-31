@@ -7,12 +7,13 @@ interface LiveReadingCardProps {
   deviceName: string;
   reading: Reading | null;
   activeDeployment?: Deployment | null;
+  isLoading?: boolean;
   onClick?: () => void;
   onRefresh?: () => void;
   lastRefresh?: Date | null;
 }
 
-export function LiveReadingCard({ deviceId, deviceName, reading, activeDeployment, onClick, onRefresh, lastRefresh }: LiveReadingCardProps) {
+export function LiveReadingCard({ deviceId, deviceName, reading, activeDeployment, isLoading, onClick, onRefresh, lastRefresh }: LiveReadingCardProps) {
   const isStale = reading
     ? Date.now() - new Date(reading.created_at).getTime() > 2 * 60 * 1000 // 2 minutes
     : true;
@@ -90,7 +91,16 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
         </div>
       </div>
 
-      {reading ? (
+      {isLoading && !reading ? (
+        <div className="flex flex-col justify-center items-center flex-1 min-h-[140px]">
+          <div className="flex gap-1 mb-3">
+            <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+          <p className="text-sm text-[#a0aec0]">Loading...</p>
+        </div>
+      ) : reading ? (
         <>
           <div className="grid grid-cols-2 gap-8 mb-8">
             <div className="glass-card p-6 !rounded-xl !border-white/10">

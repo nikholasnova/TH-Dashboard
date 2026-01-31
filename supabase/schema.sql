@@ -1,7 +1,13 @@
--- IoT Temperature/Humidity Readings Table
+-- IoT Temperature/Humidity Dashboard Schema
 -- Run this in Supabase SQL Editor
+-- Updated: With auth support (shared login + tightened RLS)
 
-CREATE TABLE readings (
+-- ============================================================================
+-- READINGS TABLE
+-- Core sensor data from Arduino devices
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS readings (
   id BIGSERIAL PRIMARY KEY,
   device_id TEXT NOT NULL,
   temperature REAL NOT NULL,  -- Celsius
@@ -10,43 +16,52 @@ CREATE TABLE readings (
 );
 
 -- Index for common queries (by device, ordered by time)
-CREATE INDEX idx_readings_device_time ON readings (device_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_readings_device_time ON readings (device_id, created_at DESC);
 
 -- Enable Row Level Security
 ALTER TABLE readings ENABLE ROW LEVEL SECURITY;
 
--- Allow anonymous inserts (for Arduino devices)
+-- Allow anonymous inserts (for Arduino devices - fast path)
 CREATE POLICY "Allow anonymous insert" ON readings
   FOR INSERT
   TO anon
   WITH CHECK (true);
 
--- Allow anonymous selects (for web dashboard)
-CREATE POLICY "Allow anonymous select" ON readings
+-- Allow authenticated selects (dashboard requires login)
+CREATE POLICY "Allow authenticated select" ON readings
   FOR SELECT
-  TO anon
+  TO authenticated
   USING (true);
 
--- Optional: AI rate limiting table
-CREATE TABLE ai_requests (
+-- ============================================================================
+-- AI RATE LIMITING TABLE
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS ai_requests (
   id BIGSERIAL PRIMARY KEY,
   requested_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ALTER TABLE ai_requests ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Allow anonymous insert" ON ai_requests
-  FOR INSERT
-  TO anon
+-- Authenticated only for AI requests
+CREATE POLICY "Allow authenticated all" ON ai_requests
+  FOR ALL
+  TO authenticated
+  USING (true)
   WITH CHECK (true);
 
-CREATE POLICY "Allow anonymous select" ON ai_requests
-  FOR SELECT
-  TO anon
-  USING (true);
+-- ============================================================================
+-- RPC FUNCTIONS
+-- Server-side aggregates for efficient queries
+-- ============================================================================
 
--- Stats by device (server-side aggregates)
-CREATE OR REPLACE FUNCTION get_device_stats(start_ts TIMESTAMPTZ, end_ts TIMESTAMPTZ)
+-- Stats by device (with optional device filter)
+CREATE OR REPLACE FUNCTION get_device_stats(
+  p_start TIMESTAMPTZ,
+  p_end TIMESTAMPTZ,
+  p_device_id TEXT DEFAULT NULL
+)
 RETURNS TABLE (
   device_id TEXT,
   temp_avg DOUBLE PRECISION,
@@ -59,11 +74,10 @@ RETURNS TABLE (
   humidity_stddev DOUBLE PRECISION,
   reading_count BIGINT
 )
-LANGUAGE SQL
-STABLE
+LANGUAGE SQL STABLE
 AS $$
   SELECT
-    device_id,
+    r.device_id,
     AVG(temperature) AS temp_avg,
     MIN(temperature) AS temp_min,
     MAX(temperature) AS temp_max,
@@ -73,18 +87,20 @@ AS $$
     MAX(humidity) AS humidity_max,
     STDDEV_POP(humidity) AS humidity_stddev,
     COUNT(*) AS reading_count
-  FROM readings
-  WHERE created_at BETWEEN start_ts AND end_ts
-  GROUP BY device_id;
+  FROM readings r
+  WHERE r.created_at BETWEEN p_start AND p_end
+    AND (p_device_id IS NULL OR r.device_id = p_device_id)
+  GROUP BY r.device_id;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_device_stats(TIMESTAMPTZ, TIMESTAMPTZ) TO anon;
+GRANT EXECUTE ON FUNCTION get_device_stats(TIMESTAMPTZ, TIMESTAMPTZ, TEXT) TO anon, authenticated;
 
--- Chart samples (time-bucketed averages)
+-- Chart samples (time-bucketed averages with optional device filter)
 CREATE OR REPLACE FUNCTION get_chart_samples(
-  start_ts TIMESTAMPTZ,
-  end_ts TIMESTAMPTZ,
-  bucket_seconds INT
+  p_start TIMESTAMPTZ,
+  p_end TIMESTAMPTZ,
+  p_bucket_minutes INT,
+  p_device_id TEXT DEFAULT NULL
 )
 RETURNS TABLE (
   bucket_ts TIMESTAMPTZ,
@@ -93,32 +109,29 @@ RETURNS TABLE (
   humidity_avg DOUBLE PRECISION,
   reading_count BIGINT
 )
-LANGUAGE SQL
-STABLE
+LANGUAGE SQL STABLE
 AS $$
   SELECT
-    TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM created_at) / bucket_seconds) * bucket_seconds) AS bucket_ts,
-    device_id,
+    TO_TIMESTAMP(FLOOR(EXTRACT(EPOCH FROM created_at) / (p_bucket_minutes * 60)) * (p_bucket_minutes * 60)) AS bucket_ts,
+    r.device_id,
     AVG(temperature) AS temperature_avg,
     AVG(humidity) AS humidity_avg,
     COUNT(*) AS reading_count
-  FROM readings
-  WHERE created_at BETWEEN start_ts AND end_ts
-  GROUP BY device_id, bucket_ts
+  FROM readings r
+  WHERE r.created_at BETWEEN p_start AND p_end
+    AND (p_device_id IS NULL OR r.device_id = p_device_id)
+  GROUP BY r.device_id, bucket_ts
   ORDER BY bucket_ts ASC;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_chart_samples(TIMESTAMPTZ, TIMESTAMPTZ, INT) TO anon;
+GRANT EXECUTE ON FUNCTION get_chart_samples(TIMESTAMPTZ, TIMESTAMPTZ, INT, TEXT) TO anon, authenticated;
 
 -- ============================================================================
--- DEPLOYMENTS
--- Deployments track device placement sessions at specific locations.
--- A deployment represents one device at one location for a specific time range.
--- This enables location-aware analysis and flexible comparisons.
+-- DEPLOYMENTS TABLE
+-- Tracks device placement sessions at specific locations
 -- ============================================================================
 
--- Deployments table
-CREATE TABLE deployments (
+CREATE TABLE IF NOT EXISTS deployments (
   id BIGSERIAL PRIMARY KEY,
   device_id TEXT NOT NULL,
   name TEXT NOT NULL,           -- e.g., "Kitchen Test Week 1"
@@ -130,42 +143,27 @@ CREATE TABLE deployments (
 );
 
 -- Indexes for common query patterns
-CREATE INDEX idx_deployments_device ON deployments (device_id);
-CREATE INDEX idx_deployments_location ON deployments (location);
-CREATE INDEX idx_deployments_time ON deployments (started_at, ended_at);
+CREATE INDEX IF NOT EXISTS idx_deployments_device ON deployments (device_id);
+CREATE INDEX IF NOT EXISTS idx_deployments_location ON deployments (location);
+CREATE INDEX IF NOT EXISTS idx_deployments_time ON deployments (started_at, ended_at);
 
 -- Enable Row Level Security
 ALTER TABLE deployments ENABLE ROW LEVEL SECURITY;
 
--- RLS policies for deployments (full CRUD for anon key)
-CREATE POLICY "Allow anonymous insert" ON deployments
-  FOR INSERT
-  TO anon
+-- Authenticated only for deployments (full CRUD)
+CREATE POLICY "Allow authenticated all" ON deployments
+  FOR ALL
+  TO authenticated
+  USING (true)
   WITH CHECK (true);
-
-CREATE POLICY "Allow anonymous select" ON deployments
-  FOR SELECT
-  TO anon
-  USING (true);
-
-CREATE POLICY "Allow anonymous update" ON deployments
-  FOR UPDATE
-  TO anon
-  USING (true);
-
-CREATE POLICY "Allow anonymous delete" ON deployments
-  FOR DELETE
-  TO anon
-  USING (true);
 
 -- ============================================================================
 -- DEPLOYMENT FUNCTIONS
--- Server-side functions for efficient deployment-based queries.
+-- Server-side functions for efficient deployment-based queries
 -- ============================================================================
 
 -- Get statistics for one or more deployments
--- Joins readings to deployments via device_id and time range
-CREATE OR REPLACE FUNCTION get_deployment_stats(deployment_ids BIGINT[])
+CREATE OR REPLACE FUNCTION get_deployment_stats(p_deployment_ids BIGINT[])
 RETURNS TABLE (
   deployment_id BIGINT,
   deployment_name TEXT,
@@ -200,14 +198,13 @@ LANGUAGE SQL STABLE AS $$
   LEFT JOIN readings r ON r.device_id = d.device_id
     AND r.created_at >= d.started_at
     AND (d.ended_at IS NULL OR r.created_at <= d.ended_at)
-  WHERE d.id = ANY(deployment_ids)
+  WHERE d.id = ANY(p_deployment_ids)
   GROUP BY d.id, d.name, d.device_id, d.location;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_deployment_stats(BIGINT[]) TO anon;
+GRANT EXECUTE ON FUNCTION get_deployment_stats(BIGINT[]) TO anon, authenticated;
 
 -- Get readings for a specific deployment
--- Returns readings within the deployment's time range, ordered by most recent first
 CREATE OR REPLACE FUNCTION get_deployment_readings(
   p_deployment_id BIGINT,
   p_limit INT DEFAULT 100
@@ -229,4 +226,4 @@ LANGUAGE SQL STABLE AS $$
   LIMIT p_limit;
 $$;
 
-GRANT EXECUTE ON FUNCTION get_deployment_readings(BIGINT, INT) TO anon;
+GRANT EXECUTE ON FUNCTION get_deployment_readings(BIGINT, INT) TO anon, authenticated;

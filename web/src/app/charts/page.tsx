@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { AuthGate } from '@/components/AuthGate';
+import { UserMenu } from '@/components/UserMenu';
 import {
   ChartSample,
   DeploymentWithCount,
@@ -288,18 +290,22 @@ export default function ChartsPage() {
   const hasData = chartData.some((series) => series.data.length > 0);
 
   return (
-    <div className="min-h-screen">
-      <div className="container-responsive">
-        <header className="mb-10">
-          <h1 className="text-4xl font-bold text-white mb-2">Charts</h1>
-          <p className="text-lg text-[#a0aec0]">Historical data visualization</p>
-        </header>
+    <AuthGate>
+      <div className="min-h-screen">
+        <div className="container-responsive">
+          <header className="mb-10">
+            <h1 className="text-4xl font-bold text-white mb-2">Charts</h1>
+            <p className="text-lg text-[#a0aec0]">Historical data visualization</p>
+          </header>
 
-        <nav className="glass-card p-2 mb-10 inline-flex gap-2">
-          <Link href="/" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Live</Link>
-          <Link href="/charts" className="nav-active px-6 py-3 text-white text-sm font-semibold">Charts</Link>
-          <Link href="/compare" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Compare</Link>
-          <Link href="/deployments" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Deployments</Link>
+        <nav className="flex items-center justify-between mb-10 gap-4">
+          <div className="glass-card p-2 inline-flex gap-2">
+            <Link href="/" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Live</Link>
+            <Link href="/charts" className="nav-active px-6 py-3 text-white text-sm font-semibold">Charts</Link>
+            <Link href="/compare" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Compare</Link>
+            <Link href="/deployments" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Deployments</Link>
+          </div>
+          <UserMenu />
         </nav>
 
         {/* Controls */}
@@ -394,18 +400,13 @@ export default function ChartsPage() {
         {/* Chart */}
         <div className="glass-card p-8">
           {isLoading ? (
-            <div className="h-[500px] flex flex-col">
-              <div className="flex justify-end mb-4">
-                <div className="flex gap-4">
-                  <div className="skeleton h-4 w-16 rounded-full"></div>
-                  <div className="skeleton h-4 w-16 rounded-full"></div>
-                </div>
+            <div className="h-[500px] flex flex-col items-center justify-center">
+              <div className="flex gap-1 mb-3">
+                <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
-              <div className="flex-1 flex items-end gap-1 pb-12 pl-12">
-                {Array.from({ length: 24 }).map((_, i) => (
-                  <div key={i} className="skeleton flex-1 rounded-t" style={{ height: `${30 + Math.sin(i * 0.5) * 20 + Math.random() * 30}%` }}></div>
-                ))}
-              </div>
+              <p className="text-sm text-[#a0aec0]">Loading chart data...</p>
             </div>
           ) : !hasData ? (
             <div className="h-[500px] flex items-center justify-center fade-in">
@@ -500,5 +501,6 @@ export default function ChartsPage() {
         </div>
       </div>
     </div>
+    </AuthGate>
   );
 }

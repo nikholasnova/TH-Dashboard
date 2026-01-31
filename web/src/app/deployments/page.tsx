@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { DeploymentModal } from '@/components/DeploymentModal';
+import { AuthGate } from '@/components/AuthGate';
+import { UserMenu } from '@/components/UserMenu';
 import {
   DeploymentWithCount,
   getDeployments,
@@ -28,20 +30,18 @@ export default function DeploymentsPage() {
   const fetchData = useCallback(async () => {
     setIsLoading(true);
 
-    const filters: { device_id?: string; location?: string; active_only?: boolean } = {};
-    if (deviceFilter) filters.device_id = deviceFilter;
+    const filters: { deviceId?: string; location?: string; status?: 'all' | 'active' | 'ended' } = {};
+    if (deviceFilter) filters.deviceId = deviceFilter;
     if (locationFilter) filters.location = locationFilter;
-    if (statusFilter === 'active') filters.active_only = true;
+    if (statusFilter !== 'all') filters.status = statusFilter;
 
     const [deps, locs] = await Promise.all([
       getDeployments(filters),
       getDistinctLocations(),
     ]);
 
-    // Apply ended filter client-side (API doesn't have ended_only)
-    const filtered = statusFilter === 'ended'
-      ? deps.filter(d => d.ended_at !== null)
-      : deps;
+    // Filters are now handled server-side
+    const filtered = deps;
 
     setDeployments(filtered);
     setLocations(locs);
@@ -65,28 +65,32 @@ export default function DeploymentsPage() {
   };
 
   return (
-    <div className="min-h-screen">
-      <div className="container-responsive">
-        {/* Header */}
-        <header className="mb-10">
-          <h1 className="text-4xl font-bold text-white mb-2">Deployments</h1>
-          <p className="text-lg text-[#a0aec0]">Manage device placement sessions</p>
-        </header>
+    <AuthGate>
+      <div className="min-h-screen">
+        <div className="container-responsive">
+          {/* Header */}
+          <header className="mb-10">
+            <h1 className="text-4xl font-bold text-white mb-2">Deployments</h1>
+            <p className="text-lg text-[#a0aec0]">Manage device placement sessions</p>
+          </header>
 
         {/* Navigation */}
-        <nav className="glass-card p-2 mb-10 inline-flex gap-2">
-          <Link href="/" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">
-            Live
-          </Link>
-          <Link href="/charts" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">
-            Charts
-          </Link>
-          <Link href="/compare" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">
-            Compare
-          </Link>
-          <Link href="/deployments" className="nav-active px-6 py-3 text-white text-sm font-semibold">
-            Deployments
-          </Link>
+        <nav className="flex items-center justify-between mb-10 gap-4">
+          <div className="glass-card p-2 inline-flex gap-2">
+            <Link href="/" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">
+              Live
+            </Link>
+            <Link href="/charts" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">
+              Charts
+            </Link>
+            <Link href="/compare" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">
+              Compare
+            </Link>
+            <Link href="/deployments" className="nav-active px-6 py-3 text-white text-sm font-semibold">
+              Deployments
+            </Link>
+          </div>
+          <UserMenu />
         </nav>
 
         {/* Filters & Actions */}
@@ -136,19 +140,15 @@ export default function DeploymentsPage() {
 
         {/* Deployments List */}
         {isLoading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="glass-card p-6">
-                <div className="flex items-center gap-4">
-                  <div className="skeleton w-3 h-3 rounded-full"></div>
-                  <div className="flex-1">
-                    <div className="skeleton h-6 w-48 mb-2"></div>
-                    <div className="skeleton h-4 w-32"></div>
-                  </div>
-                  <div className="skeleton h-4 w-24"></div>
-                </div>
+          <div className="glass-card p-12">
+            <div className="flex flex-col items-center justify-center">
+              <div className="flex gap-1 mb-3">
+                <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
               </div>
-            ))}
+              <p className="text-sm text-[#a0aec0]">Loading deployments...</p>
+            </div>
           </div>
         ) : deployments.length === 0 ? (
           <div className="glass-card p-12 text-center">
@@ -204,6 +204,7 @@ export default function DeploymentsPage() {
         <DeploymentModal
           deviceId={selectedDeployment.device_id}
           deviceName={selectedDeployment.device_id === 'node1' ? 'Node 1' : 'Node 2'}
+          existingDeployment={selectedDeployment}
           isOpen={!!selectedDeployment}
           onClose={() => setSelectedDeployment(null)}
           onDeploymentChange={fetchData}
@@ -221,5 +222,6 @@ export default function DeploymentsPage() {
         />
       )}
     </div>
+    </AuthGate>
   );
 }
