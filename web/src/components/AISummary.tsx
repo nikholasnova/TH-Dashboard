@@ -35,7 +35,7 @@ export function AISummary() {
     <div className="glass-card p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-white">AI Summary</h2>
+          <h2 className="text-2xl font-bold text-white">Data Query</h2>
           <p className="text-sm text-[#a0aec0]">Powered by Gemini</p>
         </div>
         <button
@@ -43,7 +43,7 @@ export function AISummary() {
           disabled={isLoading}
           className="btn-glass px-6 py-3 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isLoading ? 'Analyzing...' : 'Generate Summary'}
+          {isLoading ? 'Analyzing...' : 'Run Query'}
         </button>
       </div>
 
@@ -72,7 +72,7 @@ export function AISummary() {
       {!summary && !error && !isLoading && (
         <div className="text-center py-6">
           <p className="text-[#a0aec0] text-base">
-            Click the button to generate an AI summary of the last 24 hours of sensor data.
+            Click the button to query the last 24 hours of sensor data.
           </p>
         </div>
       )}

@@ -20,9 +20,10 @@ Real-time monitoring from multiple sensor nodes. Built for intro engineering cla
 ## Features
 
 - Live readings from 2 nodes (30s polling)
-- Historical charts (1h/6h/24h/7d/custom)
-- Side-by-side stats comparison
-- AI summary via Gemini
+- Deployments: track device placement sessions (location + time range)
+- Historical charts (1h/6h/24h/7d/custom) with device/deployment filters
+- Side-by-side stats comparison with filtering
+- AI chat with tool calling (Gemini)
 - CSV export
 - Dark glassy UI
 
@@ -83,9 +84,9 @@ Arduinos will auto-connect once they have valid `secrets.h` — no code changes 
 ├── arduino/sensor_node/   # firmware + wiring docs
 ├── supabase/schema.sql    # tables, RLS, functions
 ├── web/src/
-│   ├── app/               # pages (dashboard, charts, compare)
-│   ├── components/        # LiveReadingCard, AISummary
-│   └── lib/               # supabase client + queries
+│   ├── app/               # pages (dashboard, charts, compare, deployments)
+│   ├── components/        # LiveReadingCard, DeploymentModal, AIChat
+│   └── lib/               # supabase client, queries, AI tools
 ```
 
 ## Data Format
@@ -104,7 +105,7 @@ Device IDs: `node1`, `node2`
 |-----|-------|-------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Vercel + local | public |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel + local | public |
-| `GOOGLE_API_KEY` | Vercel + local | server-only, for AI summary |
+| `GOOGLE_API_KEY` | Vercel + local | server-only, for AI chat |
 
 ## Troubleshooting
 
@@ -116,9 +117,9 @@ Device IDs: `node1`, `node2`
 - Check Supabase table has rows
 - Verify env vars are set (check browser console)
 
-**AI summary fails**
+**AI chat not responding**
 - Confirm `GOOGLE_API_KEY` is set in Vercel
-- Rate limited to 1 request per 15 min
+- Check browser console for errors
 
 ## License
 

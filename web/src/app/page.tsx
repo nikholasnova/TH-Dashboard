@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { LiveReadingCard } from '@/components/LiveReadingCard';
-import { AISummary } from '@/components/AISummary';
-import { Reading, getLatestReading } from '@/lib/supabase';
+import { AIChat } from '@/components/AIChat';
+import { DeploymentModal } from '@/components/DeploymentModal';
+import { Reading, Deployment, getLatestReading, getActiveDeployment } from '@/lib/supabase';
 import Link from 'next/link';
 
 const DEVICES = [
@@ -15,8 +16,10 @@ const REFRESH_INTERVAL = 30000; // 30 seconds
 
 export default function Dashboard() {
   const [readings, setReadings] = useState<Record<string, Reading | null>>({});
+  const [deployments, setDeployments] = useState<Record<string, Deployment | null>>({});
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedDevice, setSelectedDevice] = useState<{ id: string; name: string } | null>(null);
 
   const fetchReadings = useCallback(async () => {
     const results: Record<string, Reading | null> = {};
@@ -32,11 +35,28 @@ export default function Dashboard() {
     setIsLoading(false);
   }, []);
 
+  const fetchDeployments = useCallback(async () => {
+    const results: Record<string, Deployment | null> = {};
+
+    await Promise.all(
+      DEVICES.map(async (device) => {
+        results[device.id] = await getActiveDeployment(device.id);
+      })
+    );
+
+    setDeployments(results);
+  }, []);
+
   useEffect(() => {
     fetchReadings();
+    fetchDeployments();
     const interval = setInterval(fetchReadings, REFRESH_INTERVAL);
     return () => clearInterval(interval);
-  }, [fetchReadings]);
+  }, [fetchReadings, fetchDeployments]);
+
+  const handleDeploymentChange = () => {
+    fetchDeployments();
+  };
 
   return (
     <div className="min-h-screen">
@@ -70,6 +90,12 @@ export default function Dashboard() {
             className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
           >
             Compare
+          </Link>
+          <Link
+            href="/deployments"
+            className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
+          >
+            Deployments
           </Link>
         </nav>
 
@@ -105,6 +131,10 @@ export default function Dashboard() {
                     deviceId={device.id}
                     deviceName={device.name}
                     reading={readings[device.id]}
+                    activeDeployment={deployments[device.id]}
+                    onClick={() => setSelectedDevice(device)}
+                    onRefresh={fetchReadings}
+                    lastRefresh={lastRefresh}
                   />
                 </div>
               )}
@@ -112,28 +142,22 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* AI Summary */}
+        {/* AI Chat */}
         <div className="mt-10">
-          <AISummary />
-        </div>
-
-        {/* Status Bar */}
-        <div className="mt-10 glass-card px-6 py-4 flex items-center justify-between text-sm">
-          <div className="flex items-center gap-3 text-[#a0aec0]">
-            <span>
-              {lastRefresh
-                ? `Last updated: ${lastRefresh.toLocaleTimeString()}`
-                : 'Loading...'}
-            </span>
-          </div>
-          <button
-            onClick={fetchReadings}
-            className="btn-glass px-4 py-2 text-sm"
-          >
-            Refresh now
-          </button>
+          <AIChat />
         </div>
       </div>
+
+      {/* Deployment Modal */}
+      {selectedDevice && (
+        <DeploymentModal
+          deviceId={selectedDevice.id}
+          deviceName={selectedDevice.name}
+          isOpen={!!selectedDevice}
+          onClose={() => setSelectedDevice(null)}
+          onDeploymentChange={handleDeploymentChange}
+        />
+      )}
     </div>
   );
 }

@@ -4,7 +4,12 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
   DeviceStats,
+  DeploymentWithCount,
+  DeploymentStats,
   getDeviceStats,
+  getDeployments,
+  getDeployment,
+  getDeploymentStats,
   celsiusToFahrenheit,
   celsiusDeltaToFahrenheit,
 } from '@/lib/supabase';
@@ -19,47 +24,70 @@ const TIME_RANGES = [
 
 export default function ComparePage() {
   const [stats, setStats] = useState<DeviceStats[]>([]);
+  const [deploymentStats, setDeploymentStats] = useState<DeploymentStats | null>(null);
   const [selectedRange, setSelectedRange] = useState(24);
   const [isLoading, setIsLoading] = useState(true);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
-  const isCustom = selectedRange === -1;
-  const isCustomValid =
-    !!customStart &&
-    !!customEnd &&
-    new Date(customStart).getTime() < new Date(customEnd).getTime();
+  // Filters
+  const [deviceFilter, setDeviceFilter] = useState<string>('');
+  const [deploymentFilter, setDeploymentFilter] = useState<string>('');
+  const [deployments, setDeployments] = useState<DeploymentWithCount[]>([]);
 
-  const getRangeBounds = () => {
+  const isCustom = selectedRange === -1;
+  const isCustomValid = !!customStart && !!customEnd && new Date(customStart).getTime() < new Date(customEnd).getTime();
+
+  useEffect(() => {
+    async function fetchDeployments() {
+      const deps = await getDeployments();
+      setDeployments(deps);
+    }
+    fetchDeployments();
+  }, []);
+
+  const getRangeBounds = useCallback(async () => {
+    if (deploymentFilter) {
+      const dep = await getDeployment(parseInt(deploymentFilter, 10));
+      if (dep) {
+        return { start: dep.started_at, end: dep.ended_at || new Date().toISOString() };
+      }
+    }
     if (isCustom) {
-      return {
-        start: new Date(customStart).toISOString(),
-        end: new Date(customEnd).toISOString(),
-      };
+      return { start: new Date(customStart).toISOString(), end: new Date(customEnd).toISOString() };
     }
     const end = new Date();
     const start = new Date(end.getTime() - selectedRange * 60 * 60 * 1000);
     return { start: start.toISOString(), end: end.toISOString() };
-  };
+  }, [selectedRange, isCustom, customStart, customEnd, deploymentFilter]);
 
   const fetchData = useCallback(async () => {
-    if (isCustom && !isCustomValid) return;
+    if (isCustom && !isCustomValid && !deploymentFilter) return;
     setIsLoading(true);
-    const { start, end } = getRangeBounds();
-    const data = await getDeviceStats({ start, end });
-    setStats(data);
+
+    if (deploymentFilter) {
+      // Fetch deployment-specific stats
+      const depStats = await getDeploymentStats([parseInt(deploymentFilter, 10)]);
+      setDeploymentStats(depStats[0] || null);
+      setStats([]);
+    } else {
+      // Fetch device stats for time range
+      const { start, end } = await getRangeBounds();
+      const data = await getDeviceStats({ start, end, device_id: deviceFilter || undefined });
+      setStats(data);
+      setDeploymentStats(null);
+    }
     setIsLoading(false);
-  }, [selectedRange, isCustom, isCustomValid, customStart, customEnd]);
+  }, [selectedRange, isCustom, isCustomValid, customStart, customEnd, deviceFilter, deploymentFilter, getRangeBounds]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  const filteredDeployments = deviceFilter ? deployments.filter(d => d.device_id === deviceFilter) : deployments;
+
   const statsByDevice = useMemo(() => {
-    const map: Record<string, DeviceStats | null> = {
-      node1: null,
-      node2: null,
-    };
+    const map: Record<string, DeviceStats | null> = { node1: null, node2: null };
     for (const row of stats) {
       if (row.device_id in map) map[row.device_id] = row;
     }
@@ -90,107 +118,125 @@ export default function ComparePage() {
   const node1TempStdF = node1?.temp_stddev != null ? celsiusDeltaToFahrenheit(node1.temp_stddev) : undefined;
   const node2TempStdF = node2?.temp_stddev != null ? celsiusDeltaToFahrenheit(node2.temp_stddev) : undefined;
 
+  // Deployment stats converted to F
+  const depTempAvgF = deploymentStats?.temp_avg != null ? celsiusToFahrenheit(deploymentStats.temp_avg) : undefined;
+  const depTempMinF = deploymentStats?.temp_min != null ? celsiusToFahrenheit(deploymentStats.temp_min) : undefined;
+  const depTempMaxF = deploymentStats?.temp_max != null ? celsiusToFahrenheit(deploymentStats.temp_max) : undefined;
+  const depTempStdF = deploymentStats?.temp_stddev != null ? celsiusDeltaToFahrenheit(deploymentStats.temp_stddev) : undefined;
+
   return (
     <div className="min-h-screen">
       <div className="container-responsive">
-        {/* Header */}
         <header className="mb-10">
           <h1 className="text-4xl font-bold text-white mb-2">Compare</h1>
           <p className="text-lg text-[#a0aec0]">Side-by-side sensor statistics</p>
         </header>
 
-        {/* Navigation + Time Range inline */}
-        <div className="flex flex-wrap items-center gap-4 mb-10">
-          <nav className="glass-card p-2 inline-flex gap-2">
-            <Link
-              href="/"
-              className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
-            >
-              Live
-            </Link>
-            <Link
-              href="/charts"
-              className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
-            >
-              Charts
-            </Link>
-            <Link
-              href="/compare"
-              className="nav-active px-6 py-3 text-white text-sm font-semibold"
-            >
-              Compare
-            </Link>
-          </nav>
+        <nav className="glass-card p-2 mb-10 inline-flex gap-2">
+          <Link href="/" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Live</Link>
+          <Link href="/charts" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Charts</Link>
+          <Link href="/compare" className="nav-active px-6 py-3 text-white text-sm font-semibold">Compare</Link>
+          <Link href="/deployments" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Deployments</Link>
+        </nav>
 
-          <div className="glass-card p-2 inline-flex gap-1">
+        {/* Controls */}
+        <div className="flex flex-wrap gap-4 mb-8">
+          {/* Time Range */}
+          <div className="glass-card p-2 flex gap-1">
             {TIME_RANGES.map((range) => (
-              <button
-                key={range.hours}
-                onClick={() => setSelectedRange(range.hours)}
-                className={`px-5 py-2.5 text-sm rounded-xl transition-all ${
-                  selectedRange === range.hours
-                    ? 'nav-active text-white font-semibold'
-                    : 'text-[#a0aec0] hover:text-white hover:bg-white/5'
-                }`}
-              >
+              <button key={range.hours} onClick={() => { setSelectedRange(range.hours); setDeploymentFilter(''); }}
+                className={`px-5 py-2.5 text-sm rounded-xl transition-all ${selectedRange === range.hours && !deploymentFilter ? 'nav-active text-white font-semibold' : 'text-[#a0aec0] hover:text-white hover:bg-white/5'}`}>
                 {range.label}
               </button>
             ))}
           </div>
 
-          {isCustom && (
-            <div className="glass-card p-2 inline-flex flex-wrap items-center gap-3">
+          {isCustom && !deploymentFilter && (
+            <div className="glass-card p-3 flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
                 <label className="text-xs text-[#a0aec0]">Start</label>
-                <input
-                  type="datetime-local"
-                  value={customStart}
-                  onChange={(e) => setCustomStart(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
-                />
+                <input type="datetime-local" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-xs text-[#a0aec0]">End</label>
-                <input
-                  type="datetime-local"
-                  value={customEnd}
-                  onChange={(e) => setCustomEnd(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
-                />
+                <input type="datetime-local" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
               </div>
-              {!isCustomValid && (
-                <span className="text-xs text-[#ffb547]">Pick a valid range</span>
-              )}
+              {!isCustomValid && <span className="text-xs text-[#ffb547]">Pick a valid range</span>}
             </div>
           )}
+
+          {/* Filters */}
+          <div className="glass-card p-3 flex flex-wrap items-center gap-4">
+            <span className="text-xs text-[#a0aec0] font-medium">Filters:</span>
+            <select value={deviceFilter} onChange={(e) => { setDeviceFilter(e.target.value); setDeploymentFilter(''); }}
+              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[100px]">
+              <option value="">All Devices</option>
+              <option value="node1">Node 1</option>
+              <option value="node2">Node 2</option>
+            </select>
+            <select value={deploymentFilter} onChange={(e) => setDeploymentFilter(e.target.value)}
+              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[180px]">
+              <option value="">All Deployments</option>
+              {filteredDeployments.map((dep) => (
+                <option key={dep.id} value={dep.id.toString()}>{dep.name} ({dep.device_id})</option>
+              ))}
+            </select>
+          </div>
         </div>
+
+        {/* Deployment indicator */}
+        {deploymentFilter && deploymentStats && (
+          <div className="mb-6 px-4 py-2 rounded-lg bg-[#0075ff]/20 border border-[#0075ff]/30 inline-flex items-center gap-2">
+            <span className="text-sm text-white">
+              Showing: {deploymentStats.deployment_name} ({deploymentStats.location})
+            </span>
+            <button onClick={() => setDeploymentFilter('')} className="text-[#a0aec0] hover:text-white">✕</button>
+          </div>
+        )}
 
         {isLoading ? (
           <>
             <div className="glass-card p-8 mb-8">
               <div className="skeleton h-8 w-48 mb-6"></div>
               <div className="space-y-4">
-                <div className="skeleton h-12"></div>
-                <div className="skeleton h-12"></div>
-                <div className="skeleton h-12"></div>
-                <div className="skeleton h-12"></div>
-                <div className="skeleton h-12"></div>
+                {[1,2,3,4].map(i => <div key={i} className="skeleton h-12"></div>)}
               </div>
             </div>
             <div className="glass-card p-8">
               <div className="skeleton h-8 w-40 mb-6"></div>
               <div className="space-y-4">
-                <div className="skeleton h-12"></div>
-                <div className="skeleton h-12"></div>
-                <div className="skeleton h-12"></div>
-                <div className="skeleton h-12"></div>
-                <div className="skeleton h-12"></div>
+                {[1,2,3,4].map(i => <div key={i} className="skeleton h-12"></div>)}
               </div>
             </div>
           </>
-        ) : (
+        ) : deploymentStats ? (
+          // Single deployment view
           <div className="fade-in">
-            {/* Temperature Stats */}
+            <div className="glass-card p-8 mb-8">
+              <h2 className="text-2xl font-bold text-white mb-6">Temperature (°F) - {deploymentStats.deployment_name}</h2>
+              <div className="grid grid-cols-4 gap-6 text-center">
+                <div><p className="text-[#a0aec0] text-sm mb-2">Average</p><p className="text-3xl font-bold text-white">{formatValue(depTempAvgF)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Minimum</p><p className="text-3xl font-bold text-white">{formatValue(depTempMinF)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Maximum</p><p className="text-3xl font-bold text-white">{formatValue(depTempMaxF)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Std Dev</p><p className="text-3xl font-bold text-white">{formatValue(depTempStdF, 2)}</p></div>
+              </div>
+            </div>
+            <div className="glass-card p-8">
+              <h2 className="text-2xl font-bold text-white mb-6">Humidity (%) - {deploymentStats.deployment_name}</h2>
+              <div className="grid grid-cols-4 gap-6 text-center">
+                <div><p className="text-[#a0aec0] text-sm mb-2">Average</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_avg)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Minimum</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_min)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Maximum</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_max)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Std Dev</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_stddev, 2)}</p></div>
+              </div>
+              <p className="text-center text-[#a0aec0] mt-6">{deploymentStats.reading_count.toLocaleString()} readings</p>
+            </div>
+          </div>
+        ) : (
+          // Standard device comparison view
+          <div className="fade-in">
             <div className="glass-card p-8 mb-8">
               <h2 className="text-2xl font-bold text-white mb-6">Temperature (°F)</h2>
               <table className="w-full text-lg">
@@ -231,7 +277,6 @@ export default function ComparePage() {
               </table>
             </div>
 
-            {/* Humidity Stats */}
             <div className="glass-card p-8">
               <h2 className="text-2xl font-bold text-white mb-6">Humidity (%)</h2>
               <table className="w-full text-lg">

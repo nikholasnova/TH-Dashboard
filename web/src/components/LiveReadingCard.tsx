@@ -1,14 +1,18 @@
 'use client';
 
-import { Reading, celsiusToFahrenheit } from '@/lib/supabase';
+import { Reading, Deployment, celsiusToFahrenheit } from '@/lib/supabase';
 
 interface LiveReadingCardProps {
   deviceId: string;
   deviceName: string;
   reading: Reading | null;
+  activeDeployment?: Deployment | null;
+  onClick?: () => void;
+  onRefresh?: () => void;
+  lastRefresh?: Date | null;
 }
 
-export function LiveReadingCard({ deviceId, deviceName, reading }: LiveReadingCardProps) {
+export function LiveReadingCard({ deviceId, deviceName, reading, activeDeployment, onClick, onRefresh, lastRefresh }: LiveReadingCardProps) {
   const isStale = reading
     ? Date.now() - new Date(reading.created_at).getTime() > 2 * 60 * 1000 // 2 minutes
     : true;
@@ -23,12 +27,38 @@ export function LiveReadingCard({ deviceId, deviceName, reading }: LiveReadingCa
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
+  const getTimeAgo = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+    if (diffHours > 0) return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+    if (diffMins > 0) return diffMins === 1 ? '1 min ago' : `${diffMins} mins ago`;
+    return 'just now';
+  };
+
   return (
-    <div className="glass-card p-8 card-reading">
-      <div className="flex items-center justify-between mb-8">
+    <div
+      className={`glass-card p-8 card-reading ${onClick ? 'cursor-pointer hover:border-white/30 transition-all' : ''}`}
+      onClick={onClick}
+    >
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-2xl font-bold text-white">{deviceName}</h2>
-          <span className="text-sm text-[#a0aec0]">{deviceId}</span>
+          {activeDeployment ? (
+            <>
+              <h2 className="text-2xl font-bold text-white">{activeDeployment.name}</h2>
+              <span className="text-sm text-[#a0aec0]">{deviceName} &bull; Started {getTimeAgo(activeDeployment.started_at)}</span>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-medium text-[#a0aec0]">No Active Deployment</h2>
+              <span className="text-sm text-[#a0aec0]">{deviceName} ({deviceId})</span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {reading && !isStale && (
@@ -41,6 +71,21 @@ export function LiveReadingCard({ deviceId, deviceName, reading }: LiveReadingCa
             <span className="px-3 py-1 text-sm font-medium rounded-lg bg-[#ffb547]/20 text-[#ffb547]">
               Stale
             </span>
+          )}
+          {onRefresh && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRefresh();
+              }}
+              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-[#a0aec0] hover:text-white transition-colors"
+              title={lastRefresh ? `Last updated: ${lastRefresh.toLocaleTimeString()}` : 'Refresh'}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+              </svg>
+            </button>
           )}
         </div>
       </div>
