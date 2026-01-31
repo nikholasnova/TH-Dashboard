@@ -213,13 +213,13 @@ nav.glass-card {
   transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
-/* Prevent layout shift - fixed heights */
+/* Minimum heights - cards can grow to fit content */
 .card-reading {
-  height: 280px;
+  min-height: 280px;
 }
 
 .card-stats {
-  height: 320px;
+  min-height: 320px;
 }
 
 /* Custom scrollbar for dark theme */
