@@ -1,0 +1,219 @@
+@import "tailwindcss";
+
+:root {
+  /* Vision UI Color Palette */
+  --background-main: #060b28;
+  --background-card: linear-gradient(127.09deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%);
+  --foreground: #ffffff;
+  --foreground-muted: #a0aec0;
+
+  /* Accent Colors */
+  --primary: #4318ff;
+  --primary-light: #868cff;
+  --info: #0075ff;
+  --info-light: #21d4fd;
+  --success: #01b574;
+  --success-light: #05cd99;
+  --warning: #ffb547;
+  --error: #e31a1a;
+
+  /* Card/Glass */
+  --card-border: rgba(255, 255, 255, 0.15);
+  --card-highlight: rgba(255, 255, 255, 0.05);
+}
+
+@theme inline {
+  --color-background: var(--background-main);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background-main);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Radial gradient background overlay */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background:
+    radial-gradient(ellipse at 70% 20%, rgba(0, 117, 255, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 30% 80%, rgba(67, 24, 255, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Main content wrapper */
+.min-h-screen {
+  position: relative;
+  z-index: 1;
+}
+
+/* Glassmorphism Card - Vision UI Style - defined below with transitions */
+
+/* Glass button - clear with white text */
+.btn-glass {
+  background: linear-gradient(127.09deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: #ffffff;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translateY(0) scale(1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-glass:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: linear-gradient(127.09deg, rgba(15, 21, 53, 1) 19.41%, rgba(25, 30, 60, 0.95) 76.65%);
+  transform: translateY(-4px) scale(1.05);
+  box-shadow:
+    0 8px 25px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.btn-glass:active {
+  transform: translateY(-2px) scale(1.02);
+  transition: all 0.1s ease;
+}
+
+/* Active nav state - clear glass with white text */
+.nav-active {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  color: #ffffff;
+  box-shadow:
+    0 4px 15px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nav-active:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow:
+    0 8px 25px rgba(0, 0, 0, 0.3),
+    0 0 25px rgba(255, 255, 255, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Hover effect for nav links (non-active) */
+nav a:not(.nav-active) {
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+nav a:not(.nav-active):hover {
+  transform: translateY(-3px) scale(1.03);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* Nav container - fixed height prevents resize on button hover */
+nav.glass-card {
+  height: 60px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.5rem;
+}
+
+/* Interactive glass card hover (for smaller interactive cards) */
+.glass-card-interactive {
+  background: linear-gradient(127.09deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%);
+  backdrop-filter: blur(120px);
+  -webkit-backdrop-filter: blur(120px);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translateY(0) scale(1);
+}
+
+.glass-card-interactive:hover {
+  transform: translateY(-6px) scale(1.02);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow:
+    0 15px 40px rgba(0, 0, 0, 0.3),
+    0 0 30px rgba(255, 255, 255, 0.1);
+}
+
+/* Stat value large text */
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* Responsive container */
+.container-responsive {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+@media (min-width: 1400px) {
+  .container-responsive {
+    padding: 3rem 4rem;
+  }
+}
+
+@media (min-width: 1800px) {
+  .container-responsive {
+    max-width: 1800px;
+    padding: 3rem 5rem;
+  }
+}
+
+/* Quick snappy fade for content */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fadeIn 0.15s ease-out;
+}
+
+/* Skeleton shimmer animation */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Glass card with smooth transitions */
+.glass-card {
+  background: linear-gradient(127.09deg, rgba(6, 11, 40, 0.94) 19.41%, rgba(10, 14, 35, 0.49) 76.65%);
+  backdrop-filter: blur(120px);
+  -webkit-backdrop-filter: blur(120px);
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+/* Prevent layout shift - fixed minimum heights */
+.card-reading {
+  min-height: 280px;
+}

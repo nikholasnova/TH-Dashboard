@@ -1,0 +1,9 @@
+# Secrets file - contains WiFi and Supabase credentials
+secrets.h
+
+# Arduino IDE build artifacts
+*.elf
+*.hex
+*.eep
+*.bin
+build/

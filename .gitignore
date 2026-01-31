@@ -1,0 +1,39 @@
+# Environment files
+.env
+.env.local
+.env.production
+.env*.local
+
+# Arduino secrets
+secrets.h
+
+# Arduino build files
+*.elf
+*.hex
+*.bin
+build/
+
+# Node
+node_modules/
+.next/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vercel
+.vercel
+
+# Local assistant notes
+CLAUDE.md
