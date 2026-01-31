@@ -105,6 +105,7 @@ Arduinos will auto-connect once they have valid `secrets.h` — no code changes 
 │   ├── components/
 │   │   ├── AuthProvider.tsx   # auth context
 │   │   ├── AuthGate.tsx       # protects pages
+│   │   ├── Navbar.tsx         # responsive nav with hamburger menu
 │   │   ├── UserMenu.tsx       # profile dropdown
 │   │   ├── LiveReadingCard.tsx
 │   │   ├── DeploymentModal.tsx

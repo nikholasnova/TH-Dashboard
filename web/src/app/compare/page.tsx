@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import Link from 'next/link';
 import { AuthGate } from '@/components/AuthGate';
-import { UserMenu } from '@/components/UserMenu';
+import { Navbar } from '@/components/Navbar';
 import {
   DeviceStats,
   DeploymentWithCount,
@@ -130,20 +129,14 @@ export default function ComparePage() {
     <AuthGate>
       <div className="min-h-screen">
         <div className="container-responsive">
-          <header className="mb-10">
-            <h1 className="text-4xl font-bold text-white mb-2">Compare</h1>
-            <p className="text-lg text-[#a0aec0]">Side-by-side sensor statistics</p>
-          </header>
-
-        <nav className="flex items-center justify-between mb-10 gap-4">
-          <div className="glass-card p-2 inline-flex gap-2">
-            <Link href="/" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Live</Link>
-            <Link href="/charts" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Charts</Link>
-            <Link href="/compare" className="nav-active px-6 py-3 text-white text-sm font-semibold">Compare</Link>
-            <Link href="/deployments" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Deployments</Link>
+          {/* Header + Navigation - reversed on mobile */}
+          <div className="flex flex-col-reverse sm:flex-col">
+            <header className="mb-6 sm:mb-10">
+              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Compare</h1>
+              <p className="text-base sm:text-lg text-[#a0aec0]">Side-by-side sensor statistics</p>
+            </header>
+            <Navbar />
           </div>
-          <UserMenu />
-        </nav>
 
         {/* Controls */}
         <div className="flex flex-wrap gap-4 mb-8">
@@ -232,20 +225,20 @@ export default function ComparePage() {
           <div className="fade-in">
             <div className="glass-card card-stats p-8 mb-8">
               <h2 className="text-2xl font-bold text-white mb-6">Temperature (°F) - {deploymentStats.deployment_name}</h2>
-              <div className="grid grid-cols-4 gap-6 text-center">
-                <div><p className="text-[#a0aec0] text-sm mb-2">Average</p><p className="text-3xl font-bold text-white">{formatValue(depTempAvgF)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Minimum</p><p className="text-3xl font-bold text-white">{formatValue(depTempMinF)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Maximum</p><p className="text-3xl font-bold text-white">{formatValue(depTempMaxF)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Std Dev</p><p className="text-3xl font-bold text-white">{formatValue(depTempStdF, 2)}</p></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 text-center">
+                <div><p className="text-[#a0aec0] text-sm mb-2">Average</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(depTempAvgF)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Minimum</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(depTempMinF)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Maximum</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(depTempMaxF)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Std Dev</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(depTempStdF, 2)}</p></div>
               </div>
             </div>
             <div className="glass-card card-stats p-8">
               <h2 className="text-2xl font-bold text-white mb-6">Humidity (%) - {deploymentStats.deployment_name}</h2>
-              <div className="grid grid-cols-4 gap-6 text-center">
-                <div><p className="text-[#a0aec0] text-sm mb-2">Average</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_avg)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Minimum</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_min)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Maximum</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_max)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Std Dev</p><p className="text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_stddev, 2)}</p></div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 text-center">
+                <div><p className="text-[#a0aec0] text-sm mb-2">Average</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_avg)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Minimum</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_min)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Maximum</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_max)}</p></div>
+                <div><p className="text-[#a0aec0] text-sm mb-2">Std Dev</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_stddev, 2)}</p></div>
               </div>
               <p className="text-center text-[#a0aec0] mt-6">{(deploymentStats.reading_count ?? 0).toLocaleString()} readings</p>
             </div>
@@ -253,9 +246,10 @@ export default function ComparePage() {
         ) : (
           // Standard device comparison view
           <div className="fade-in">
-            <div className="glass-card card-stats p-8 mb-8">
-              <h2 className="text-2xl font-bold text-white mb-6">Temperature (°F)</h2>
-              <table className="w-full text-lg">
+            <div className="glass-card card-stats p-4 sm:p-8 mb-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Temperature (°F)</h2>
+              <div className="overflow-x-auto">
+              <table className="w-full text-base sm:text-lg min-w-[400px]">
                 <thead>
                   <tr className="border-b border-white/10">
                     <th className="text-left py-4 text-[#a0aec0] font-semibold">Metric</th>
@@ -291,11 +285,13 @@ export default function ComparePage() {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
 
-            <div className="glass-card card-stats p-8">
-              <h2 className="text-2xl font-bold text-white mb-6">Humidity (%)</h2>
-              <table className="w-full text-lg">
+            <div className="glass-card card-stats p-4 sm:p-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Humidity (%)</h2>
+              <div className="overflow-x-auto">
+              <table className="w-full text-base sm:text-lg min-w-[400px]">
                 <thead>
                   <tr className="border-b border-white/10">
                     <th className="text-left py-4 text-[#a0aec0] font-semibold">Metric</th>
@@ -331,6 +327,7 @@ export default function ComparePage() {
                   </tr>
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         )}

@@ -6,8 +6,7 @@ import { AIChat } from '@/components/AIChat';
 import { DeploymentModal } from '@/components/DeploymentModal';
 import { AuthGate } from '@/components/AuthGate';
 import { Reading, Deployment, getLatestReading, getActiveDeployment } from '@/lib/supabase';
-import { UserMenu } from '@/components/UserMenu';
-import Link from 'next/link';
+import { Navbar } from '@/components/Navbar';
 
 const DEVICES = [
   { id: 'node1', name: 'Node 1' },
@@ -64,46 +63,18 @@ export default function Dashboard() {
     <AuthGate>
       <div className="min-h-screen">
         <div className="container-responsive">
-          {/* Header */}
-          <header className="mb-10">
-            <h1 className="text-4xl font-bold text-white mb-2">
-              Dashboard
-            </h1>
-            <p className="text-lg text-[#a0aec0]">
-              Real-time temperature & humidity monitoring
-            </p>
-          </header>
-
-          {/* Navigation */}
-          <nav className="flex items-center justify-between mb-10 gap-4">
-            <div className="glass-card p-2 inline-flex gap-2">
-              <Link
-                href="/"
-                className="nav-active px-6 py-3 text-white text-sm font-semibold"
-              >
-                Live
-              </Link>
-              <Link
-                href="/charts"
-                className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
-              >
-                Charts
-              </Link>
-              <Link
-                href="/compare"
-                className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
-              >
-                Compare
-              </Link>
-              <Link
-                href="/deployments"
-                className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors"
-              >
-                Deployments
-              </Link>
-            </div>
-            <UserMenu />
-          </nav>
+          {/* Header + Navigation - reversed on mobile */}
+          <div className="flex flex-col-reverse sm:flex-col">
+            <header className="mb-6 sm:mb-10">
+              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
+                Dashboard
+              </h1>
+              <p className="text-base sm:text-lg text-[#a0aec0]">
+                Real-time temperature & humidity monitoring
+              </p>
+            </header>
+            <Navbar />
+          </div>
 
           {/* Live Readings */}
           <div className="grid lg:grid-cols-2 gap-8">

@@ -2,9 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { AuthGate } from '@/components/AuthGate';
-import { UserMenu } from '@/components/UserMenu';
+import { Navbar } from '@/components/Navbar';
 import {
   ChartSample,
   DeploymentWithCount,
@@ -293,20 +292,14 @@ export default function ChartsPage() {
     <AuthGate>
       <div className="min-h-screen">
         <div className="container-responsive">
-          <header className="mb-10">
-            <h1 className="text-4xl font-bold text-white mb-2">Charts</h1>
-            <p className="text-lg text-[#a0aec0]">Historical data visualization</p>
-          </header>
-
-        <nav className="flex items-center justify-between mb-10 gap-4">
-          <div className="glass-card p-2 inline-flex gap-2">
-            <Link href="/" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Live</Link>
-            <Link href="/charts" className="nav-active px-6 py-3 text-white text-sm font-semibold">Charts</Link>
-            <Link href="/compare" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Compare</Link>
-            <Link href="/deployments" className="px-6 py-3 text-[#a0aec0] hover:text-white rounded-xl text-sm font-medium transition-colors">Deployments</Link>
+          {/* Header + Navigation - reversed on mobile */}
+          <div className="flex flex-col-reverse sm:flex-col">
+            <header className="mb-6 sm:mb-10">
+              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Charts</h1>
+              <p className="text-base sm:text-lg text-[#a0aec0]">Historical data visualization</p>
+            </header>
+            <Navbar />
           </div>
-          <UserMenu />
-        </nav>
 
         {/* Controls */}
         <div className="flex flex-wrap gap-4 mb-8">

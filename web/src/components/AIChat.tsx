@@ -110,14 +110,14 @@ export function AIChat() {
         }}
       >
         {messages.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <p className="text-[#a0aec0] mb-8 text-3xl font-medium">Ask about your data</p>
-            <div className="flex flex-wrap gap-3 justify-center">
+          <div className="flex-1 flex flex-col items-center justify-center px-4">
+            <p className="text-[#a0aec0] mb-6 sm:mb-8 text-xl sm:text-3xl font-medium text-center">Ask about your data</p>
+            <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3 justify-center w-full sm:w-auto">
               {suggestedQuestions.map((q) => (
                 <button
                   key={q}
                   onClick={() => sendMessage(q)}
-                  className="text-sm px-5 py-2.5 rounded-full bg-white/5 text-[#a0aec0] hover:bg-white/10 hover:text-white transition-colors"
+                  className="text-xs sm:text-sm px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-white/5 text-[#a0aec0] hover:bg-white/10 hover:text-white transition-colors text-center"
                 >
                   {q}
                 </button>

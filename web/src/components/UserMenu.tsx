@@ -58,18 +58,18 @@ export function UserMenu() {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 glass-card p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute right-0 mt-2 w-64 bg-[#1a1f2e]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xl">
           {/* User Info */}
-          <div className="pb-3 mb-3 border-b border-white/10">
-            <p className="text-xs text-[#a0aec0] mb-1">Signed in as</p>
+          <div className="pb-3 mb-3 border-b border-white/20">
+            <p className="text-xs text-[#c8d0e0] mb-1">Signed in as</p>
             <p className="text-sm text-white font-medium truncate">{email}</p>
           </div>
 
           {/* Session Info */}
-          <div className="pb-3 mb-3 border-b border-white/10 space-y-1">
+          <div className="pb-3 mb-3 border-b border-white/20 space-y-1">
             <div className="flex justify-between text-xs">
-              <span className="text-[#a0aec0]">Status</span>
-              <span className="text-[#01b574]">● Active</span>
+              <span className="text-[#c8d0e0]">Status</span>
+              <span className="text-[#01b574] font-medium">● Active</span>
             </div>
           </div>
 
@@ -77,7 +77,7 @@ export function UserMenu() {
           <button
             onClick={handleSignOut}
             disabled={isSigningOut}
-            className="w-full px-4 py-2 text-sm text-[#e31a1a] hover:bg-[#e31a1a]/10 rounded-lg transition-colors disabled:opacity-50"
+            className="w-full px-4 py-2 text-sm text-[#ff4d4d] hover:bg-[#ff4d4d]/15 rounded-lg transition-colors disabled:opacity-50 font-medium"
           >
             {isSigningOut ? 'Signing out...' : 'Sign Out'}
           </button>
