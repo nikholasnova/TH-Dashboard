@@ -170,7 +170,7 @@ To run as a fully public dashboard:
 ## Performance Notes
 
 - **Server-side aggregation**: Charts and stats use Postgres RPC functions (`get_device_stats`, `get_chart_samples`, `get_deployment_stats`) to avoid transferring raw readings to the client.
-- **Bucketing**: Chart queries downsample readings into time buckets (30s for short ranges, up to 1h for 7d+ ranges).
+- **Bucketing**: Chart queries downsample readings into time buckets (3min for ≤6h, 6min for ≤24h, 30min for ≤7d, 1h for longer ranges). Bucket sizes are tuned for the 3-minute device sampling interval.
 - **AI guardrails**: Tool calls cap result sizes (max deployment IDs, max readings per query, 5-iteration tool-call loop limit).
 - **Polling**: Dashboard refreshes every 30s. Sensors average over 3 minutes to reduce write volume.
 

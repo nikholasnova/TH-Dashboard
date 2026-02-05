@@ -85,9 +85,9 @@ export default function ChartsPage() {
 
   const pickBucketSeconds = (rangeMs: number) => {
     const minutes = rangeMs / 60000;
-    if (minutes <= 360) return 30;
-    if (minutes <= 1440) return 120;
-    if (minutes <= 10080) return 900;
+    if (minutes <= 360) return 180;
+    if (minutes <= 1440) return 360;
+    if (minutes <= 10080) return 1800;
     return 3600;
   };
 
