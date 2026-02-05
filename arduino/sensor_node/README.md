@@ -1,8 +1,8 @@
 # Arduino Sensor Node
 
-Firmware for the DHT20 temperature/humidity sensor node that sends data to Supabase.
+Firmware for the DHT20 temperature/humidity sensor node. Reads every 15 seconds, averages over 3-minute windows, and POSTs the average to Supabase.
 
-## Hardware Required
+## Hardware
 
 - Arduino Uno R4 WiFi
 - DHT20 sensor (I2C)
@@ -20,101 +20,77 @@ Firmware for the DHT20 temperature/humidity sensor node that sends data to Supab
 | SDA       | SDA (A4)    |
 | SCL       | SCL (A5)    |
 
-### 16x2 LCD Display (Parallel Mode)
+### 16x2 LCD Display (Parallel 4-bit)
 
-| LCD Pin | Arduino Pin | Description     |
-|---------|-------------|-----------------|
-| VSS     | GND         | Ground          |
-| VDD     | 5V          | Power           |
-| V0      | Potentiometer| Contrast (0-5V)|
-| RS      | 12          | Register Select |
-| RW      | GND         | Read/Write (GND for write) |
-| E       | 11          | Enable          |
-| D4      | 5           | Data bit 4      |
-| D5      | 4           | Data bit 5      |
-| D6      | 3           | Data bit 6      |
-| D7      | 2           | Data bit 7      |
-| A       | 5V          | Backlight +     |
-| K       | GND         | Backlight -     |
-
-**Note:** Use a 10K potentiometer between 5V and GND with the wiper connected to V0 to adjust contrast.
+| LCD Pin | Arduino Pin | Notes               |
+|---------|-------------|----------------------|
+| VSS     | GND         |                      |
+| VDD     | 5V          |                      |
+| V0      | Potentiometer | 10K pot for contrast |
+| RS      | 12          |                      |
+| RW      | GND         | Grounded = write-only |
+| E       | 11          |                      |
+| D4      | 5           |                      |
+| D5      | 4           |                      |
+| D6      | 3           |                      |
+| D7      | 2           |                      |
+| A       | 5V          | Backlight            |
+| K       | GND         | Backlight            |
 
 ## Required Libraries
 
-Install these via **Arduino IDE > Tools > Manage Libraries**:
+Install via **Arduino IDE > Tools > Manage Libraries**:
 
-1. **DFRobot_DHT20** - DHT20 temperature/humidity sensor
-   - Search for "DFRobot DHT20" or download from [GitHub](https://github.com/DFRobot/DFRobot_DHT20)
+| Library | Notes |
+|---------|-------|
+| DFRobot_DHT20 | [GitHub](https://github.com/DFRobot/DFRobot_DHT20) |
+| LiquidCrystal | Built-in |
+| WiFiS3 | Built-in with R4 board package |
 
-2. **LiquidCrystal** - Built-in with Arduino IDE (no install needed)
-
-3. **WiFiS3** - Built-in with Arduino Uno R4 WiFi board package
-
-**Note:** Make sure you have the Arduino Uno R4 board package installed:
-- **Tools > Board > Boards Manager** > Search "Arduino UNO R4" > Install
+Board package: **Tools > Boards Manager** > search "Arduino UNO R4" > Install
 
 ## Setup
-
-### 1. Install Libraries
-
-Open Arduino IDE and install the required libraries listed above.
-
-### 2. Configure Credentials
 
 ```bash
 cd arduino/sensor_node
 cp secrets.example.h secrets.h
 ```
 
-Edit `secrets.h` with your credentials:
+Edit `secrets.h`:
 
 ```cpp
 #define WIFI_SSID     "your-wifi-network"
 #define WIFI_PASSWORD "your-wifi-password"
-
 #define SUPABASE_URL      "https://your-project-id.supabase.co"
-#define SUPABASE_ANON_KEY "your-anon-key-from-supabase-settings"
+#define SUPABASE_ANON_KEY "your-anon-key"
 ```
 
-Find your Supabase credentials at: **Supabase Dashboard > Settings > API**
-
-### 3. Set Device ID
-
-Edit `sensor_node.ino` and set the device ID (line ~29):
+Set device ID in `sensor_node.ino`:
 
 ```cpp
-#define DEVICE_ID "node1"  // Use "node1" or "node2"
+#define DEVICE_ID "node1"  // or "node2"
 ```
 
-### 4. Upload
+Upload: **Tools > Board > Arduino UNO R4 WiFi** > Select port > Upload
 
-1. Connect your Arduino Uno R4 WiFi via USB
-2. **Tools > Board** > Select "Arduino UNO R4 WiFi"
-3. **Tools > Port** > Select your board's port
-4. Click Upload
-
-## Configuration Options
-
-Edit these in `sensor_node.ino`:
+## Configuration
 
 | Constant | Default | Description |
 |----------|---------|-------------|
-| `DEVICE_ID` | `"node1"` | Unique identifier for this sensor |
-| `READ_INTERVAL_MS` | `12000` | Milliseconds between readings (12s) |
-| `LCD_RS`, `LCD_EN`, etc. | Various | LCD pin assignments |
+| `DEVICE_ID` | `"node1"` | Unique identifier sent with each reading |
+| `READ_INTERVAL_MS` | `15000` | Sensor read + LCD update interval (15s) |
+| `SEND_INTERVAL_MS` | `180000` | Supabase POST interval (3 min, sends average of accumulated reads) |
 
 ## How It Works
 
-1. **Startup**: Connects to WiFi, initializes sensor and LCD
-2. **Loop**: Every `READ_INTERVAL_MS`:
-   - Reads temperature (Celsius) and humidity from DHT20
-   - Displays readings on LCD (temperature shown in Fahrenheit)
-   - Sends data to Supabase via HTTPS POST
-3. **Display**: Shows current temp/humidity, connection status
+1. Connects to WiFi, initializes DHT20 and LCD
+2. Every 15 seconds: reads sensor, updates LCD, accumulates values
+3. Every 3 minutes: averages accumulated readings, POSTs to Supabase, resets accumulators
+4. LCD always shows the latest individual reading in Fahrenheit
+
+Temperature is stored in Celsius in the database and converted to Fahrenheit in the web UI.
 
 ## Data Format
-
-Readings are sent to Supabase as JSON:
 
 ```json
 {
@@ -124,39 +100,21 @@ Readings are sent to Supabase as JSON:
 }
 ```
 
-- **Temperature** is stored in **Celsius** (converted to Fahrenheit in the web UI)
-- **Humidity** is stored as a **percentage** (0-100)
-- `created_at` timestamp is added automatically by Supabase
+`created_at` is added automatically by Supabase.
 
 ## Troubleshooting
 
-### "No WiFi Module!"
-- Check you selected "Arduino UNO R4 WiFi" (not "UNO R4 Minima")
+**"No WiFi Module!"** — Wrong board selected. Use "Arduino UNO R4 WiFi", not "UNO R4 Minima".
 
-### "Sensor Error!"
-- Check DHT20 wiring (SDA/SCL connections)
-- Ensure DHT20 library is installed
-- DHT20 requires 100ms delay after power-on
+**"Sensor Error!"** — Check DHT20 SDA/SCL wiring. DHT20 needs ~100ms after power-on before first read.
 
-### "WiFi Failed!"
-- Verify SSID and password in `secrets.h`
-- Check WiFi network is 2.4GHz (R4 WiFi doesn't support 5GHz)
-- Move closer to router
+**"WiFi Failed!"** — Verify `secrets.h` credentials. R4 WiFi only supports 2.4GHz.
 
-### LCD shows nothing or garbled text
-- Adjust contrast potentiometer
-- Check all LCD wiring connections
-- Verify pin assignments match your wiring
+**LCD blank or garbled** — Adjust contrast pot. Verify all pin connections match the defines in code.
 
-### Data not appearing in Supabase
-- Check serial monitor for error messages
-- Verify Supabase URL and anon key
-- Ensure `readings` table exists (run `schema.sql`)
-- Check RLS policies allow anonymous inserts
+**Data not in Supabase** — Check serial monitor (115200 baud) for POST errors. Verify URL, anon key, and that `readings` table exists with anon INSERT policy.
 
-## Serial Monitor
-
-Open **Tools > Serial Monitor** (115200 baud) to see debug output:
+## Serial Output
 
 ```
 === IoT Temp/Humidity Sensor ===
@@ -164,13 +122,9 @@ Device ID: node1
 Initializing DHT20... OK
 Connecting to WiFi: MyNetwork...
 Connected! IP: 192.168.1.42
-Temp: 22.5C (72.5F), Humidity: 45.2%
-Data sent to Supabase OK
+Reading #1 | Temp: 22.5C (72.5F), Humidity: 45.2%
+Reading #2 | Temp: 22.6C (72.7F), Humidity: 45.1%
+...
+>> Sending average of 12 readings | Avg Temp: 22.55C, Avg Humidity: 45.15%
+>> Average data sent to Supabase OK
 ```
-
-## Power Consumption
-
-For battery-powered deployments, consider:
-- Increasing `READ_INTERVAL_MS` to reduce transmissions
-- Using deep sleep between readings (requires code modification)
-- The R4 WiFi draws ~100mA when active with WiFi

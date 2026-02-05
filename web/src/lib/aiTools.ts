@@ -2,10 +2,19 @@ import { createClient } from '@supabase/supabase-js';
 import {
   DeploymentWithCount,
   DeploymentStats,
+  DeviceStats,
+  ChartSample,
   Reading,
   Deployment,
   celsiusToFahrenheit,
 } from './supabase';
+
+const TIMEZONE = 'America/Phoenix';
+
+// Convert a UTC ISO timestamp to a human-readable Phoenix time string for AI responses
+function toLocalTime(utcString: string): string {
+  return new Date(utcString).toLocaleString('en-US', { timeZone: TIMEZONE });
+}
 
 // Server-side Supabase client for AI tools
 // Uses service role key to bypass RLS (auth is verified at API route level)
@@ -82,7 +91,7 @@ export async function executeGetDeploymentStats(params: {
   const cappedIds = params.deployment_ids.slice(0, MAX_DEPLOYMENT_IDS);
 
   const { data, error } = await supabase.rpc('get_deployment_stats', {
-    p_deployment_ids: cappedIds,
+    deployment_ids: cappedIds,
   });
 
   if (error) {
@@ -116,14 +125,14 @@ export async function executeGetReadings(params: {
     .select('*')
     .eq('device_id', deployment.device_id)
     .gte('created_at', deployment.started_at)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false });
 
   if (deployment.ended_at) {
     query = query.lte('created_at', deployment.ended_at);
   }
 
-  // Cap readings to prevent abuse (default 100, max 500)
-  const limit = Math.min(params.limit || 100, 500);
+  // Cap readings (default 100, max 2000 for full analysis)
+  const limit = Math.min(params.limit || 100, 2000);
   query = query.limit(limit);
 
   const { data, error } = await query;
@@ -136,14 +145,65 @@ export async function executeGetReadings(params: {
   return data || [];
 }
 
+export async function executeGetDeviceStats(params: {
+  start: string;
+  end: string;
+  device_id?: string;
+}): Promise<DeviceStats[]> {
+  const supabase = getServerClient();
+
+  const { data, error } = await supabase.rpc('get_device_stats', {
+    p_start: params.start,
+    p_end: params.end,
+    p_device_id: params.device_id || null,
+  });
+
+  if (error) {
+    console.error('Error fetching device stats:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function executeGetChartData(params: {
+  start: string;
+  end: string;
+  bucket_minutes: number;
+  device_id?: string;
+}): Promise<ChartSample[]> {
+  const supabase = getServerClient();
+
+  const { data, error } = await supabase.rpc('get_chart_samples', {
+    p_start: params.start,
+    p_end: params.end,
+    p_bucket_minutes: Math.max(1, Math.round(params.bucket_minutes)),
+    p_device_id: params.device_id || null,
+  });
+
+  if (error) {
+    console.error('Error fetching chart data:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
 // Main tool dispatcher
 export async function executeTool(
   name: string,
   params: Record<string, unknown>
 ): Promise<unknown> {
   switch (name) {
-    case 'get_deployments':
-      return executeGetDeployments(params as Parameters<typeof executeGetDeployments>[0]);
+    case 'get_deployments': {
+      const deployments = await executeGetDeployments(params as Parameters<typeof executeGetDeployments>[0]);
+      return deployments.map((d) => ({
+        ...d,
+        started_at: toLocalTime(d.started_at),
+        ended_at: d.ended_at ? toLocalTime(d.ended_at) : null,
+        created_at: toLocalTime(d.created_at),
+      }));
+    }
     case 'get_deployment_stats': {
       const stats = await executeGetDeploymentStats(params as Parameters<typeof executeGetDeploymentStats>[0]);
       // Convert temps to Fahrenheit for AI response
@@ -156,10 +216,27 @@ export async function executeTool(
     }
     case 'get_readings': {
       const readings = await executeGetReadings(params as Parameters<typeof executeGetReadings>[0]);
-      // Convert temps to Fahrenheit
       return readings.map((r) => ({
         ...r,
+        created_at: toLocalTime(r.created_at),
         temperature_f: celsiusToFahrenheit(r.temperature),
+      }));
+    }
+    case 'get_device_stats': {
+      const deviceStats = await executeGetDeviceStats(params as Parameters<typeof executeGetDeviceStats>[0]);
+      return deviceStats.map((s) => ({
+        ...s,
+        temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
+        temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
+        temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
+      }));
+    }
+    case 'get_chart_data': {
+      const chartData = await executeGetChartData(params as Parameters<typeof executeGetChartData>[0]);
+      return chartData.map((s) => ({
+        ...s,
+        bucket_ts: toLocalTime(s.bucket_ts),
+        temperature_avg_f: celsiusToFahrenheit(s.temperature_avg),
       }));
     }
     default:

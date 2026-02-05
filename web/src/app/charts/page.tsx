@@ -308,9 +308,9 @@ export default function ChartsPage() {
             {TIME_RANGES.map((range) => (
               <button
                 key={range.hours}
-                onClick={() => { setSelectedRange(range.hours); setDeploymentFilter(''); }}
+                onClick={() => setSelectedRange(range.hours)}
                 className={`px-5 py-2.5 text-sm rounded-xl transition-all ${
-                  selectedRange === range.hours && !deploymentFilter
+                  selectedRange === range.hours
                     ? 'nav-active text-white font-semibold'
                     : 'text-[#a0aec0] hover:text-white hover:bg-white/5'
                 }`}

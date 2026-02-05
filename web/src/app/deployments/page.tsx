@@ -39,7 +39,6 @@ export default function DeploymentsPage() {
       getDistinctLocations(),
     ]);
 
-    // Filters are now handled server-side
     const filtered = deps;
 
     setDeployments(filtered);

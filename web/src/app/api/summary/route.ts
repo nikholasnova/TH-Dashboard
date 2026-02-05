@@ -134,8 +134,9 @@ export async function POST() {
 
   const getHourlyPeak = (deviceReadings: Reading[], metric: 'temperature' | 'humidity') => {
     const buckets = Array.from({ length: 24 }, () => ({ sum: 0, count: 0 }));
+    const hourFormatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/Phoenix' });
     for (const r of deviceReadings) {
-      const hour = new Date(r.created_at).getHours();
+      const hour = parseInt(hourFormatter.format(new Date(r.created_at)), 10);
       const value = metric === 'temperature'
         ? celsiusToFahrenheit(r.temperature)
         : r.humidity;

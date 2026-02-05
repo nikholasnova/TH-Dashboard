@@ -6,11 +6,9 @@ import { Navbar } from '@/components/Navbar';
 import {
   DeviceStats,
   DeploymentWithCount,
-  DeploymentStats,
   getDeviceStats,
   getDeployments,
   getDeployment,
-  getDeploymentStats,
   celsiusToFahrenheit,
   celsiusDeltaToFahrenheit,
 } from '@/lib/supabase';
@@ -25,7 +23,6 @@ const TIME_RANGES = [
 
 export default function ComparePage() {
   const [stats, setStats] = useState<DeviceStats[]>([]);
-  const [deploymentStats, setDeploymentStats] = useState<DeploymentStats | null>(null);
   const [selectedRange, setSelectedRange] = useState(24);
   const [isLoading, setIsLoading] = useState(true);
   const [customStart, setCustomStart] = useState('');
@@ -66,17 +63,15 @@ export default function ComparePage() {
     if (isCustom && !isCustomValid && !deploymentFilter) return;
     setIsLoading(true);
 
+    const { start, end } = await getRangeBounds();
+
     if (deploymentFilter) {
-      // Fetch deployment-specific stats
-      const depStats = await getDeploymentStats([parseInt(deploymentFilter, 10)]);
-      setDeploymentStats(depStats[0] || null);
-      setStats([]);
+      const dep = await getDeployment(parseInt(deploymentFilter, 10));
+      const data = await getDeviceStats({ start, end, device_id: dep?.device_id || undefined });
+      setStats(data);
     } else {
-      // Fetch device stats for time range
-      const { start, end } = await getRangeBounds();
       const data = await getDeviceStats({ start, end, device_id: deviceFilter || undefined });
       setStats(data);
-      setDeploymentStats(null);
     }
     setIsLoading(false);
   }, [selectedRange, isCustom, isCustomValid, customStart, customEnd, deviceFilter, deploymentFilter, getRangeBounds]);
@@ -86,6 +81,7 @@ export default function ComparePage() {
   }, [fetchData]);
 
   const filteredDeployments = deviceFilter ? deployments.filter(d => d.device_id === deviceFilter) : deployments;
+  const activeDeployment = deploymentFilter ? deployments.find(d => d.id.toString() === deploymentFilter) : null;
 
   const statsByDevice = useMemo(() => {
     const map: Record<string, DeviceStats | null> = { node1: null, node2: null };
@@ -119,12 +115,6 @@ export default function ComparePage() {
   const node1TempStdF = node1?.temp_stddev != null ? celsiusDeltaToFahrenheit(node1.temp_stddev) : undefined;
   const node2TempStdF = node2?.temp_stddev != null ? celsiusDeltaToFahrenheit(node2.temp_stddev) : undefined;
 
-  // Deployment stats converted to F
-  const depTempAvgF = deploymentStats?.temp_avg != null ? celsiusToFahrenheit(deploymentStats.temp_avg) : undefined;
-  const depTempMinF = deploymentStats?.temp_min != null ? celsiusToFahrenheit(deploymentStats.temp_min) : undefined;
-  const depTempMaxF = deploymentStats?.temp_max != null ? celsiusToFahrenheit(deploymentStats.temp_max) : undefined;
-  const depTempStdF = deploymentStats?.temp_stddev != null ? celsiusDeltaToFahrenheit(deploymentStats.temp_stddev) : undefined;
-
   return (
     <AuthGate>
       <div className="min-h-screen">
@@ -143,8 +133,8 @@ export default function ComparePage() {
           {/* Time Range */}
           <div className="glass-card p-2 flex gap-1">
             {TIME_RANGES.map((range) => (
-              <button key={range.hours} onClick={() => { setSelectedRange(range.hours); setDeploymentFilter(''); }}
-                className={`px-5 py-2.5 text-sm rounded-xl transition-all ${selectedRange === range.hours && !deploymentFilter ? 'nav-active text-white font-semibold' : 'text-[#a0aec0] hover:text-white hover:bg-white/5'}`}>
+              <button key={range.hours} onClick={() => setSelectedRange(range.hours)}
+                className={`px-5 py-2.5 text-sm rounded-xl transition-all ${selectedRange === range.hours ? 'nav-active text-white font-semibold' : 'text-[#a0aec0] hover:text-white hover:bg-white/5'}`}>
                 {range.label}
               </button>
             ))}
@@ -186,10 +176,10 @@ export default function ComparePage() {
         </div>
 
         {/* Deployment indicator */}
-        {deploymentFilter && deploymentStats && (
+        {deploymentFilter && activeDeployment && (
           <div className="mb-6 px-4 py-2 rounded-lg bg-[#0075ff]/20 border border-[#0075ff]/30 inline-flex items-center gap-2">
             <span className="text-sm text-white">
-              Showing: {deploymentStats.deployment_name} ({deploymentStats.location})
+              Showing: {activeDeployment.name} ({activeDeployment.location})
             </span>
             <button onClick={() => setDeploymentFilter('')} className="text-[#a0aec0] hover:text-white">✕</button>
           </div>
@@ -220,31 +210,7 @@ export default function ComparePage() {
               </div>
             </div>
           </>
-        ) : deploymentStats ? (
-          // Single deployment view
-          <div className="fade-in">
-            <div className="glass-card card-stats p-8 mb-8">
-              <h2 className="text-2xl font-bold text-white mb-6">Temperature (°F) - {deploymentStats.deployment_name}</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 text-center">
-                <div><p className="text-[#a0aec0] text-sm mb-2">Average</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(depTempAvgF)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Minimum</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(depTempMinF)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Maximum</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(depTempMaxF)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Std Dev</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(depTempStdF, 2)}</p></div>
-              </div>
-            </div>
-            <div className="glass-card card-stats p-8">
-              <h2 className="text-2xl font-bold text-white mb-6">Humidity (%) - {deploymentStats.deployment_name}</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 text-center">
-                <div><p className="text-[#a0aec0] text-sm mb-2">Average</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_avg)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Minimum</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_min)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Maximum</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_max)}</p></div>
-                <div><p className="text-[#a0aec0] text-sm mb-2">Std Dev</p><p className="text-2xl sm:text-3xl font-bold text-white">{formatValue(deploymentStats.humidity_stddev, 2)}</p></div>
-              </div>
-              <p className="text-center text-[#a0aec0] mt-6">{(deploymentStats.reading_count ?? 0).toLocaleString()} readings</p>
-            </div>
-          </div>
         ) : (
-          // Standard device comparison view
           <div className="fade-in">
             <div className="glass-card card-stats p-4 sm:p-8 mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Temperature (°F)</h2>

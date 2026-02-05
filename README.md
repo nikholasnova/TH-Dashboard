@@ -1,39 +1,35 @@
 # IoT Temp/Humidity Dashboard
 
-Real-time monitoring from multiple sensor nodes. Built for an intro engineering class, with production-style patterns (auth, RLS, and time-series aggregation).
+Real-time environmental monitoring from multiple sensor nodes with historical analytics, deployment tracking, and AI-powered data analysis.
 
 ## Architecture
 
 ```
 ┌─────────────────┐                     ┌─────────────────┐
-│  Arduino R4     │ ── HTTPS POST ───►  │    Supabase     │
+│  Arduino R4     │ ── HTTPS POST ───>  │    Supabase     │
 │  WiFi + DHT20   │                     │    (Postgres)   │
 └─────────────────┘                     └────────┬────────┘
                                                  │
-┌─────────────────┐                              ▼
-│  Arduino R4     │ ── HTTPS POST ───►  ┌─────────────────┐
+┌─────────────────┐                              v
+│  Arduino R4     │ ── HTTPS POST ───>  ┌─────────────────┐
 │  WiFi + DHT20   │                     │   Next.js App   │
 └─────────────────┘                     │   (Vercel)      │
                                         └─────────────────┘
 ```
 
+Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute windows, and POST to Supabase. The dashboard polls every 30 seconds.
+
 ## Features
 
-- **Auth**: Shared login (single account) protects dashboard
-- Live readings from 2 nodes (30s polling)
-- Deployments: track device placement sessions (location + time range)
-- Historical charts (1h/6h/24h/7d/custom) with device/deployment filters
-- Side-by-side stats comparison with filtering
-- AI chat with tool calling (Gemini)
-- CSV export
-
-## Design Notes
-
-- **End-to-end pipeline**: Arduino → HTTPS → Supabase → Next.js dashboard (Vercel) with real-time and historical views.
-- **Security**: Supabase RLS requires authenticated reads; API routes enforce auth; service role key only used server-side.
-- **Scalable analytics**: Aggregations and bucketing are done via SQL RPC functions.
-- **AI tool orchestration**: Gemini tool-calling constrained to explicit, typed functions (deployments, stats, readings) with bounds on result size.
-- **Practical UX**: Mobile-friendly layout, responsive nav, and graceful empty/loading states.
+- Live readings from multiple nodes (30s polling, offline detection after 5 min)
+- Deployment tracking: group readings by device + location + time range
+- Historical charts (1h/6h/24h/7d/custom) with device and deployment filters
+- Side-by-side stats comparison (avg, min, max, stddev, delta)
+- AI chat with Gemini tool-calling (queries deployments, stats, readings)
+- AI-generated summaries with rate limiting
+- CSV export per time range
+- Shared login via Supabase Auth
+- Mobile-responsive layout
 
 ## Stack
 
@@ -43,21 +39,33 @@ Real-time monitoring from multiple sensor nodes. Built for an intro engineering 
 | Database | Supabase Postgres |
 | Auth | Supabase Auth (email/password) |
 | Web | Next.js 16 (App Router), Nivo charts |
-| AI | Google Gemini |
+| AI | Google Gemini 2.5 Flash |
 | Hosting | Vercel |
 
 ## Data Model
 
-- **readings**: temperature/humidity from each device (Celsius in DB, converted in UI).
-- **deployments**: contextual grouping by device + location + time range.
-- **ai_requests**: rate limiting metadata for AI endpoints.
+| Table | Purpose |
+|-------|---------|
+| `readings` | Temperature (Celsius) and humidity per device. Converted to Fahrenheit in UI. |
+| `deployments` | Device placement sessions: device + location + time range. Readings associate by matching `device_id` and `created_at` within the window. |
+| `ai_requests` | Rate limiting metadata for AI endpoints (15-min cooldown). |
 
-## Security & Access Control
+Device IDs: `node1`, `node2`
 
-- **RLS**: only authenticated users can read dashboard data
-- **Device writes**: anon INSERT allowed for Arduino fast path (i took the trade-off, integrity vs simplicity).
-- **API auth**: `/api/chat` and `/api/keepalive` return 401 if unauthenticated or missing secret.
-- **Server-only secrets**: `SUPABASE_SERVICE_ROLE_KEY` and `GOOGLE_API_KEY` never exposed to client.
+## API Routes
+
+| Route | Auth | Purpose |
+|-------|------|---------|
+| `POST /api/chat` | Required | AI chat with tool-calling. Accepts `{ message, history }`. Streams response. |
+| `POST /api/summary` | Required | One-shot 24h data summary via Gemini. Rate limited (15 min). |
+| `POST /api/keepalive` | CRON_SECRET | Prevents Supabase free-tier from pausing. |
+
+## Security
+
+- **RLS**: Authenticated users only for SELECT on dashboard data.
+- **Device writes**: Anon INSERT for Arduino fast path. Trade-off: data integrity relies on key secrecy rather than per-device auth.
+- **API routes**: Return 401 if unauthenticated or missing secret.
+- **Server-only secrets**: `SUPABASE_SERVICE_ROLE_KEY` and `GOOGLE_API_KEY` never exposed to client. Service role key bypasses RLS only after auth is verified at the request level.
 
 ## Setup
 
@@ -65,23 +73,20 @@ Real-time monitoring from multiple sensor nodes. Built for an intro engineering 
 
 1. Create project at [supabase.com](https://supabase.com)
 2. Run `supabase/schema.sql` in SQL Editor
-3. Grab these from **Settings → API**:
-   - Project URL
-   - `anon` public key
-   - `service_role` secret key
+3. Grab from **Settings > API**: Project URL, `anon` public key, `service_role` secret key
 
-### 2. Supabase Auth (Dashboard Login)
+### 2. Supabase Auth
 
-1. Go to **Authentication → Users → Add user**
-2. Create a user with email + password (this is your shared login)
-3. Make sure "Auto Confirm User" is checked (or confirm manually)
+1. Go to **Authentication > Users > Add user**
+2. Create a user with email + password
+3. Enable "Auto Confirm User" (or confirm manually)
 
 ### 3. Web (Local Dev)
 
 ```bash
 cd web
 cp .env.example .env.local
-# fill in your keys (see Env Vars section below)
+# Fill in your keys (see Env Vars below)
 npm install
 npm run dev
 ```
@@ -90,74 +95,62 @@ Open [http://localhost:3000](http://localhost:3000) and log in with your Supabas
 
 ### 4. Arduino
 
-See [arduino/sensor_node/README.md](arduino/sensor_node/README.md) for wiring + firmware.
+See [arduino/sensor_node/README.md](arduino/sensor_node/README.md) for wiring and firmware setup.
 
-Quick version:
-1. Copy `secrets.example.h` → `secrets.h`
-2. Fill in WiFi + Supabase creds
-3. Set `DEVICE_ID` to `"node1"` or `"node2"`
-4. Upload via Arduino IDE
+```bash
+cd arduino/sensor_node
+cp secrets.example.h secrets.h
+# Fill in WiFi + Supabase credentials
+# Set DEVICE_ID to "node1" or "node2"
+# Upload via Arduino IDE
+```
 
 ## Deploy to Vercel
 
 1. Push repo to GitHub
-2. Import repo in [Vercel](https://vercel.com)
-3. Set **Root Directory** to `web`
-4. Add env vars (see table below)
-5. Deploy
-6. (Optional) Set up Vercel Cron for `/api/keepalive` with `CRON_SECRET`
+2. Import in [Vercel](https://vercel.com), set **Root Directory** to `web`
+3. Add env vars (see table below)
+4. Deploy
+5. (Optional) Set up Vercel Cron for `/api/keepalive` with `CRON_SECRET`
 
-Arduinos will auto-connect once they have valid `secrets.h` — no code changes needed.
+Arduinos connect automatically once `secrets.h` is configured.
 
 ## Project Structure
 
 ```
-├── arduino/sensor_node/       # firmware + wiring docs
-├── supabase/schema.sql        # tables, RLS policies, functions
+├── arduino/sensor_node/       # Firmware + wiring docs
+├── supabase/schema.sql        # Tables, RLS policies, RPC functions
 ├── web/src/
 │   ├── app/
-│   │   ├── page.tsx           # live dashboard
-│   │   ├── charts/            # historical charts
-│   │   ├── compare/           # stats comparison
-│   │   ├── deployments/       # deployment management
-│   │   ├── login/             # login page
+│   │   ├── page.tsx           # Live dashboard
+│   │   ├── charts/            # Historical charts
+│   │   ├── compare/           # Stats comparison
+│   │   ├── deployments/       # Deployment management
+│   │   ├── login/             # Auth page
 │   │   └── api/               # chat, summary, keepalive
 │   ├── components/
-│   │   ├── AuthProvider.tsx   # auth context
-│   │   ├── AuthGate.tsx       # protects pages
-│   │   ├── Navbar.tsx         # responsive nav with hamburger menu
-│   │   ├── UserMenu.tsx       # profile dropdown
+│   │   ├── AuthProvider.tsx    # Auth context
+│   │   ├── AuthGate.tsx       # Route protection
+│   │   ├── Navbar.tsx
 │   │   ├── LiveReadingCard.tsx
 │   │   ├── DeploymentModal.tsx
 │   │   └── AIChat.tsx
 │   └── lib/
-│       ├── supabase.ts        # client + queries
+│       ├── supabase.ts        # Client + queries + RPC wrappers
 │       ├── auth.ts            # signIn, signOut, getSession
-│       ├── serverAuth.ts      # server-side session check
+│       ├── serverAuth.ts      # Server-side session check
 │       └── aiTools.ts         # Gemini tool execution
 ```
-
-## Data Format
-
-Stored in Celsius, converted to Fahrenheit in UI.
-
-```json
-{"device_id": "node1", "temperature": 22.5, "humidity": 45.2}
-```
-
-Device IDs: `node1`, `node2`
 
 ## Env Vars
 
 | Var | Where | Notes |
 |-----|-------|-------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Vercel + local | public |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel + local | public |
-| `SUPABASE_SERVICE_ROLE_KEY` | Vercel + local | **secret**, server-only |
-| `GOOGLE_API_KEY` | Vercel + local | server-only, for AI chat |
-| `CRON_SECRET` | Vercel + local | protects `/api/keepalive` |
-
-Your `.env.local` should look like:
+| `NEXT_PUBLIC_SUPABASE_URL` | Vercel + local | Public |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel + local | Public |
+| `SUPABASE_SERVICE_ROLE_KEY` | Vercel + local | **Secret**, server-only |
+| `GOOGLE_API_KEY` | Vercel + local | Server-only, Gemini |
+| `CRON_SECRET` | Vercel + local | Protects `/api/keepalive` |
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -167,65 +160,53 @@ GOOGLE_API_KEY=your-google-api-key
 CRON_SECRET=some-random-secret
 ```
 
-## Auth Notes
+## Disabling Auth
 
-- **Dashboard requires login** — all pages redirect to `/login` if not authenticated
-- **Arduino uses anon key** — devices can still POST readings without auth (fast path)
-- **RLS policies** require `authenticated` role for SELECT on most tables
-- **API routes** check session before processing; return 401 if unauthenticated
-- **Service role key** is used server-side to bypass RLS after auth is verified
+To run as a fully public dashboard:
 
-If you want a fully public dashboard (no login), you can:
 1. Remove `<AuthGate>` wrappers from pages
 2. Revert RLS policies to allow `anon` SELECT
 
-## Performance & Cost Notes
+## Performance Notes
 
-- **RPC aggregations**: charts and stats use Postgres functions to avoid large client transfers.
-- **AI guardrails**: tool calls are capped (e.g., max deployment IDs, max readings).
-- **Polling**: live readings refresh every 30s to balance freshness and API load.
+- **Server-side aggregation**: Charts and stats use Postgres RPC functions (`get_device_stats`, `get_chart_samples`, `get_deployment_stats`) to avoid transferring raw readings to the client.
+- **Bucketing**: Chart queries downsample readings into time buckets (30s for short ranges, up to 1h for 7d+ ranges).
+- **AI guardrails**: Tool calls cap result sizes (max deployment IDs, max readings per query, 5-iteration tool-call loop limit).
+- **Polling**: Dashboard refreshes every 30s. Sensors average over 3 minutes to reduce write volume.
 
 ## Trade-offs
 
-- **Shared login** instead of per-user accounts (simpler ops, less UX complexity).
-- **Anon insert for devices** (keeps hardware simple; data integrity relies on key secrecy).
-
-## Future Work
-
-- Replace anon device inserts with an ingest endpoint + device secret.
-- Add per-deployment alerts (email/notification when thresholds are crossed).
-- Persist AI summaries for historical insights.
-- Add unit tests for data transformations and RPC parameter validation.
-- Forcasting
+- **Shared login** instead of per-user accounts. Simpler ops, no user management overhead.
+- **Anon INSERT for devices** keeps firmware simple. Data integrity relies on key secrecy rather than per-device authentication.
+- **No foreign key between readings and deployments.** Association is implicit via `device_id` + timestamp window. Simpler schema, but queries must always join on time bounds.
 
 ## Troubleshooting
 
 **Can't log in**
-- Make sure you created the Supabase Auth user
-- Check email is confirmed (or "Auto Confirm" was checked)
+- Verify the Supabase Auth user exists and is confirmed
 - Try lowercase email
 
 **Arduino won't connect to WiFi**
 - Check `secrets.h` SSID/password
-- R4 only supports 2.4GHz
+- R4 WiFi only supports 2.4GHz networks
 
-**No data showing in dashboard**
-- Check Supabase table has rows
-- Verify env vars are set (check browser console)
-- Make sure you're logged in
+**No data in dashboard**
+- Check Supabase table for rows
+- Verify env vars (check browser console for errors)
+- Confirm you're logged in
 
 **Charts/Compare pages empty**
-- Run the updated `schema.sql` — function signatures changed
-- Grant execute to `authenticated` role (see schema.sql)
+- Run the latest `schema.sql` — RPC function signatures may have changed
+- Verify `EXECUTE` is granted to `authenticated` role
 
 **AI chat not responding**
-- Confirm `GOOGLE_API_KEY` is set in Vercel
+- Confirm `GOOGLE_API_KEY` is set
 - Check browser console for errors
-- Make sure you're logged in (AI routes require auth)
+- AI routes require authentication
 
 **/api/keepalive returns 401**
 - Set `CRON_SECRET` in env vars
-- Vercel Cron needs to send `Authorization: Bearer <CRON_SECRET>` header
+- Vercel Cron must send `Authorization: Bearer <CRON_SECRET>` header
 
 ## License
 

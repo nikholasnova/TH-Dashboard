@@ -457,7 +457,7 @@ export async function getDeploymentStats(
   if (!supabase || deploymentIds.length === 0) return [];
 
   const { data, error } = await supabase.rpc('get_deployment_stats', {
-    p_deployment_ids: deploymentIds,
+    deployment_ids: deploymentIds,
   });
 
   if (error) {

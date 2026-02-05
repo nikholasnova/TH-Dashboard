@@ -8,16 +8,36 @@ You help users understand their sensor data across different deployments and loc
 CAPABILITIES:
 - Query deployment information (locations, time ranges, devices)
 - Get statistics for deployments (temperature/humidity avg, min, max, stddev)
-- Retrieve raw readings when detailed analysis is needed
+- Get overall device statistics across any time range (not limited to deployments)
+- Retrieve raw readings for detailed analysis or to find the latest values
+- Get time-bucketed trend data for identifying patterns over time
 - Compare deployments across different locations, devices, or time periods
 
+AVAILABLE TOOLS:
+- get_deployments: List deployments with optional filters (device, location, active status)
+- get_deployment_stats: Get aggregate stats for specific deployments by ID
+- get_readings: Get raw readings for a deployment (most recent first, up to 2000)
+- get_device_stats: Get overall stats per device for any time range — not deployment-scoped. Great for broad analysis.
+- get_chart_data: Get time-bucketed averages for trend analysis (e.g. hourly or daily averages)
+
+HOW TO ANSWER COMMON QUESTIONS:
+- "What's the last/latest/current temperature?": Use get_deployments to find the right deployment (filter by location if mentioned), then use get_readings with limit=1 to get the most recent reading.
+- "Compare deployments": Use get_deployment_stats with the relevant deployment IDs.
+- "What's the temperature in [location]?": Use get_deployments with the location filter, then get_readings with limit=1 for the latest value, or get_deployment_stats for an overview.
+- "Analyze all my data" / "Give me a full analysis": Use get_device_stats with a broad time range for overall stats, then get_chart_data with appropriate buckets to identify trends. Combine with get_deployments for context on locations.
+- "Show me trends" / "How has temperature changed?": Use get_chart_data with appropriate bucket sizes (15-60 min for a day, 1440 min for weeks/months).
+- If a user references a room, location, or place name, search deployments by location to find matching deployments.
+
 GUIDELINES:
-- Use get_deployment_stats for comparisons (more efficient than raw readings)
+- Use get_device_stats or get_deployment_stats for aggregate comparisons — more efficient than raw readings
+- Use get_chart_data for trend analysis over time
+- Use get_readings with a small limit for latest values, or a higher limit (up to 2000) when the user needs detailed data analysis
 - When comparing, always note the time periods being compared
 - Temperatures are provided in Fahrenheit
 - Only discuss sensor data, deployments, and environmental analysis
 - If asked about unrelated topics, politely redirect to sensor data
 - Never fabricate data - if a deployment doesn't exist, say so
+- This is a school data-gathering tool, so be helpful with analysis, observations, and insights
 
 Keep responses concise and focused on actionable insights.`;
 
@@ -53,20 +73,48 @@ const getDeploymentStatsDecl: FunctionDeclaration = {
 
 const getReadingsDecl: FunctionDeclaration = {
   name: 'get_readings',
-  description: 'Get raw readings for a deployment. Use sparingly - prefer get_deployment_stats.',
+  description: 'Get sensor readings for a deployment, ordered most recent first. Use with limit=1 to get the latest reading. Use get_deployment_stats instead for aggregate stats (avg, min, max). For full data analysis, use a higher limit (up to 2000).',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
       deployment_id: { type: SchemaType.NUMBER, description: 'The deployment ID' },
-      limit: { type: SchemaType.NUMBER, description: 'Max readings to return (default 100)' },
+      limit: { type: SchemaType.NUMBER, description: 'Max readings to return (default 100, max 2000). Use 1 for latest reading, higher values for full analysis.' },
     },
     required: ['deployment_id'],
   },
 };
 
+const getDeviceStatsDecl: FunctionDeclaration = {
+  name: 'get_device_stats',
+  description: 'Get overall temperature and humidity statistics per device for a time range. Not deployment-scoped — covers all readings in the time window. Returns avg, min, max, stddev, reading_count per device. Useful for broad analysis across all data.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      start: { type: SchemaType.STRING, description: 'Start of time range (ISO 8601 datetime, e.g. "2025-01-01T00:00:00Z"). Use a very early date for all-time stats.' },
+      end: { type: SchemaType.STRING, description: 'End of time range (ISO 8601 datetime). Use current time for up-to-now stats.' },
+      device_id: { type: SchemaType.STRING, description: 'Optional device filter (node1 or node2). Omit for all devices.' },
+    },
+    required: ['start', 'end'],
+  },
+};
+
+const getChartDataDecl: FunctionDeclaration = {
+  name: 'get_chart_data',
+  description: 'Get time-bucketed averages for charting and trend analysis. Groups readings into time buckets and returns the average temperature/humidity per bucket per device. Useful for identifying trends, patterns, and changes over time.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      start: { type: SchemaType.STRING, description: 'Start of time range (ISO 8601 datetime)' },
+      end: { type: SchemaType.STRING, description: 'End of time range (ISO 8601 datetime)' },
+      bucket_minutes: { type: SchemaType.NUMBER, description: 'Size of each time bucket in minutes (e.g. 15 for 15-min averages, 60 for hourly, 1440 for daily)' },
+      device_id: { type: SchemaType.STRING, description: 'Optional device filter (node1 or node2). Omit for all devices.' },
+    },
+    required: ['start', 'end', 'bucket_minutes'],
+  },
+};
+
 export async function POST(req: Request) {
   try {
-    // Check authentication
     const user = await getServerUser();
     if (!user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -84,7 +132,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // Convert frontend message history to Gemini format
+    // Gemini uses 'model' instead of 'assistant'
     const chatHistory = (history || []).map((msg: { role: string; content: string }) => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }],
@@ -104,18 +152,16 @@ export async function POST(req: Request) {
       model: 'gemini-2.5-flash',
       systemInstruction: SYSTEM_PROMPT,
       tools: [{
-        functionDeclarations: [getDeploymentsDecl, getDeploymentStatsDecl, getReadingsDecl],
+        functionDeclarations: [getDeploymentsDecl, getDeploymentStatsDecl, getReadingsDecl, getDeviceStatsDecl, getChartDataDecl],
       }],
     });
 
     const chat = model.startChat({ history: chatHistory });
 
-    // Create streaming response
     const encoder = new TextEncoder();
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
 
-    // Process in background
     (async () => {
       try {
         let response = await chat.sendMessage(message);
