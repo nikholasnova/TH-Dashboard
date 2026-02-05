@@ -33,6 +33,12 @@ CREATE POLICY "Allow authenticated select" ON readings
   TO authenticated
   USING (true);
 
+-- Allow authenticated deletes (for deployment cascade delete)
+CREATE POLICY "Allow authenticated delete" ON readings
+  FOR DELETE
+  TO authenticated
+  USING (true);
+
 -- ============================================================================
 -- AI RATE LIMITING TABLE
 -- ============================================================================

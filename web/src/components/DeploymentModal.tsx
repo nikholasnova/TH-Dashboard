@@ -317,7 +317,7 @@ export function DeploymentModal({
 
                     {showDeleteConfirm && (
                       <div className="mt-4 p-4 rounded-xl bg-[#e31a1a]/10 border border-[#e31a1a]/30">
-                        <p className="text-sm text-white mb-3">Are you sure you want to delete this deployment? This cannot be undone.</p>
+                        <p className="text-sm text-white mb-3">Are you sure? This will permanently delete this deployment <span className="font-semibold">and all its sensor readings</span>. This cannot be undone.</p>
                         <div className="flex gap-3">
                           <button
                             onClick={handleDeleteDeployment}

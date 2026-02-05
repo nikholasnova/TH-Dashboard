@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const { message } = await req.json();
+    const { message, history } = await req.json();
 
     if (!message || typeof message !== 'string') {
       return new Response(JSON.stringify({ error: 'Message is required' }), {
@@ -83,6 +83,12 @@ export async function POST(req: Request) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
+
+    // Convert frontend message history to Gemini format
+    const chatHistory = (history || []).map((msg: { role: string; content: string }) => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }],
+    }));
 
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
@@ -102,7 +108,7 @@ export async function POST(req: Request) {
       }],
     });
 
-    const chat = model.startChat();
+    const chat = model.startChat({ history: chatHistory });
 
     // Create streaming response
     const encoder = new TextEncoder();

@@ -387,10 +387,36 @@ export async function endDeployment(id: number): Promise<Deployment | null> {
   return data;
 }
 
-// Delete a deployment
+// Delete a deployment and all its associated readings
 export async function deleteDeployment(id: number): Promise<boolean> {
   if (!supabase) return false;
 
+  // Fetch the deployment first to know the time range and device
+  const deployment = await getDeployment(id);
+  if (!deployment) {
+    console.error('Deployment not found for deletion:', id);
+    return false;
+  }
+
+  // Delete associated readings within the deployment's time range
+  let readingsQuery = supabase
+    .from('readings')
+    .delete()
+    .eq('device_id', deployment.device_id)
+    .gte('created_at', deployment.started_at);
+
+  if (deployment.ended_at) {
+    readingsQuery = readingsQuery.lte('created_at', deployment.ended_at);
+  }
+
+  const { error: readingsError } = await readingsQuery;
+
+  if (readingsError) {
+    console.error('Error deleting deployment readings:', readingsError);
+    return false;
+  }
+
+  // Delete the deployment record
   const { error } = await supabase.from('deployments').delete().eq('id', id);
 
   if (error) {

@@ -1,6 +1,6 @@
 # IoT Temp/Humidity Dashboard
 
-Real-time monitoring from multiple sensor nodes. Built for intro engineering class.
+Real-time monitoring from multiple sensor nodes. Built for an intro engineering class, with production-style patterns (auth, RLS, and time-series aggregation).
 
 ## Architecture
 
@@ -26,7 +26,14 @@ Real-time monitoring from multiple sensor nodes. Built for intro engineering cla
 - Side-by-side stats comparison with filtering
 - AI chat with tool calling (Gemini)
 - CSV export
-- Dark glassy UI
+
+## Design Notes
+
+- **End-to-end pipeline**: Arduino → HTTPS → Supabase → Next.js dashboard (Vercel) with real-time and historical views.
+- **Security**: Supabase RLS requires authenticated reads; API routes enforce auth; service role key only used server-side.
+- **Scalable analytics**: Aggregations and bucketing are done via SQL RPC functions.
+- **AI tool orchestration**: Gemini tool-calling constrained to explicit, typed functions (deployments, stats, readings) with bounds on result size.
+- **Practical UX**: Mobile-friendly layout, responsive nav, and graceful empty/loading states.
 
 ## Stack
 
@@ -38,6 +45,19 @@ Real-time monitoring from multiple sensor nodes. Built for intro engineering cla
 | Web | Next.js 16 (App Router), Nivo charts |
 | AI | Google Gemini |
 | Hosting | Vercel |
+
+## Data Model
+
+- **readings**: temperature/humidity from each device (Celsius in DB, converted in UI).
+- **deployments**: contextual grouping by device + location + time range.
+- **ai_requests**: rate limiting metadata for AI endpoints.
+
+## Security & Access Control
+
+- **RLS**: only authenticated users can read dashboard data
+- **Device writes**: anon INSERT allowed for Arduino fast path (i took the trade-off, integrity vs simplicity).
+- **API auth**: `/api/chat` and `/api/keepalive` return 401 if unauthenticated or missing secret.
+- **Server-only secrets**: `SUPABASE_SERVICE_ROLE_KEY` and `GOOGLE_API_KEY` never exposed to client.
 
 ## Setup
 
@@ -158,6 +178,25 @@ CRON_SECRET=some-random-secret
 If you want a fully public dashboard (no login), you can:
 1. Remove `<AuthGate>` wrappers from pages
 2. Revert RLS policies to allow `anon` SELECT
+
+## Performance & Cost Notes
+
+- **RPC aggregations**: charts and stats use Postgres functions to avoid large client transfers.
+- **AI guardrails**: tool calls are capped (e.g., max deployment IDs, max readings).
+- **Polling**: live readings refresh every 30s to balance freshness and API load.
+
+## Trade-offs
+
+- **Shared login** instead of per-user accounts (simpler ops, less UX complexity).
+- **Anon insert for devices** (keeps hardware simple; data integrity relies on key secrecy).
+
+## Future Work
+
+- Replace anon device inserts with an ingest endpoint + device secret.
+- Add per-deployment alerts (email/notification when thresholds are crossed).
+- Persist AI summaries for historical insights.
+- Add unit tests for data transformations and RPC parameter validation.
+- Forcasting
 
 ## Troubleshooting
 

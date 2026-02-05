@@ -69,9 +69,10 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
             </div>
           )}
           {reading && isStale && (
-            <span className="px-3 py-1 text-sm font-medium rounded-lg bg-[#ffb547]/20 text-[#ffb547]">
-              Stale
-            </span>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[#e31a1a]" />
+              <span className="text-sm text-[#e31a1a]">Offline</span>
+            </div>
           )}
           {onRefresh && (
             <button
@@ -100,7 +101,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
           </div>
           <p className="text-sm text-[#a0aec0]">Loading...</p>
         </div>
-      ) : reading ? (
+      ) : reading && !isStale ? (
         <>
           <div className="grid grid-cols-2 gap-8 mb-8">
             <div className="glass-card p-6 !rounded-xl !border-white/10">
@@ -126,6 +127,32 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
             {formatDate(reading.created_at)} at {formatTime(reading.created_at)}
           </div>
         </>
+      ) : reading && isStale ? (
+        <div className="flex flex-col justify-center items-center flex-1 min-h-[140px]">
+          <div className="mb-4 p-3 rounded-full bg-[#e31a1a]/10">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#e31a1a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="1" y1="1" x2="23" y2="23" />
+              <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+              <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+              <path d="M10.71 5.05A16 16 0 0 1 22.56 9" />
+              <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+              <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+              <line x1="12" y1="20" x2="12.01" y2="20" />
+            </svg>
+          </div>
+          <p className="text-lg font-medium text-[#e31a1a] mb-1">Device Offline</p>
+          <p className="text-sm text-[#a0aec0]">Last seen {getTimeAgo(reading.created_at)}</p>
+          <div className="grid grid-cols-2 gap-6 mt-5 w-full opacity-50">
+            <div className="text-center">
+              <p className="text-xs text-[#a0aec0] uppercase tracking-wider mb-1">Last Temp</p>
+              <p className="text-lg text-[#a0aec0]">{celsiusToFahrenheit(reading.temperature).toFixed(1)}°F</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-[#a0aec0] uppercase tracking-wider mb-1">Last Humidity</p>
+              <p className="text-lg text-[#a0aec0]">{reading.humidity.toFixed(1)}%</p>
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="flex flex-col justify-center flex-1 min-h-[140px]">
           <p className="text-xl text-[#a0aec0] font-medium text-center">No data available</p>
