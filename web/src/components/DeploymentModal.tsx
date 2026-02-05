@@ -25,6 +25,15 @@ interface FormData {
   name: string;
   location: string;
   notes: string;
+  device_id: string;
+}
+
+interface EditFormData {
+  name: string;
+  location: string;
+  notes: string;
+  started_at: string;
+  ended_at: string;
 }
 
 export function DeploymentModal({
@@ -37,14 +46,17 @@ export function DeploymentModal({
   onDeploymentChange,
 }: DeploymentModalProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const isDeviceConnected = !!reading;
+  // Device is connected if there's a reading from the last 5 minutes
+  const isDeviceConnected = reading
+    ? Date.now() - new Date(reading.created_at).getTime() < 5 * 60 * 1000
+    : false;
   const isViewingSpecific = !!existingDeployment;
   const [currentDeployment, setCurrentDeployment] = useState<Deployment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState<FormData>({ name: '', location: '', notes: '' });
-  const [editFormData, setEditFormData] = useState<FormData>({ name: '', location: '', notes: '' });
+  const [formData, setFormData] = useState<FormData>({ name: '', location: '', notes: '', device_id: deviceId });
+  const [editFormData, setEditFormData] = useState<EditFormData>({ name: '', location: '', notes: '', started_at: '', ended_at: '' });
 
   const fetchDeployment = useCallback(async () => {
     setIsLoading(true);
@@ -54,6 +66,8 @@ export function DeploymentModal({
         name: existingDeployment.name,
         location: existingDeployment.location,
         notes: existingDeployment.notes || '',
+        started_at: existingDeployment.started_at.slice(0, 16),
+        ended_at: existingDeployment.ended_at?.slice(0, 16) || '',
       });
       setIsLoading(false);
       return;
@@ -65,6 +79,8 @@ export function DeploymentModal({
         name: deployment.name,
         location: deployment.location,
         notes: deployment.notes || '',
+        started_at: deployment.started_at.slice(0, 16),
+        ended_at: deployment.ended_at?.slice(0, 16) || '',
       });
     }
     setIsLoading(false);
@@ -74,7 +90,7 @@ export function DeploymentModal({
     if (isOpen) {
       fetchDeployment();
       setIsEditing(false);
-      setFormData({ name: '', location: '', notes: '' });
+      setFormData({ name: '', location: '', notes: '', device_id: deviceId });
     }
   }, [isOpen, fetchDeployment]);
 
@@ -97,7 +113,7 @@ export function DeploymentModal({
     }
 
     const newDeployment = await createDeployment({
-      device_id: deviceId,
+      device_id: formData.device_id,
       name: formData.name.trim(),
       location: formData.location.trim(),
       notes: formData.notes.trim() || undefined,
@@ -109,23 +125,30 @@ export function DeploymentModal({
         name: newDeployment.name,
         location: newDeployment.location,
         notes: newDeployment.notes || '',
+        started_at: newDeployment.started_at.slice(0, 16),
+        ended_at: newDeployment.ended_at?.slice(0, 16) || '',
       });
-      setFormData({ name: '', location: '', notes: '' });
+      setFormData({ name: '', location: '', notes: '', device_id: deviceId });
     }
 
     onDeploymentChange();
     setIsSaving(false);
   };
 
+  const isEditTimeValid = !editFormData.ended_at || new Date(editFormData.started_at) < new Date(editFormData.ended_at);
+
   const handleSaveEdit = async () => {
     if (!currentDeployment) return;
     if (!editFormData.name.trim() || !editFormData.location.trim()) return;
+    if (!editFormData.started_at || !isEditTimeValid) return;
     setIsSaving(true);
 
     const updated = await updateDeployment(currentDeployment.id, {
       name: editFormData.name.trim(),
       location: editFormData.location.trim(),
       notes: editFormData.notes.trim() || null,
+      started_at: new Date(editFormData.started_at).toISOString(),
+      ended_at: editFormData.ended_at ? new Date(editFormData.ended_at).toISOString() : null,
     });
 
     if (updated) {
@@ -191,10 +214,10 @@ export function DeploymentModal({
           </button>
         </div>
 
-        {!isDeviceConnected && (
+        {reading && !isDeviceConnected && !isViewingSpecific && (
           <div className="mb-6 p-4 rounded-xl bg-[#ffb547]/10 border border-[#ffb547]/30">
             <p className="text-sm text-[#ffb547]">
-              <span className="font-semibold">No device connected.</span> You can still create a deployment, but no data will be collected until the device connects.
+              <span className="font-semibold">Device offline.</span> You can still create a deployment, but no data will be collected until the device reconnects.
             </p>
           </div>
         )}
@@ -255,10 +278,43 @@ export function DeploymentModal({
                         placeholder="Optional notes..."
                       />
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-[#a0aec0] mb-2">Start Time</label>
+                        <input
+                          type="datetime-local"
+                          value={editFormData.started_at}
+                          onChange={(e) => setEditFormData({ ...editFormData, started_at: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white focus:outline-none focus:border-white/40 transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-[#a0aec0] mb-2">End Time</label>
+                        <input
+                          type="datetime-local"
+                          value={editFormData.ended_at}
+                          onChange={(e) => setEditFormData({ ...editFormData, ended_at: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white focus:outline-none focus:border-white/40 transition-colors"
+                          placeholder="Leave empty for active"
+                        />
+                      </div>
+                    </div>
+                    {!isEditTimeValid && editFormData.ended_at && (
+                      <div className="p-3 rounded-lg bg-[#e31a1a]/10 border border-[#e31a1a]/30">
+                        <p className="text-xs text-[#e31a1a]">
+                          End time must be after start time.
+                        </p>
+                      </div>
+                    )}
+                    <div className="p-3 rounded-lg bg-[#ffb547]/10 border border-[#ffb547]/30">
+                      <p className="text-xs text-[#ffb547]">
+                        Changing time bounds may cause some readings to become unassigned until another deployment covers them.
+                      </p>
+                    </div>
                     <div className="flex gap-3">
                       <button
                         onClick={handleSaveEdit}
-                        disabled={isSaving || !editFormData.name.trim() || !editFormData.location.trim()}
+                        disabled={isSaving || !editFormData.name.trim() || !editFormData.location.trim() || !editFormData.started_at || !isEditTimeValid}
                         className="btn-glass px-4 py-2 text-sm font-semibold text-[#01b574] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isSaving ? 'Saving...' : 'Save'}
@@ -356,6 +412,17 @@ export function DeploymentModal({
                 </p>
               )}
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm text-[#a0aec0] mb-2">Device</label>
+                  <select
+                    value={formData.device_id}
+                    onChange={(e) => setFormData({ ...formData, device_id: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white focus:outline-none focus:border-white/40 transition-colors"
+                  >
+                    <option value="node1">Node 1</option>
+                    <option value="node2">Node 2</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-sm text-[#a0aec0] mb-2">Name</label>
                   <input

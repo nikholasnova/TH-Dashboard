@@ -186,6 +186,22 @@ nav.glass-card {
   animation: fadeIn 0.15s ease-out;
 }
 
+/* Wizard step enter animation */
+@keyframes wizardStepIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wizard-step-enter {
+  animation: wizardStepIn 0.2s ease-out forwards;
+}
+
 /* Skeleton shimmer animation */
 .skeleton {
   background: linear-gradient(

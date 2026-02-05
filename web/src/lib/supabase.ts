@@ -334,6 +334,8 @@ export async function updateDeployment(
     name?: string;
     location?: string;
     notes?: string | null;
+    started_at?: string;
+    ended_at?: string | null;
   }
 ): Promise<Deployment | null> {
   if (!supabase) return null;

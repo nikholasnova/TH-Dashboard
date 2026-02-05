@@ -79,11 +79,16 @@ export default function AnalysisPage() {
     !!customEnd &&
     new Date(customStart).getTime() < new Date(customEnd).getTime();
 
+  // Wizard step completion states
+  const step1Complete = selectedDeployments.length > 0;
+  const step2Complete = !isCustom || isCustomValid;
+  const step3Complete = selectedAnalyses.length > 0;
+
   const canRun =
     pyodideReady &&
-    selectedDeployments.length > 0 &&
-    selectedAnalyses.length > 0 &&
-    (!isCustom || isCustomValid);
+    step1Complete &&
+    step2Complete &&
+    step3Complete;
 
   useEffect(() => {
     let cancelled = false;
@@ -283,6 +288,7 @@ export default function AnalysisPage() {
               Configuration
             </h2>
 
+            {/* Step 1: Deployments - always visible */}
             <div className="mb-5">
               <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
                 Deployments
@@ -314,101 +320,112 @@ export default function AnalysisPage() {
               </div>
             </div>
 
-            <div className="mb-5">
-              <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
-                Time Range
-              </label>
-              <div className="flex flex-wrap gap-2">
-                <div className="glass-card p-2 flex flex-wrap gap-1">
-                  {TIME_RANGES.map((range) => (
+            {/* Step 2: Time Range - appears after deployment selection */}
+            {step1Complete && (
+              <div className="wizard-step-enter mb-5">
+                <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
+                  Time Range
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <div className="glass-card p-2 flex flex-wrap gap-1">
+                    {TIME_RANGES.map((range) => (
+                      <button
+                        key={range.hours}
+                        onClick={() => setSelectedRange(range.hours)}
+                        disabled={!pyodideReady}
+                        className={`px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${
+                          selectedRange === range.hours
+                            ? 'nav-active text-white font-semibold'
+                            : 'text-[#a0aec0] hover:text-white hover:bg-white/5'
+                        } ${!pyodideReady ? 'opacity-40 cursor-not-allowed' : ''}`}
+                      >
+                        {range.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {isCustom && (
+                    <div className="glass-card p-3 flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[#a0aec0]">Start</label>
+                        <input
+                          type="datetime-local"
+                          value={customStart}
+                          onChange={(e) => setCustomStart(e.target.value)}
+                          disabled={!pyodideReady}
+                          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white disabled:opacity-40"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-[#a0aec0]">End</label>
+                        <input
+                          type="datetime-local"
+                          value={customEnd}
+                          onChange={(e) => setCustomEnd(e.target.value)}
+                          disabled={!pyodideReady}
+                          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white disabled:opacity-40"
+                        />
+                      </div>
+                      {!isCustomValid && customStart && customEnd && (
+                        <span className="text-xs text-[#ffb547]">
+                          Pick a valid range
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Analysis Types - appears after time range selection */}
+            {step1Complete && step2Complete && (
+              <div className="wizard-step-enter mb-5">
+                <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
+                  Analysis Types
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {ANALYSIS_TYPES.map((type) => (
                     <button
-                      key={range.hours}
-                      onClick={() => setSelectedRange(range.hours)}
+                      key={type.id}
+                      onClick={() => toggleAnalysis(type.id)}
                       disabled={!pyodideReady}
-                      className={`px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${
-                        selectedRange === range.hours
+                      className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all ${
+                        selectedAnalyses.includes(type.id)
                           ? 'nav-active text-white font-semibold'
-                          : 'text-[#a0aec0] hover:text-white hover:bg-white/5'
+                          : 'text-[#a0aec0] hover:text-white hover:bg-white/5 border border-white/10'
                       } ${!pyodideReady ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
-                      {range.label}
+                      {type.label}
                     </button>
                   ))}
                 </div>
-
-                {isCustom && (
-                  <div className="glass-card p-3 flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-[#a0aec0]">Start</label>
-                      <input
-                        type="datetime-local"
-                        value={customStart}
-                        onChange={(e) => setCustomStart(e.target.value)}
-                        disabled={!pyodideReady}
-                        className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white disabled:opacity-40"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-[#a0aec0]">End</label>
-                      <input
-                        type="datetime-local"
-                        value={customEnd}
-                        onChange={(e) => setCustomEnd(e.target.value)}
-                        disabled={!pyodideReady}
-                        className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white disabled:opacity-40"
-                      />
-                    </div>
-                    {!isCustomValid && customStart && customEnd && (
-                      <span className="text-xs text-[#ffb547]">
-                        Pick a valid range
-                      </span>
-                    )}
-                  </div>
+                {selectedAnalyses.includes('hypothesis_test') && selectedDeployments.length === 1 && (
+                  <p className="text-xs text-[#ffb547] mt-2">
+                    Hypothesis test requires at least 2 deployments
+                  </p>
+                )}
+                {(selectedAnalyses.includes('seasonal_decomposition') || selectedAnalyses.includes('forecasting')) && (
+                  <p className="text-xs text-[#a0aec0]/60 mt-2">
+                    Seasonal decomposition and forecasting need at least 2 days of continuous data
+                  </p>
                 )}
               </div>
-            </div>
+            )}
 
-            <div className="mb-5">
-              <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
-                Analysis Types
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {ANALYSIS_TYPES.map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => toggleAnalysis(type.id)}
-                    disabled={!pyodideReady}
-                    className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all ${
-                      selectedAnalyses.includes(type.id)
-                        ? 'nav-active text-white font-semibold'
-                        : 'text-[#a0aec0] hover:text-white hover:bg-white/5 border border-white/10'
-                    } ${!pyodideReady ? 'opacity-40 cursor-not-allowed' : ''}`}
-                  >
-                    {type.label}
-                  </button>
-                ))}
+            {/* Step 4: Run button - appears after analysis type selection */}
+            {step1Complete && step2Complete && step3Complete && (
+              <div className="wizard-step-enter">
+                <button
+                  onClick={handleRunAnalysis}
+                  disabled={!canRun || isRunning}
+                  className={`btn-glass px-6 py-3 text-sm font-semibold ${
+                    !canRun || isRunning ? 'opacity-40 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {isRunning ? runProgress || 'Running...' : 'Run Analysis'}
+                </button>
               </div>
-              {selectedAnalyses.includes('hypothesis_test') && selectedDeployments.length === 1 && (
-                <p className="text-xs text-[#ffb547] mt-2">
-                  Hypothesis test requires at least 2 deployments
-                </p>
-              )}
-              {(selectedAnalyses.includes('seasonal_decomposition') || selectedAnalyses.includes('forecasting')) && (
-                <p className="text-xs text-[#a0aec0]/60 mt-2">
-                  Seasonal decomposition and forecasting need at least 2 days of continuous data
-                </p>
-              )}
-            </div>
-
-            <button
-              onClick={handleRunAnalysis}
-              disabled={!canRun || isRunning}
-              className={`btn-glass px-6 py-3 text-sm font-semibold ${
-                !canRun || isRunning ? 'opacity-40 cursor-not-allowed' : ''
-              }`}
-            >
-              {isRunning ? runProgress || 'Running...' : 'Run Analysis'}
-            </button>
+            )}
           </div>
 
           <div className="glass-card p-4 sm:p-8">

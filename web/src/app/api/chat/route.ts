@@ -27,7 +27,7 @@ HOW TO ANSWER COMMON QUESTIONS:
 - "What's the temperature in [location]?": Use get_deployments with the location filter, then get_readings with limit=1 for the latest value, or get_deployment_stats for an overview.
 - "Analyze all my data" / "Give me a full analysis": Use get_device_stats with a broad time range for overall stats, then get_chart_data with appropriate buckets to identify trends. Combine with get_deployments for context on locations.
 - "Show me trends" / "How has temperature changed?": Use get_chart_data with appropriate bucket sizes (15-60 min for a day, 1440 min for weeks/months).
-- If a user references a room, location, or place name, search deployments by location to find matching deployments.
+- If a user references a room, location, or place name, search deployments by location OR name to find matching deployments. Filters use partial matching, so "Queen Creek" will find "Queen Creek, AZ" and "patio" will find "Nik's Patio".
 
 REPORT GENERATION:
 When asked to "generate a report", "write a report for my paper", "create an analysis document", or similar:
@@ -75,12 +75,13 @@ Keep responses concise and focused on actionable insights.`;
 // Tool declarations
 const getDeploymentsDecl: FunctionDeclaration = {
   name: 'get_deployments',
-  description: 'List deployments. Returns id, name, device_id, location, started_at, ended_at, and reading_count.',
+  description: 'List deployments. Returns id, name, device_id, location, started_at, ended_at, and reading_count. Filters use case-insensitive partial matching.',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
       device_id: { type: SchemaType.STRING, description: 'Filter by device (node1 or node2)' },
-      location: { type: SchemaType.STRING, description: 'Filter by location name' },
+      location: { type: SchemaType.STRING, description: 'Filter by location (partial match, e.g. "Queen Creek" matches "Queen Creek, AZ")' },
+      name: { type: SchemaType.STRING, description: 'Filter by deployment name (partial match, e.g. "patio" matches "Nik\'s Patio")' },
       active_only: { type: SchemaType.BOOLEAN, description: 'Only return active deployments' },
     },
   },

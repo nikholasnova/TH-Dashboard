@@ -29,6 +29,7 @@ function getServerClient() {
 export async function executeGetDeployments(params: {
   device_id?: string;
   location?: string;
+  name?: string;
   active_only?: boolean;
 }): Promise<DeploymentWithCount[]> {
   const supabase = getServerClient();
@@ -40,7 +41,13 @@ export async function executeGetDeployments(params: {
   }
 
   if (params.location) {
-    query = query.eq('location', params.location);
+    // Case-insensitive partial match for more forgiving searches
+    query = query.ilike('location', `%${params.location}%`);
+  }
+
+  if (params.name) {
+    // Case-insensitive partial match for deployment name
+    query = query.ilike('name', `%${params.name}%`);
   }
 
   if (params.active_only) {
