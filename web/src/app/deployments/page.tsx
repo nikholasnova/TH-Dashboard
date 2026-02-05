@@ -17,12 +17,10 @@ export default function DeploymentsPage() {
   const [locations, setLocations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Filters
   const [deviceFilter, setDeviceFilter] = useState<string>('');
   const [locationFilter, setLocationFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-  // Modal
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentWithCount | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
 
@@ -66,8 +64,7 @@ export default function DeploymentsPage() {
     <AuthGate>
       <div className="min-h-screen">
         <div className="container-responsive">
-          {/* Header */}
-          {/* Header + Navigation - reversed on mobile */}
+          {/* flex-col-reverse puts nav above header on mobile */}
           <div className="flex flex-col-reverse sm:flex-col">
             <header className="mb-6 sm:mb-10">
               <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Deployments</h1>
@@ -76,7 +73,6 @@ export default function DeploymentsPage() {
             <Navbar />
           </div>
 
-        {/* Filters & Actions */}
         <div className="flex flex-wrap items-center gap-4 mb-8">
           <div className="glass-card p-3 flex flex-wrap items-center gap-4">
             <span className="text-xs text-[#a0aec0] font-medium">Filters:</span>
@@ -121,7 +117,6 @@ export default function DeploymentsPage() {
           </button>
         </div>
 
-        {/* Deployments List */}
         {isLoading ? (
           <div className="glass-card p-12">
             <div className="flex flex-col items-center justify-center">
@@ -151,10 +146,8 @@ export default function DeploymentsPage() {
                 className="glass-card p-6 cursor-pointer hover:border-white/30 transition-all"
               >
                 <div className="flex items-center gap-4">
-                  {/* Status Indicator */}
                   <div className={`w-3 h-3 rounded-full ${dep.ended_at ? 'bg-[#a0aec0]/40' : 'bg-[#01b574] animate-pulse'}`} />
 
-                  {/* Main Info */}
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-white truncate">{dep.name}</h3>
                     <p className="text-sm text-[#a0aec0]">
@@ -162,7 +155,6 @@ export default function DeploymentsPage() {
                     </p>
                   </div>
 
-                  {/* Date Range */}
                   <div className="text-right hidden sm:block">
                     <p className="text-sm text-white">{formatDateRange(dep)}</p>
                     <p className="text-xs text-[#a0aec0]">
@@ -170,7 +162,6 @@ export default function DeploymentsPage() {
                     </p>
                   </div>
 
-                  {/* Reading Count */}
                   <div className="text-right">
                     <p className="text-sm font-medium text-white">{dep.reading_count.toLocaleString()}</p>
                     <p className="text-xs text-[#a0aec0]">readings</p>
@@ -182,7 +173,6 @@ export default function DeploymentsPage() {
         )}
       </div>
 
-      {/* Edit Modal for existing deployment */}
       {selectedDeployment && (
         <DeploymentModal
           deviceId={selectedDeployment.device_id}
@@ -194,7 +184,6 @@ export default function DeploymentsPage() {
         />
       )}
 
-      {/* New Deployment Modal (defaults to node1) */}
       {showNewModal && (
         <DeploymentModal
           deviceId="node1"

@@ -11,7 +11,6 @@ interface AuthGateProps {
 export function AuthGate({ children }: AuthGateProps) {
   const { session, loading } = useSession();
 
-  // Loading state - show skeleton
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -36,7 +35,6 @@ export function AuthGate({ children }: AuthGateProps) {
     );
   }
 
-  // Not authenticated - show login prompt
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
@@ -55,6 +53,5 @@ export function AuthGate({ children }: AuthGateProps) {
     );
   }
 
-  // Authenticated - render children
   return <>{children}</>;
 }

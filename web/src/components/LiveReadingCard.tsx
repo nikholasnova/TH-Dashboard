@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Reading, Deployment, celsiusToFahrenheit } from '@/lib/supabase';
 
 interface LiveReadingCardProps {
@@ -14,6 +15,8 @@ interface LiveReadingCardProps {
 }
 
 export function LiveReadingCard({ deviceId, deviceName, reading, activeDeployment, isLoading, onClick, onRefresh, lastRefresh }: LiveReadingCardProps) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const isStale = reading
     ? Date.now() - new Date(reading.created_at).getTime() > 5 * 60 * 1000 // 5 minutes (device sends every 3 min)
     : true;
@@ -78,12 +81,18 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                setIsRefreshing(true);
                 onRefresh();
+                setTimeout(() => setIsRefreshing(false), 800);
               }}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-[#a0aec0] hover:text-white transition-colors"
+              disabled={isRefreshing}
+              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-[#a0aec0] hover:text-white transition-colors disabled:opacity-50"
               title={lastRefresh ? `Last updated: ${lastRefresh.toLocaleTimeString()}` : 'Refresh'}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className={`transition-transform ${isRefreshing ? 'animate-spin' : ''}`}
+              >
                 <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
                 <path d="M21 3v5h-5" />
               </svg>

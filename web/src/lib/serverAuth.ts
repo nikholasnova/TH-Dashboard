@@ -1,8 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-// Create a Supabase client for server-side use (API routes, server components)
-// This client reads auth cookies to verify the user session
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
 
@@ -29,8 +27,6 @@ export async function createServerSupabaseClient() {
   );
 }
 
-// Get the current authenticated user from the session
-// Returns null if not authenticated
 export async function getServerUser() {
   const supabase = await createServerSupabaseClient();
   const {
@@ -45,8 +41,6 @@ export async function getServerUser() {
   return user;
 }
 
-// Check if the current request is authenticated
-// Returns true if there's a valid session, false otherwise
 export async function isAuthenticated(): Promise<boolean> {
   const user = await getServerUser();
   return user !== null;

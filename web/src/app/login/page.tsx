@@ -14,7 +14,6 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (!loading && session) {
       router.push('/');
@@ -36,7 +35,6 @@ export default function LoginPage() {
     }
   };
 
-  // Show loading state while checking auth
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -47,7 +45,6 @@ export default function LoginPage() {
     );
   }
 
-  // Don't render form if already logged in (will redirect)
   if (session) {
     return null;
   }

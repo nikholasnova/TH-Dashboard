@@ -48,7 +48,6 @@ export function DeploymentModal({
 
   const fetchDeployment = useCallback(async () => {
     setIsLoading(true);
-    // If viewing a specific deployment, use it directly
     if (existingDeployment) {
       setCurrentDeployment(existingDeployment);
       setEditFormData({
@@ -59,7 +58,6 @@ export function DeploymentModal({
       setIsLoading(false);
       return;
     }
-    // Otherwise fetch active deployment for device
     const deployment = await getActiveDeployment(deviceId);
     setCurrentDeployment(deployment);
     if (deployment) {

@@ -23,7 +23,6 @@ export function Navbar() {
 
   return (
     <nav className="flex items-center justify-between mb-10 gap-4 relative">
-      {/* Desktop nav */}
       <div className="hidden sm:flex glass-card p-2 gap-2">
         {NAV_LINKS.map((link) => (
           <Link
@@ -40,14 +39,12 @@ export function Navbar() {
         ))}
       </div>
 
-      {/* Mobile hamburger + dropdown container */}
       <div className="sm:hidden relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="glass-card p-3 w-12 h-12 flex flex-col items-center justify-center gap-1.5 relative z-50"
           aria-label="Toggle menu"
         >
-          {/* Animated hamburger lines */}
           <span
             className={`block w-6 h-0.5 bg-white rounded-full transition-all duration-300 ease-in-out ${
               isOpen ? 'rotate-45 translate-y-2' : ''
@@ -65,7 +62,6 @@ export function Navbar() {
           />
         </button>
 
-        {/* Mobile dropdown menu - positioned below hamburger */}
         {isOpen && (
           <div className="absolute top-14 left-0 w-48 bg-[#1a1f2e]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-2 z-40 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xl">
             <div className="flex flex-col gap-1">
@@ -88,7 +84,6 @@ export function Navbar() {
         )}
       </div>
 
-      {/* User menu (always visible) */}
       <UserMenu />
     </nav>
   );

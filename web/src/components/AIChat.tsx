@@ -29,7 +29,6 @@ export function AIChat() {
     scrollToBottom();
   }, [messages]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
@@ -43,7 +42,6 @@ export function AIChat() {
     setMessages((prev) => [...prev, { role: 'user', content: message }]);
     setIsLoading(true);
 
-    // Create new abort controller
     abortControllerRef.current = new AbortController();
 
     try {
@@ -58,7 +56,6 @@ export function AIChat() {
         throw new Error('Failed to get response');
       }
 
-      // Stream the response
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let assistantContent = '';
@@ -108,9 +105,8 @@ export function AIChat() {
     <div className="glass-card p-6">
       <h3 className="text-2xl font-bold text-white mb-4 text-center">Kelvin AI</h3>
 
-      {/* Messages */}
       <div
-        className="h-[32rem] overflow-y-auto mb-4 flex flex-col pr-3 scrollbar-thin"
+        className="h-[29rem] overflow-y-auto mb-4 flex flex-col pr-3 scrollbar-thin"
         style={{
           scrollbarWidth: 'thin',
           scrollbarColor: 'rgba(255,255,255,0.2) transparent',
@@ -180,7 +176,6 @@ export function AIChat() {
         )}
       </div>
 
-      {/* Input */}
       <form onSubmit={handleSubmit} className="flex gap-3">
         <input
           type="text"

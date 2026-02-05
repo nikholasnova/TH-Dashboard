@@ -12,7 +12,6 @@ export function UserMenu() {
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Close menu when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -41,13 +40,11 @@ export function UserMenu() {
     );
   }
 
-  // Get initials from email
   const email = user.email || 'User';
   const initials = email.substring(0, 2).toUpperCase();
 
   return (
     <div className="relative" ref={menuRef}>
-      {/* Profile Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-10 h-10 rounded-full bg-[#0075ff]/20 border border-[#0075ff]/40 flex items-center justify-center text-[#0075ff] font-semibold text-sm hover:bg-[#0075ff]/30 hover:border-[#0075ff]/60 transition-all"
@@ -56,16 +53,13 @@ export function UserMenu() {
         {initials}
       </button>
 
-      {/* Dropdown Menu */}
       {isOpen && (
         <div className="absolute right-0 mt-2 w-64 bg-[#1a1f2e]/95 backdrop-blur-xl border border-white/20 rounded-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xl">
-          {/* User Info */}
           <div className="pb-3 mb-3 border-b border-white/20">
             <p className="text-xs text-[#c8d0e0] mb-1">Signed in as</p>
             <p className="text-sm text-white font-medium truncate">{email}</p>
           </div>
 
-          {/* Session Info */}
           <div className="pb-3 mb-3 border-b border-white/20 space-y-1">
             <div className="flex justify-between text-xs">
               <span className="text-[#c8d0e0]">Status</span>
@@ -73,7 +67,6 @@ export function UserMenu() {
             </div>
           </div>
 
-          {/* Sign Out Button */}
           <button
             onClick={handleSignOut}
             disabled={isSigningOut}

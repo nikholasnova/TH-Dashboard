@@ -40,7 +40,6 @@ export default function ChartsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  // New filter state
   const [deviceFilter, setDeviceFilter] = useState<string>('');
   const [deploymentFilter, setDeploymentFilter] = useState<string>('');
   const [deployments, setDeployments] = useState<DeploymentWithCount[]>([]);
@@ -51,7 +50,6 @@ export default function ChartsPage() {
     !!customEnd &&
     new Date(customStart).getTime() < new Date(customEnd).getTime();
 
-  // Fetch deployments for filter dropdown
   useEffect(() => {
     async function fetchDeployments() {
       const deps = await getDeployments();
@@ -156,7 +154,6 @@ export default function ChartsPage() {
     setIsExporting(false);
   };
 
-  // Filter deployments by device selection
   const filteredDeployments = deviceFilter
     ? deployments.filter(d => d.device_id === deviceFilter)
     : deployments;
@@ -175,10 +172,8 @@ export default function ChartsPage() {
     return tempMin + ((h - humidityMin) / (humidityMax - humidityMin)) * (tempMax - tempMin);
   };
 
-  // Build chart data based on device filter and metric
   const buildChartData = () => {
     if (metric === 'both') {
-      // Dual axis mode: show temp and humidity lines
       if (deviceFilter) {
         const deviceLabel = deviceFilter === 'node1' ? 'Node 1' : 'Node 2';
         return [
@@ -204,7 +199,6 @@ export default function ChartsPage() {
           },
         ];
       } else {
-        // Both devices, both metrics
         return [
           {
             id: 'Node 1 Temp',
@@ -250,7 +244,6 @@ export default function ChartsPage() {
       }
     }
 
-    // Single metric mode (original logic)
     if (deviceFilter) {
       return [{
         id: deviceFilter === 'node1' ? 'Node 1' : 'Node 2',
@@ -288,11 +281,16 @@ export default function ChartsPage() {
   const chartData = buildChartData();
   const hasData = chartData.some((series) => series.data.length > 0);
 
+  // Compute area baseline from actual chart data so the fill doesn't extend below the chart
+  const chartYMin = hasData
+    ? Math.min(...chartData.flatMap(s => s.data.map(d => d.y as number)))
+    : 0;
+
   return (
     <AuthGate>
       <div className="min-h-screen">
         <div className="container-responsive">
-          {/* Header + Navigation - reversed on mobile */}
+          {/* flex-col-reverse puts nav above header on mobile */}
           <div className="flex flex-col-reverse sm:flex-col">
             <header className="mb-6 sm:mb-10">
               <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Charts</h1>
@@ -301,9 +299,7 @@ export default function ChartsPage() {
             <Navbar />
           </div>
 
-        {/* Controls */}
         <div className="flex flex-wrap gap-4 mb-8">
-          {/* Time Range */}
           <div className="glass-card p-2 flex gap-1">
             {TIME_RANGES.map((range) => (
               <button
@@ -336,7 +332,6 @@ export default function ChartsPage() {
             </div>
           )}
 
-          {/* Filters */}
           <div className="glass-card p-3 flex flex-wrap items-center gap-4">
             <span className="text-xs text-[#a0aec0] font-medium">Filters:</span>
             <select value={deviceFilter} onChange={(e) => { setDeviceFilter(e.target.value); setDeploymentFilter(''); }}
@@ -354,7 +349,6 @@ export default function ChartsPage() {
             </select>
           </div>
 
-          {/* Metric Toggle */}
           <div className="glass-card p-2 flex gap-1">
             <button onClick={() => setMetric('temperature')}
               className={`px-5 py-2.5 text-sm rounded-xl transition-all ${metric === 'temperature' ? 'nav-active text-white font-semibold' : 'text-[#a0aec0] hover:text-white hover:bg-white/5'}`}>
@@ -370,7 +364,6 @@ export default function ChartsPage() {
             </button>
           </div>
 
-          {/* Export */}
           <div className="flex items-center gap-3">
             <button onClick={exportCSV} disabled={isExporting || (isCustom && !isCustomValid && !deploymentFilter)}
               className="btn-glass px-5 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
@@ -380,7 +373,6 @@ export default function ChartsPage() {
           </div>
         </div>
 
-        {/* Deployment indicator */}
         {deploymentFilter && (
           <div className="mb-4 px-4 py-2 rounded-lg bg-[#0075ff]/20 border border-[#0075ff]/30 inline-flex items-center gap-2">
             <span className="text-sm text-white">
@@ -390,7 +382,6 @@ export default function ChartsPage() {
           </div>
         )}
 
-        {/* Chart */}
         <div className="glass-card p-8">
           {isLoading ? (
             <div className="h-[500px] flex flex-col items-center justify-center">
@@ -433,7 +424,6 @@ export default function ChartsPage() {
                   },
                 } : undefined}
                 colors={({ id }) => {
-                  // Color mapping for all modes
                   const colorMap: Record<string, string> = {
                     'Node 1': '#0075ff',
                     'Node 2': '#01b574',
@@ -450,6 +440,7 @@ export default function ChartsPage() {
                 pointBorderWidth={2}
                 pointBorderColor={{ from: 'seriesColor' }}
                 enableArea={metric !== 'both'}
+                areaBaselineValue={chartYMin}
                 areaOpacity={0.1}
                 enableSlices="x"
                 sliceTooltip={({ slice }) => (

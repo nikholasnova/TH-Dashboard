@@ -7,8 +7,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase env vars missing. Check web/.env.local');
 }
 
-// Single shared Supabase client for browser-side operations
-// Uses @supabase/ssr for cookie-based session storage (shared with server)
 export const supabase =
   supabaseUrl && supabaseAnonKey
     ? createBrowserClient(supabaseUrl, supabaseAnonKey)
@@ -74,7 +72,6 @@ export interface DeploymentStats {
   reading_count: number | null;
 }
 
-// Temperature conversion utilities
 export function celsiusToFahrenheit(celsius: number): number {
   return (celsius * 9) / 5 + 32;
 }
@@ -83,7 +80,6 @@ export function celsiusDeltaToFahrenheit(celsiusDelta: number): number {
   return (celsiusDelta * 9) / 5;
 }
 
-// Get latest reading for a device
 export async function getLatestReading(
   deviceId: string
 ): Promise<Reading | null> {
@@ -106,7 +102,6 @@ export async function getLatestReading(
   return data;
 }
 
-// Get readings for a device within the last N hours
 export async function getReadings(
   deviceId: string,
   hoursAgo: number,
@@ -135,7 +130,6 @@ export async function getReadings(
   return data || [];
 }
 
-// Get all readings for all devices within the last N hours
 export async function getAllReadings(
   hoursAgo: number,
   maxRows?: number
@@ -162,7 +156,6 @@ export async function getAllReadings(
   return data || [];
 }
 
-// Get all readings for all devices within a custom date range
 export async function getAllReadingsRange(params: {
   start: string;
   end: string;
@@ -195,7 +188,6 @@ export async function getAllReadingsRange(params: {
   return data || [];
 }
 
-// Get chart samples using server-side bucketing
 export async function getChartSamples(params: {
   start: string;
   end: string;
@@ -204,7 +196,6 @@ export async function getChartSamples(params: {
 }): Promise<ChartSample[]> {
   if (!supabase) return [];
 
-  // Convert seconds to minutes for the RPC
   const bucketMinutes = Math.max(1, Math.round(params.bucketSeconds / 60));
 
   const { data, error } = await supabase.rpc('get_chart_samples', {
@@ -221,7 +212,6 @@ export async function getChartSamples(params: {
   return data || [];
 }
 
-// Get device statistics using server-side aggregation
 export async function getDeviceStats(params: {
   start: string;
   end: string;
@@ -242,7 +232,6 @@ export async function getDeviceStats(params: {
   return data || [];
 }
 
-// Get all deployments with optional filters
 export async function getDeployments(filters?: {
   deviceId?: string;
   location?: string;
@@ -277,7 +266,6 @@ export async function getDeployments(filters?: {
 
   if (!deployments || deployments.length === 0) return [];
 
-  // Get reading counts for each deployment
   const deploymentsWithCounts: DeploymentWithCount[] = await Promise.all(
     deployments.map(async (d) => {
       const { count } = await supabase
@@ -294,7 +282,6 @@ export async function getDeployments(filters?: {
   return deploymentsWithCounts;
 }
 
-// Get a single deployment by ID
 export async function getDeployment(id: number): Promise<Deployment | null> {
   if (!supabase) return null;
 
@@ -312,7 +299,6 @@ export async function getDeployment(id: number): Promise<Deployment | null> {
   return data;
 }
 
-// Create a new deployment
 export async function createDeployment(deployment: {
   device_id: string;
   name: string;
@@ -342,7 +328,6 @@ export async function createDeployment(deployment: {
   return data;
 }
 
-// Update an existing deployment
 export async function updateDeployment(
   id: number,
   updates: {
@@ -368,7 +353,6 @@ export async function updateDeployment(
   return data;
 }
 
-// End a deployment (set ended_at to now)
 export async function endDeployment(id: number): Promise<Deployment | null> {
   if (!supabase) return null;
 
@@ -387,18 +371,15 @@ export async function endDeployment(id: number): Promise<Deployment | null> {
   return data;
 }
 
-// Delete a deployment and all its associated readings
 export async function deleteDeployment(id: number): Promise<boolean> {
   if (!supabase) return false;
 
-  // Fetch the deployment first to know the time range and device
   const deployment = await getDeployment(id);
   if (!deployment) {
     console.error('Deployment not found for deletion:', id);
     return false;
   }
 
-  // Delete associated readings within the deployment's time range
   let readingsQuery = supabase
     .from('readings')
     .delete()
@@ -416,7 +397,6 @@ export async function deleteDeployment(id: number): Promise<boolean> {
     return false;
   }
 
-  // Delete the deployment record
   const { error } = await supabase.from('deployments').delete().eq('id', id);
 
   if (error) {
@@ -427,7 +407,6 @@ export async function deleteDeployment(id: number): Promise<boolean> {
   return true;
 }
 
-// Get the active deployment for a device (ended_at is null)
 export async function getActiveDeployment(
   deviceId: string
 ): Promise<Deployment | null> {
@@ -450,7 +429,6 @@ export async function getActiveDeployment(
   return data;
 }
 
-// Get deployment stats using server-side aggregation
 export async function getDeploymentStats(
   deploymentIds: number[]
 ): Promise<DeploymentStats[]> {
@@ -468,14 +446,12 @@ export async function getDeploymentStats(
   return data || [];
 }
 
-// Get readings for a specific deployment
 export async function getDeploymentReadings(
   deploymentId: number,
   limit?: number
 ): Promise<Reading[]> {
   if (!supabase) return [];
 
-  // First get the deployment to know time range and device
   const deployment = await getDeployment(deploymentId);
   if (!deployment) return [];
 
@@ -504,7 +480,6 @@ export async function getDeploymentReadings(
   return data || [];
 }
 
-// Get distinct locations from deployments
 export async function getDistinctLocations(): Promise<string[]> {
   if (!supabase) return [];
 
@@ -518,7 +493,6 @@ export async function getDistinctLocations(): Promise<string[]> {
     return [];
   }
 
-  // Get unique locations
   const locations = [...new Set(data?.map((d) => d.location) || [])];
   return locations;
 }

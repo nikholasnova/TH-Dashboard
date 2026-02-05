@@ -28,7 +28,6 @@ export default function ComparePage() {
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
 
-  // Filters
   const [deviceFilter, setDeviceFilter] = useState<string>('');
   const [deploymentFilter, setDeploymentFilter] = useState<string>('');
   const [deployments, setDeployments] = useState<DeploymentWithCount[]>([]);
@@ -119,7 +118,7 @@ export default function ComparePage() {
     <AuthGate>
       <div className="min-h-screen">
         <div className="container-responsive">
-          {/* Header + Navigation - reversed on mobile */}
+          {/* flex-col-reverse puts nav above header on mobile */}
           <div className="flex flex-col-reverse sm:flex-col">
             <header className="mb-6 sm:mb-10">
               <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Compare</h1>
@@ -128,9 +127,7 @@ export default function ComparePage() {
             <Navbar />
           </div>
 
-        {/* Controls */}
         <div className="flex flex-wrap gap-4 mb-8">
-          {/* Time Range */}
           <div className="glass-card p-2 flex gap-1">
             {TIME_RANGES.map((range) => (
               <button key={range.hours} onClick={() => setSelectedRange(range.hours)}
@@ -156,7 +153,6 @@ export default function ComparePage() {
             </div>
           )}
 
-          {/* Filters */}
           <div className="glass-card p-3 flex flex-wrap items-center gap-4">
             <span className="text-xs text-[#a0aec0] font-medium">Filters:</span>
             <select value={deviceFilter} onChange={(e) => { setDeviceFilter(e.target.value); setDeploymentFilter(''); }}
@@ -175,7 +171,6 @@ export default function ComparePage() {
           </div>
         </div>
 
-        {/* Deployment indicator */}
         {deploymentFilter && activeDeployment && (
           <div className="mb-6 px-4 py-2 rounded-lg bg-[#0075ff]/20 border border-[#0075ff]/30 inline-flex items-center gap-2">
             <span className="text-sm text-white">

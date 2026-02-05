@@ -6,13 +6,13 @@ Real-time environmental monitoring from multiple sensor nodes with historical an
 
 ```
 ┌─────────────────┐                     ┌─────────────────┐
-│  Arduino R4     │ ── HTTPS POST ───>  │    Supabase     │
-│  WiFi + DHT20   │                     │    (Postgres)   │
+│ Arduino Sensor  │ ── HTTPS POST ───>  │    Supabase     │
+│ (R4/ESP32+DHT20)│                     │    (Postgres)   │
 └─────────────────┘                     └────────┬────────┘
                                                  │
 ┌─────────────────┐                              v
-│  Arduino R4     │ ── HTTPS POST ───>  ┌─────────────────┐
-│  WiFi + DHT20   │                     │   Next.js App   │
+│ Arduino Sensor  │ ── HTTPS POST ───>  ┌─────────────────┐
+│ (R4/ESP32+DHT20)│                     │   Next.js App   │
 └─────────────────┘                     │   (Vercel)      │
                                         └─────────────────┘
 ```
@@ -26,7 +26,6 @@ Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute w
 - Historical charts (1h/6h/24h/7d/custom) with device and deployment filters
 - Side-by-side stats comparison (avg, min, max, stddev, delta)
 - AI chat with Gemini tool-calling (queries deployments, stats, readings)
-- AI-generated summaries with rate limiting
 - CSV export per time range
 - Shared login via Supabase Auth
 - Mobile-responsive layout
@@ -35,7 +34,7 @@ Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute w
 
 | Layer | Tech |
 |-------|------|
-| Hardware | Arduino Uno R4 WiFi, DHT20 (I2C), 16x2 LCD |
+| Hardware | Arduino Uno R4 WiFi or ESP32-S3, DHT20 (I2C), 16x2 LCD |
 | Database | Supabase Postgres |
 | Auth | Supabase Auth (email/password) |
 | Web | Next.js 16 (App Router), Nivo charts |
@@ -48,7 +47,6 @@ Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute w
 |-------|---------|
 | `readings` | Temperature (Celsius) and humidity per device. Converted to Fahrenheit in UI. |
 | `deployments` | Device placement sessions: device + location + time range. Readings associate by matching `device_id` and `created_at` within the window. |
-| `ai_requests` | Rate limiting metadata for AI endpoints (15-min cooldown). |
 
 Device IDs: `node1`, `node2`
 
@@ -57,7 +55,6 @@ Device IDs: `node1`, `node2`
 | Route | Auth | Purpose |
 |-------|------|---------|
 | `POST /api/chat` | Required | AI chat with tool-calling. Accepts `{ message, history }`. Streams response. |
-| `POST /api/summary` | Required | One-shot 24h data summary via Gemini. Rate limited (15 min). |
 | `POST /api/keepalive` | CRON_SECRET | Prevents Supabase free-tier from pausing. |
 
 ## Security
@@ -95,10 +92,13 @@ Open [http://localhost:3000](http://localhost:3000) and log in with your Supabas
 
 ### 4. Arduino
 
-See [arduino/sensor_node/README.md](arduino/sensor_node/README.md) for wiring and firmware setup.
+Choose your board path:
+- `arduino/sensor_node/` (Uno R4 WiFi)
+- `arduino/sensor_node_esp32/` (ESP32-S3)
 
+Example (ESP32-S3):
 ```bash
-cd arduino/sensor_node
+cd arduino/sensor_node_esp32
 cp secrets.example.h secrets.h
 # Fill in WiFi + Supabase credentials
 # Set DEVICE_ID to "node1" or "node2"
@@ -118,7 +118,8 @@ Arduinos connect automatically once `secrets.h` is configured.
 ## Project Structure
 
 ```
-├── arduino/sensor_node/       # Firmware + wiring docs
+├── arduino/sensor_node/       # Uno R4 firmware + wiring docs
+├── arduino/sensor_node_esp32/ # ESP32-S3 firmware
 ├── supabase/schema.sql        # Tables, RLS policies, RPC functions
 ├── web/src/
 │   ├── app/
@@ -127,7 +128,7 @@ Arduinos connect automatically once `secrets.h` is configured.
 │   │   ├── compare/           # Stats comparison
 │   │   ├── deployments/       # Deployment management
 │   │   ├── login/             # Auth page
-│   │   └── api/               # chat, summary, keepalive
+│   │   └── api/               # chat, keepalive
 │   ├── components/
 │   │   ├── AuthProvider.tsx    # Auth context
 │   │   ├── AuthGate.tsx       # Route protection
@@ -188,7 +189,7 @@ To run as a fully public dashboard:
 
 **Arduino won't connect to WiFi**
 - Check `secrets.h` SSID/password
-- R4 WiFi only supports 2.4GHz networks
+- If using Uno R4 WiFi, use a 2.4GHz network
 
 **No data in dashboard**
 - Check Supabase table for rows
@@ -201,6 +202,7 @@ To run as a fully public dashboard:
 
 **AI chat not responding**
 - Confirm `GOOGLE_API_KEY` is set
+- Confirm `SUPABASE_SERVICE_ROLE_KEY` is set (server-side)
 - Check browser console for errors
 - AI routes require authentication
 

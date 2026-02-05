@@ -102,7 +102,6 @@ export default function FilterBar({ onFilterChange, initialFilters, showDeployme
 
   return (
     <div className="flex flex-wrap gap-4 mb-8">
-      {/* Time Range */}
       <div className="glass-card p-2 flex gap-1">
         {TIME_RANGES.map((range) => (
           <button
@@ -119,7 +118,6 @@ export default function FilterBar({ onFilterChange, initialFilters, showDeployme
         ))}
       </div>
 
-      {/* Custom Dates */}
       {isCustom && (
         <div className="glass-card p-3 flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
@@ -143,7 +141,6 @@ export default function FilterBar({ onFilterChange, initialFilters, showDeployme
         </div>
       )}
 
-      {/* Other Filters */}
       <div className="glass-card p-3 flex flex-wrap items-center gap-4">
         <span className="text-xs text-[#a0aec0] font-medium">Filters:</span>
 

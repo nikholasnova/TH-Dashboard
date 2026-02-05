@@ -63,7 +63,7 @@ export default function Dashboard() {
     <AuthGate>
       <div className="min-h-screen">
         <div className="container-responsive">
-          {/* Header + Navigation - reversed on mobile */}
+          {/* flex-col-reverse puts nav above header on mobile */}
           <div className="flex flex-col-reverse sm:flex-col">
             <header className="mb-6 sm:mb-10">
               <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
@@ -76,7 +76,6 @@ export default function Dashboard() {
             <Navbar />
           </div>
 
-          {/* Live Readings */}
           <div className="grid lg:grid-cols-2 gap-8">
             {DEVICES.map((device) => (
               <LiveReadingCard
@@ -93,13 +92,11 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* AI Chat */}
           <div className="mt-10">
             <AIChat />
           </div>
         </div>
 
-        {/* Deployment Modal */}
         {selectedDevice && (
           <DeploymentModal
             deviceId={selectedDevice.id}

@@ -1,19 +1,13 @@
 /*
  * IoT Temperature & Humidity Sensor Node
  *
- * Hardware:
- *   - Arduino Uno R4 WiFi
- *   - DHT20 sensor (I2C: SDA=A4, SCL=A5)
- *   - 16x2 LCD display (parallel wiring)
+ * Hardware: Arduino Uno R4 WiFi, DHT20 (I2C), 16x2 LCD (parallel)
  *
- * Reads sensor every 15 seconds and displays on LCD.
- * Averages readings over 3 minutes, then sends the average to Supabase.
+ * Reads sensor every 15s, averages over 3 minutes, POSTs average to Supabase.
+ * LCD shows current Fahrenheit reading; database stores Celsius.
  *
- * Setup:
- *   1. Copy secrets.example.h to secrets.h
- *   2. Fill in your WiFi and Supabase credentials
- *   3. Set DEVICE_ID to "node1" or "node2"
- *   4. Upload to your board
+ * Setup: copy secrets.example.h → secrets.h, fill in credentials,
+ *        set DEVICE_ID, upload.
  */
 
 #include <WiFiS3.h>
@@ -21,12 +15,10 @@
 #include "DFRobot_DHT20.h"
 #include "secrets.h"
 
-// ============== CONFIGURATION ==============
-#define DEVICE_ID "node1"  // "node1" or "node2"
-#define READ_INTERVAL_MS 15000   // How often to read sensor / update LCD
-#define SEND_INTERVAL_MS 180000  // How often to POST averaged data to Supabase
+#define DEVICE_ID "node1"
+#define READ_INTERVAL_MS 15000
+#define SEND_INTERVAL_MS 180000
 
-// LCD pin wiring (parallel 4-bit mode)
 #define LCD_RS 12
 #define LCD_EN 11
 #define LCD_D4 5
@@ -34,25 +26,21 @@
 #define LCD_D6 3
 #define LCD_D7 2
 
-// ============== OBJECTS ==============
 LiquidCrystal lcd(LCD_RS, LCD_EN, LCD_D4, LCD_D5, LCD_D6, LCD_D7);
 DFRobot_DHT20 dht20;
 WiFiSSLClient wifiClient;
 
 const int httpsPort = 443;
 
-// ============== STATE ==============
 unsigned long lastReadTime = 0;
 unsigned long lastSendTime = 0;
 int wifiStatus = WL_IDLE_STATUS;
 bool sensorOk = false;
 
-// Accumulators for averaging readings between sends
 float tempSum = 0;
 float humiditySum = 0;
 int readingCount = 0;
 
-// ============== SETUP ==============
 void setup() {
   Serial.begin(115200);
   while (!Serial && millis() < 3000);
@@ -87,7 +75,6 @@ void setup() {
   lcd.clear();
 }
 
-// ============== MAIN LOOP ==============
 void loop() {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi disconnected, reconnecting...");
@@ -100,7 +87,7 @@ void loop() {
     lastReadTime = now;
 
     float tempC = dht20.getTemperature();
-    float humidity = dht20.getHumidity() * 100;  // DHT20 returns 0-1 range
+    float humidity = dht20.getHumidity() * 100; // DHT20 returns 0-1
 
     if (isnan(tempC) || isnan(humidity)) {
       Serial.println("Sensor read failed!");
@@ -108,9 +95,7 @@ void loop() {
       return;
     }
 
-    // DB stores Celsius; LCD shows Fahrenheit
     float tempF = tempC * 9.0 / 5.0 + 32.0;
-
     displayReadings(tempF, humidity);
 
     tempSum += tempC;
@@ -128,7 +113,6 @@ void loop() {
     Serial.println("%");
   }
 
-  // Send averaged data to Supabase
   if (now - lastSendTime >= SEND_INTERVAL_MS && readingCount > 0) {
     lastSendTime = now;
 
@@ -144,11 +128,7 @@ void loop() {
     Serial.println("%");
 
     bool sent = sendToSupabase(avgTempC, avgHumidity);
-    if (sent) {
-      Serial.println(">> Average data sent to Supabase OK");
-    } else {
-      Serial.println(">> Failed to send average data");
-    }
+    Serial.println(sent ? ">> Sent OK" : ">> Send failed");
 
     tempSum = 0;
     humiditySum = 0;
@@ -156,14 +136,13 @@ void loop() {
   }
 }
 
-// ============== WIFI ==============
 void connectWiFi() {
   if (WiFi.status() == WL_NO_MODULE) {
     Serial.println("WiFi module not found!");
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("No WiFi Module!");
-    while (true); // Halt
+    while (true);
   }
 
   lcd.clear();
@@ -208,7 +187,6 @@ void connectWiFi() {
   }
 }
 
-// ============== SUPABASE ==============
 bool sendToSupabase(float tempC, float humidity) {
   String host = String(SUPABASE_URL);
   if (host.startsWith("https://")) {
@@ -224,7 +202,6 @@ bool sendToSupabase(float tempC, float humidity) {
     return false;
   }
 
-  // Temperature stored in Celsius
   String payload = "{\"device_id\":\"";
   payload += DEVICE_ID;
   payload += "\",\"temperature\":";
@@ -263,7 +240,6 @@ bool sendToSupabase(float tempC, float humidity) {
                  statusLine.indexOf("201") > 0 ||
                  statusLine.indexOf("204") > 0;
 
-  // Drain response body
   while (wifiClient.available()) {
     wifiClient.read();
   }
@@ -272,14 +248,12 @@ bool sendToSupabase(float tempC, float humidity) {
   return success;
 }
 
-// ============== LCD DISPLAY ==============
 void displayReadings(float tempF, float humidity) {
   lcd.clear();
-
   lcd.setCursor(0, 0);
   lcd.print("Temp: ");
   lcd.print(tempF, 1);
-  lcd.print((char)223);  // Degree symbol
+  lcd.print((char)223);
   lcd.print("F");
 
   lcd.setCursor(0, 1);

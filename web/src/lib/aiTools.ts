@@ -11,25 +11,21 @@ import {
 
 const TIMEZONE = 'America/Phoenix';
 
-// Convert a UTC ISO timestamp to a human-readable Phoenix time string for AI responses
 function toLocalTime(utcString: string): string {
   return new Date(utcString).toLocaleString('en-US', { timeZone: TIMEZONE });
 }
 
-// Server-side Supabase client for AI tools
-// Uses service role key to bypass RLS (auth is verified at API route level)
 function getServerClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !key) {
-    throw new Error('Supabase configuration missing');
+    throw new Error('Server Supabase configuration missing (NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required)');
   }
 
   return createClient(url, key);
 }
 
-// Tool execution functions
 export async function executeGetDeployments(params: {
   device_id?: string;
   location?: string;
@@ -55,12 +51,12 @@ export async function executeGetDeployments(params: {
 
   const { data: deployments, error } = await query;
 
-  if (error || !deployments) {
-    console.error('Error fetching deployments:', error);
-    return [];
+  if (error) {
+    throw new Error(`Failed to fetch deployments: ${error.message}`);
   }
 
-  // Get reading counts for each deployment
+  if (!deployments) return [];
+
   const deploymentsWithCounts: DeploymentWithCount[] = await Promise.all(
     deployments.map(async (d: Deployment) => {
       const { count } = await supabase
@@ -77,7 +73,6 @@ export async function executeGetDeployments(params: {
   return deploymentsWithCounts;
 }
 
-// Max deployments to query at once (prevents abuse)
 const MAX_DEPLOYMENT_IDS = 20;
 
 export async function executeGetDeploymentStats(params: {
@@ -87,7 +82,6 @@ export async function executeGetDeploymentStats(params: {
 
   if (params.deployment_ids.length === 0) return [];
 
-  // Cap the number of deployment IDs to prevent abuse
   const cappedIds = params.deployment_ids.slice(0, MAX_DEPLOYMENT_IDS);
 
   const { data, error } = await supabase.rpc('get_deployment_stats', {
@@ -95,8 +89,7 @@ export async function executeGetDeploymentStats(params: {
   });
 
   if (error) {
-    console.error('Error fetching deployment stats:', error);
-    return [];
+    throw new Error(`RPC get_deployment_stats failed: ${error.message} (code: ${error.code})`);
   }
 
   return data || [];
@@ -108,16 +101,18 @@ export async function executeGetReadings(params: {
 }): Promise<Reading[]> {
   const supabase = getServerClient();
 
-  // First get the deployment to know time range and device
   const { data: deployment, error: dError } = await supabase
     .from('deployments')
     .select('*')
     .eq('id', params.deployment_id)
     .single();
 
-  if (dError || !deployment) {
-    console.error('Error fetching deployment:', dError);
-    return [];
+  if (dError) {
+    throw new Error(`Failed to fetch deployment ${params.deployment_id}: ${dError.message}`);
+  }
+
+  if (!deployment) {
+    throw new Error(`Deployment ${params.deployment_id} not found`);
   }
 
   let query = supabase
@@ -131,15 +126,13 @@ export async function executeGetReadings(params: {
     query = query.lte('created_at', deployment.ended_at);
   }
 
-  // Cap readings (default 100, max 2000 for full analysis)
   const limit = Math.min(params.limit || 100, 2000);
   query = query.limit(limit);
 
   const { data, error } = await query;
 
   if (error) {
-    console.error('Error fetching deployment readings:', error);
-    return [];
+    throw new Error(`Failed to fetch readings for deployment ${params.deployment_id}: ${error.message}`);
   }
 
   return data || [];
@@ -159,8 +152,7 @@ export async function executeGetDeviceStats(params: {
   });
 
   if (error) {
-    console.error('Error fetching device stats:', error);
-    return [];
+    throw new Error(`RPC get_device_stats failed: ${error.message} (code: ${error.code})`);
   }
 
   return data || [];
@@ -182,14 +174,12 @@ export async function executeGetChartData(params: {
   });
 
   if (error) {
-    console.error('Error fetching chart data:', error);
-    return [];
+    throw new Error(`RPC get_chart_samples failed: ${error.message} (code: ${error.code})`);
   }
 
   return data || [];
 }
 
-// Main tool dispatcher
 export async function executeTool(
   name: string,
   params: Record<string, unknown>
@@ -206,7 +196,6 @@ export async function executeTool(
     }
     case 'get_deployment_stats': {
       const stats = await executeGetDeploymentStats(params as Parameters<typeof executeGetDeploymentStats>[0]);
-      // Convert temps to Fahrenheit for AI response
       return stats.map((s) => ({
         ...s,
         temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
@@ -244,7 +233,6 @@ export async function executeTool(
   }
 }
 
-// AI Response interface
 export interface AIResponse {
   summary: string;
   data?: {
