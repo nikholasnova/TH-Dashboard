@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -19,6 +21,16 @@ export function AIChat() {
     await navigator.clipboard.writeText(text);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
+  }, []);
+
+  const downloadMarkdown = useCallback((content: string) => {
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `report-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   }, []);
 
   const scrollToBottom = () => {
@@ -99,6 +111,7 @@ export function AIChat() {
     'Compare the temperature across all deployments',
     'Which location has the highest humidity?',
     'Show me stats for active deployments',
+    'Generate a report for my paper',
   ];
 
   return (
@@ -135,25 +148,60 @@ export function AIChat() {
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[80%] ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
                     <p className="text-xs text-[#a0aec0] mb-1">{msg.role === 'user' ? 'You' : 'Kelvin'}</p>
-                    <p className="text-base text-white whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    {msg.role === 'user' ? (
+                      <p className="text-base text-white whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    ) : (
+                      <div className="text-base text-white leading-relaxed prose prose-invert prose-sm max-w-none prose-headings:text-white prose-headings:font-bold prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-1 prose-p:my-1 prose-li:my-0 prose-strong:text-white prose-code:text-[#a0aec0] prose-pre:bg-white/5 prose-pre:border prose-pre:border-white/10">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{
+                            table: ({ children }) => (
+                              <div className="overflow-x-auto my-2">
+                                <table className="text-xs border-collapse w-full">{children}</table>
+                              </div>
+                            ),
+                            th: ({ children }) => (
+                              <th className="border border-white/20 px-2 py-1 text-left bg-white/5 text-white text-xs">{children}</th>
+                            ),
+                            td: ({ children }) => (
+                              <td className="border border-white/10 px-2 py-1 text-xs">{children}</td>
+                            ),
+                          }}
+                        >
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
+                    )}
                     {msg.role === 'assistant' && msg.content && (
-                      <button
-                        onClick={() => copyToClipboard(msg.content, i)}
-                        className="mt-2 flex items-center gap-1 text-xs text-[#a0aec0]/50 hover:text-[#a0aec0] transition-colors"
-                        title="Copy to clipboard"
-                      >
-                        {copiedIndex === i ? (
-                          <>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                            Copied
-                          </>
-                        ) : (
-                          <>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                            Copy
-                          </>
+                      <div className="mt-2 flex items-center gap-3">
+                        <button
+                          onClick={() => copyToClipboard(msg.content, i)}
+                          className="flex items-center gap-1 text-xs text-[#a0aec0]/50 hover:text-[#a0aec0] transition-colors"
+                          title="Copy to clipboard"
+                        >
+                          {copiedIndex === i ? (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                              Copy
+                            </>
+                          )}
+                        </button>
+                        {msg.content.length > 500 && (
+                          <button
+                            onClick={() => downloadMarkdown(msg.content)}
+                            className="flex items-center gap-1 text-xs text-[#a0aec0]/50 hover:text-[#a0aec0] transition-colors"
+                            title="Download as Markdown"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                            Download .md
+                          </button>
                         )}
-                      </button>
+                      </div>
                     )}
                   </div>
                 </div>

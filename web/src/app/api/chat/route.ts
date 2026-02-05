@@ -19,6 +19,7 @@ AVAILABLE TOOLS:
 - get_readings: Get raw readings for a deployment (most recent first, up to 2000)
 - get_device_stats: Get overall stats per device for any time range — not deployment-scoped. Great for broad analysis.
 - get_chart_data: Get time-bucketed averages for trend analysis (e.g. hourly or daily averages)
+- get_report_data: Get ALL deployments with full statistics in one call. Use this first when generating reports or comprehensive analyses.
 
 HOW TO ANSWER COMMON QUESTIONS:
 - "What's the last/latest/current temperature?": Use get_deployments to find the right deployment (filter by location if mentioned), then use get_readings with limit=1 to get the most recent reading.
@@ -27,6 +28,36 @@ HOW TO ANSWER COMMON QUESTIONS:
 - "Analyze all my data" / "Give me a full analysis": Use get_device_stats with a broad time range for overall stats, then get_chart_data with appropriate buckets to identify trends. Combine with get_deployments for context on locations.
 - "Show me trends" / "How has temperature changed?": Use get_chart_data with appropriate bucket sizes (15-60 min for a day, 1440 min for weeks/months).
 - If a user references a room, location, or place name, search deployments by location to find matching deployments.
+
+REPORT GENERATION:
+When asked to "generate a report", "write a report for my paper", "create an analysis document", or similar:
+1. First call get_report_data to get the complete data overview
+2. Then call get_chart_data with daily buckets (1440 min) for the full date range to identify trends
+3. Optionally call get_chart_data with hourly buckets (60 min) for the most recent 7 days for finer detail
+4. Synthesize everything into a structured report with these sections:
+
+## Executive Summary
+Brief overview of the monitoring project: how many deployments, total readings, date range, locations monitored.
+
+## Data Collection Overview
+Table of all deployments with their device, location, date range, and reading count.
+
+## Per-Deployment Analysis
+For each deployment: statistics (avg, min, max, std dev for temp and humidity), notable observations.
+
+## Cross-Location Comparison
+Compare deployments at different locations. Include deltas and interpret what the differences mean physically (e.g., "Location A averaged 2.3°F warmer than Location B, likely due to...").
+
+## Trend Analysis
+Describe how temperature and humidity changed over the monitoring period. Reference daily patterns, week-over-week changes, any anomalies or sudden shifts.
+
+## Key Findings
+Numbered list of the most important observations from the data.
+
+## Suggestions for Further Analysis
+What additional data collection or analysis could strengthen the findings.
+
+Format the report in clean Markdown with headers, tables, and bullet points. This is meant as a first draft for an engineering class paper.
 
 GUIDELINES:
 - Use get_device_stats or get_deployment_stats for aggregate comparisons — more efficient than raw readings
@@ -113,6 +144,15 @@ const getChartDataDecl: FunctionDeclaration = {
   },
 };
 
+const getReportDataDecl: FunctionDeclaration = {
+  name: 'get_report_data',
+  description: 'Get a comprehensive data overview for report generation. Returns ALL deployments with their statistics, overall device stats, and metadata. Use this as the first call when generating a full analysis report.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {},
+  },
+};
+
 export async function POST(req: Request) {
   try {
     const user = await getServerUser();
@@ -132,7 +172,6 @@ export async function POST(req: Request) {
       });
     }
 
-    // Gemini uses 'model' instead of 'assistant'
     const chatHistory = (history || []).map((msg: { role: string; content: string }) => ({
       role: msg.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: msg.content }],
@@ -152,7 +191,7 @@ export async function POST(req: Request) {
       model: 'gemini-2.5-flash',
       systemInstruction: SYSTEM_PROMPT,
       tools: [{
-        functionDeclarations: [getDeploymentsDecl, getDeploymentStatsDecl, getReadingsDecl, getDeviceStatsDecl, getChartDataDecl],
+        functionDeclarations: [getDeploymentsDecl, getDeploymentStatsDecl, getReadingsDecl, getDeviceStatsDecl, getChartDataDecl, getReportDataDecl],
       }],
     });
 
@@ -167,10 +206,10 @@ export async function POST(req: Request) {
         let response = await chat.sendMessage(message);
         let result = response.response;
 
-        // Handle tool calls in a loop (max 5 iterations to prevent infinite loops)
+        // Handle tool calls in a loop (max 10 iterations to prevent infinite loops)
         let iterations = 0;
         let calls = result.functionCalls?.();
-        while (calls && calls.length > 0 && iterations < 5) {
+        while (calls && calls.length > 0 && iterations < 10) {
           iterations++;
           const functionResponses = [];
 

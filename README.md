@@ -26,6 +26,8 @@ Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute w
 - Historical charts (1h/6h/24h/7d/custom) with device and deployment filters
 - Side-by-side stats comparison (avg, min, max, stddev, delta)
 - AI chat with Gemini tool-calling (queries deployments, stats, readings)
+- AI report generation: ask the chatbot to write a structured analysis report for your paper
+- Python statistical analysis (Pyodide): descriptive stats, correlation, hypothesis testing, seasonal decomposition, and Holt-Winters forecasting — runs entirely in the browser
 - CSV export per time range
 - Shared login via Supabase Auth
 - Mobile-responsive layout
@@ -39,6 +41,7 @@ Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute w
 | Auth | Supabase Auth (email/password) |
 | Web | Next.js 16 (App Router), Nivo charts |
 | AI | Google Gemini 2.5 Flash |
+| Browser Python | Pyodide (numpy, pandas, scipy, statsmodels) |
 | Hosting | Vercel |
 
 ## Data Model
@@ -56,6 +59,8 @@ Device IDs: `node1`, `node2`
 |-------|------|---------|
 | `POST /api/chat` | Required | AI chat with tool-calling. Accepts `{ message, history }`. Streams response. |
 | `POST /api/keepalive` | CRON_SECRET | Prevents Supabase free-tier from pausing. |
+
+The `/analysis` page runs entirely client-side using Pyodide (no API route needed). Python packages load from CDN on first visit (~15MB, cached by the browser afterward).
 
 ## Security
 
@@ -126,6 +131,7 @@ Arduinos connect automatically once `secrets.h` is configured.
 │   │   ├── page.tsx           # Live dashboard
 │   │   ├── charts/            # Historical charts
 │   │   ├── compare/           # Stats comparison
+│   │   ├── analysis/          # Pyodide statistical analysis
 │   │   ├── deployments/       # Deployment management
 │   │   ├── login/             # Auth page
 │   │   └── api/               # chat, keepalive
@@ -135,12 +141,15 @@ Arduinos connect automatically once `secrets.h` is configured.
 │   │   ├── Navbar.tsx
 │   │   ├── LiveReadingCard.tsx
 │   │   ├── DeploymentModal.tsx
-│   │   └── AIChat.tsx
+│   │   ├── AIChat.tsx
+│   │   └── analysis/          # Analysis result display components
 │   └── lib/
 │       ├── supabase.ts        # Client + queries + RPC wrappers
 │       ├── auth.ts            # signIn, signOut, getSession
 │       ├── serverAuth.ts      # Server-side session check
-│       └── aiTools.ts         # Gemini tool execution
+│       ├── aiTools.ts         # Gemini tool execution
+│       ├── pyodide.ts         # Pyodide loader singleton
+│       └── analysisRunner.ts  # Python analysis scripts + data bridge
 ```
 
 ## Env Vars
@@ -172,7 +181,8 @@ To run as a fully public dashboard:
 
 - **Server-side aggregation**: Charts and stats use Postgres RPC functions (`get_device_stats`, `get_chart_samples`, `get_deployment_stats`) to avoid transferring raw readings to the client.
 - **Bucketing**: Chart queries downsample readings into time buckets (3min for ≤6h, 6min for ≤24h, 30min for ≤7d, 1h for longer ranges). Bucket sizes are tuned for the 3-minute device sampling interval.
-- **AI guardrails**: Tool calls cap result sizes (max deployment IDs, max readings per query, 5-iteration tool-call loop limit).
+- **AI guardrails**: Tool calls cap result sizes (max deployment IDs, max readings per query, 10-iteration tool-call loop limit).
+- **Pyodide caching**: The Python runtime and packages (~15MB) are loaded from CDN once and cached by the browser. A module-level singleton keeps the instance alive across page navigations within the same session.
 - **Polling**: Dashboard refreshes every 30s. Sensors average over 3 minutes to reduce write volume.
 
 ## Trade-offs
@@ -199,6 +209,12 @@ To run as a fully public dashboard:
 **Charts/Compare pages empty**
 - Run the latest `schema.sql` — RPC function signatures may have changed
 - Verify `EXECUTE` is granted to `authenticated` role
+
+**Analysis page stuck on "Loading Python runtime..."**
+- Check browser console for network errors
+- Pyodide loads from `cdn.jsdelivr.net` — verify it's not blocked by your network
+- First load can take 10–30s depending on connection speed
+- If it fails, click the Retry button
 
 **AI chat not responding**
 - Confirm `GOOGLE_API_KEY` is set

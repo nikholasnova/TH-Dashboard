@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: '/', label: 'Live' },
   { href: '/charts', label: 'Charts' },
   { href: '/compare', label: 'Compare' },
+  { href: '/analysis', label: 'Analysis' },
   { href: '/deployments', label: 'Deployments' },
 ];
 

@@ -180,6 +180,47 @@ export async function executeGetChartData(params: {
   return data || [];
 }
 
+export async function executeGetReportData(): Promise<{
+  deployments: DeploymentWithCount[];
+  deployment_stats: DeploymentStats[];
+  overall_device_stats: DeviceStats[];
+  data_range: { earliest: string; latest: string };
+  total_readings: number;
+}> {
+  const deployments = await executeGetDeployments({});
+
+  if (deployments.length === 0) {
+    return {
+      deployments: [],
+      deployment_stats: [],
+      overall_device_stats: [],
+      data_range: { earliest: '', latest: '' },
+      total_readings: 0,
+    };
+  }
+
+  const allIds = deployments.map((d) => d.id);
+  const deploymentStats = await executeGetDeploymentStats({ deployment_ids: allIds });
+
+  const earliest = deployments.reduce(
+    (min, d) => (d.started_at < min ? d.started_at : min),
+    deployments[0].started_at
+  );
+  const latest = new Date().toISOString();
+
+  const overallDeviceStats = await executeGetDeviceStats({ start: earliest, end: latest });
+
+  const totalReadings = deployments.reduce((sum, d) => sum + d.reading_count, 0);
+
+  return {
+    deployments,
+    deployment_stats: deploymentStats,
+    overall_device_stats: overallDeviceStats,
+    data_range: { earliest, latest },
+    total_readings: totalReadings,
+  };
+}
+
 export async function executeTool(
   name: string,
   params: Record<string, unknown>
@@ -227,6 +268,34 @@ export async function executeTool(
         bucket_ts: toLocalTime(s.bucket_ts),
         temperature_avg_f: celsiusToFahrenheit(s.temperature_avg),
       }));
+    }
+    case 'get_report_data': {
+      const reportData = await executeGetReportData();
+      return {
+        deployments: reportData.deployments.map((d) => ({
+          ...d,
+          started_at: toLocalTime(d.started_at),
+          ended_at: d.ended_at ? toLocalTime(d.ended_at) : null,
+          created_at: toLocalTime(d.created_at),
+        })),
+        deployment_stats: reportData.deployment_stats.map((s) => ({
+          ...s,
+          temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
+          temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
+          temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
+        })),
+        overall_device_stats: reportData.overall_device_stats.map((s) => ({
+          ...s,
+          temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
+          temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
+          temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
+        })),
+        data_range: {
+          earliest: toLocalTime(reportData.data_range.earliest),
+          latest: toLocalTime(reportData.data_range.latest),
+        },
+        total_readings: reportData.total_readings,
+      };
     }
     default:
       throw new Error(`Unknown tool: ${name}`);
