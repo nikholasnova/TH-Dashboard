@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Use service role key to bypass RLS (this is a server-only route with secret protection)
@@ -163,24 +164,16 @@ async function sendEmail(subject: string, body: string): Promise<ChannelResult> 
   }
 
   const from = process.env.ALERT_EMAIL_FROM || 'IoT Monitor <onboarding@resend.dev>';
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to,
-      subject,
-      text: body,
-    }),
+  const resend = new Resend(apiKey);
+  const { error } = await resend.emails.send({
+    from,
+    to,
+    subject,
+    text: body,
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    return { channel: 'email', ok: false, error: `Resend ${response.status}: ${errorText}` };
+  if (error) {
+    return { channel: 'email', ok: false, error: `Resend error: ${error.message}` };
   }
 
   return { channel: 'email', ok: true };
