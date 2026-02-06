@@ -90,6 +90,33 @@ Upload: **Tools > Board > Arduino UNO R4 WiFi** > Select port > Upload
 
 Temperature is stored in Celsius in the database and converted to Fahrenheit in the web UI.
 
+## Communication Details
+
+### I2C: DHT20 <-> Arduino Uno R4 WiFi
+
+- Protocol: I2C
+- Bus lines: `SDA`, `SCL`
+- Sensor address: `0x38` (DHT20 default)
+- Read cadence: every `READ_INTERVAL_MS` (default 15s)
+- Error handling: invalid (`NaN`) readings are rejected and not added to averaging buffer
+
+### HTTPS: Arduino -> Supabase REST
+
+- Transport: TLS on port `443` using `WiFiSSLClient`
+- Endpoint: `POST /rest/v1/readings`
+- Headers: `apikey`, `Authorization: Bearer <anon-key>`, `Content-Type: application/json`
+- Payload:
+
+```json
+{
+  "device_id": "node1",
+  "temperature": 22.5,
+  "humidity": 45.2
+}
+```
+
+- Timing: one averaged upload every `SEND_INTERVAL_MS` (default 3 minutes)
+
 ## Data Format
 
 ```json

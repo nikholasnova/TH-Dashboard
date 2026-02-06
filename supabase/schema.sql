@@ -15,7 +15,7 @@ CREATE INDEX IF NOT EXISTS idx_readings_device_time
 
 ALTER TABLE readings ENABLE ROW LEVEL SECURITY;
 
--- Keep anon INSERT so ESP32 firmware can post directly.
+-- Keep anon INSERT so device firmware can post directly.
 DROP POLICY IF EXISTS "Allow anonymous insert" ON readings;
 CREATE POLICY "Allow anonymous insert" ON readings
   FOR INSERT
@@ -58,6 +58,29 @@ CREATE POLICY "Allow authenticated all" ON deployments
   TO authenticated
   USING (auth.uid() IS NOT NULL)
   WITH CHECK (auth.uid() IS NOT NULL);
+
+-- Alert state for keepalive monitoring and email notifications.
+CREATE TABLE IF NOT EXISTS device_alert_state (
+  device_id TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'ok'
+    CHECK (status IN ('ok', 'missing', 'stale', 'anomaly')),
+  last_seen_at TIMESTAMPTZ,
+  last_alert_type TEXT,
+  last_alert_sent_at TIMESTAMPTZ,
+  last_recovery_sent_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_alert_state_status
+  ON device_alert_state (status, updated_at DESC);
+
+ALTER TABLE device_alert_state ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow authenticated select alert state" ON device_alert_state;
+CREATE POLICY "Allow authenticated select alert state" ON device_alert_state
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() IS NOT NULL);
 
 -- RPCs are used by dashboard pages and AI tools.
 CREATE OR REPLACE FUNCTION get_device_stats(

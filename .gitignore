@@ -7,9 +7,6 @@
 # Arduino secrets
 secrets.h
 
-# ESP32 dev board (local testing only)
-arduino/sensor_node_esp32/
-
 # Arduino build files
 *.elf
 *.hex

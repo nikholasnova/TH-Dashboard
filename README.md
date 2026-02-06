@@ -5,19 +5,35 @@ Real-time environmental monitoring from multiple sensor nodes with historical an
 ## Architecture
 
 ```
-┌─────────────────┐                     ┌─────────────────┐
-│ Arduino Sensor  │ ── HTTPS POST ───>  │    Supabase     │
-│ (R4/ESP32+DHT20)│                     │    (Postgres)   │
-└─────────────────┘                     └────────┬────────┘
-                                                 │
-┌─────────────────┐                              v
-│ Arduino Sensor  │ ── HTTPS POST ───>  ┌─────────────────┐
-│ (R4/ESP32+DHT20)│                     │   Next.js App   │
-└─────────────────┘                     │   (Vercel)      │
-                                        └─────────────────┘
+[DHT20 #1] --I2C (0x38)--> [Node 1 Arduino Uno R4 WiFi] --HTTPS POST-->  ┌─────────────────────┐
+                                                                          │ Supabase Postgres   │
+[DHT20 #2] --I2C (0x38)--> [Node 2 Arduino Uno R4 WiFi] --HTTPS POST-->  │ (readings table)    │
+                                                                          └──────────┬──────────┘
+                                                                                     │
+                                                                                     │ Authenticated SELECT + RPC
+                                                                                     v
+                                                                           ┌─────────────────────┐
+                                                                           │ Next.js App         │
+                                                                           │ (Vercel)            │
+                                                                           └─────────────────────┘
 ```
 
 Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute windows, and POST to Supabase. The dashboard polls every 30 seconds.
+
+Detailed design and end-to-end flow: `docs/architecture.md`
+
+## Communication Details
+
+1. Sensor communication is I2C between DHT20 and MCU (`SDA`/`SCL`, DHT20 address `0x38`).
+2. Each node samples every 15s, buffers readings locally, then computes a 3-minute average.
+3. Each node sends JSON over HTTPS to Supabase REST:
+   - Endpoint: `POST /rest/v1/readings`
+   - Body: `{"device_id":"nodeX","temperature":<celsius>,"humidity":<percent>}`
+4. Supabase writes rows to `readings` with server timestamp (`created_at`).
+5. Next.js fetches live/historical data from Supabase using authenticated queries and RPC functions.
+
+See board-specific details:
+- `arduino/sensor_node/README.md` (Uno R4 WiFi)
 
 ## Features
 
@@ -29,14 +45,15 @@ Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute w
 - AI report generation: ask the chatbot to write a structured analysis report for your paper
 - Python statistical analysis (Pyodide): descriptive stats, correlation, hypothesis testing, seasonal decomposition, and Holt-Winters forecasting — runs entirely in the browser
 - CSV export per time range
-- Shared login via Supabase Auth
+- Email monitoring alerts for stale/offline/anomalous sensor nodes (one alert per incident + optional recovery alert)
+- Secure login via Supabase Auth
 - Mobile-responsive layout
 
 ## Stack
 
 | Layer | Tech |
 |-------|------|
-| Hardware | Arduino Uno R4 WiFi or ESP32-S3, DHT20 (I2C), 16x2 LCD |
+| Hardware | Arduino Uno R4 WiFi, DHT20 (I2C), 16x2 LCD |
 | Database | Supabase Postgres |
 | Auth | Supabase Auth (email/password) |
 | Web | Next.js 16 (App Router), Nivo charts |
@@ -50,15 +67,30 @@ Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute w
 |-------|---------|
 | `readings` | Temperature (Celsius) and humidity per device. Converted to Fahrenheit in UI. |
 | `deployments` | Device placement sessions: device + location + time range. Readings associate by matching `device_id` and `created_at` within the window. |
+| `device_alert_state` | Monitoring state per device for keepalive alert transitions (`ok`, `missing`, `stale`, `anomaly`) and alert timestamps. |
 
 Device IDs: `node1`, `node2`
+
+## Two-Node Deployment
+
+This repository is structured for dual-node operation:
+
+| Node ID | Typical Board | Firmware Path | Purpose |
+|---------|---------------|---------------|---------|
+| `node1` | Uno R4 WiFi | `arduino/sensor_node/` | Primary measurement point |
+| `node2` | Uno R4 WiFi | `arduino/sensor_node/` | Secondary measurement point |
+
+To verify two-node operation:
+1. Flash one device with `#define DEVICE_ID "node1"`.
+2. Flash the second device with `#define DEVICE_ID "node2"`.
+3. Confirm both IDs appear in dashboard cards and in the `readings` table.
 
 ## API Routes
 
 | Route | Auth | Purpose |
 |-------|------|---------|
 | `POST /api/chat` | Required | AI chat with tool-calling. Accepts `{ message, history }`. Streams response. |
-| `POST /api/keepalive` | CRON_SECRET | Prevents Supabase free-tier from pausing. |
+| `GET /api/keepalive` | CRON_SECRET | Cron health check + device monitoring + optional email alerts (one alert per incident + optional recovery alert). |
 
 The `/analysis` page runs entirely client-side using Pyodide (no API route needed). Python packages load from CDN on first visit (~15MB, cached by the browser afterward).
 
@@ -99,11 +131,15 @@ Open [http://localhost:3000](http://localhost:3000) and log in with your Supabas
 
 Choose your board path:
 - `arduino/sensor_node/` (Uno R4 WiFi)
-- `arduino/sensor_node_esp32/` (ESP32-S3)
 
-Example (ESP32-S3):
+Two-node checklist:
+- Device A: set `DEVICE_ID` to `node1`
+- Device B: set `DEVICE_ID` to `node2`
+- Put each node at a different location and verify both stream concurrently
+
+Example (Uno R4 WiFi):
 ```bash
-cd arduino/sensor_node_esp32
+cd arduino/sensor_node
 cp secrets.example.h secrets.h
 # Fill in WiFi + Supabase credentials
 # Set DEVICE_ID to "node1" or "node2"
@@ -116,15 +152,28 @@ cp secrets.example.h secrets.h
 2. Import in [Vercel](https://vercel.com), set **Root Directory** to `web`
 3. Add env vars (see table below)
 4. Deploy
-5. (Optional) Set up Vercel Cron for `/api/keepalive` with `CRON_SECRET`
+5. (Optional) Set up Vercel Cron for `/api/keepalive` with `CRON_SECRET` (default in `web/vercel.json`: every 10 minutes)
 
 Arduinos connect automatically once `secrets.h` is configured.
+
+## Circuit and Measurement Evidence
+
+Add photos/screenshots to `docs/images/` and reference them here.
+
+- `docs/images/node1-circuit.jpg` - Node 1 breadboard/wiring
+- `docs/images/node2-circuit.jpg` - Node 2 breadboard/wiring
+- `docs/images/measurement-setting.jpg` - Physical placement/measurement setting
+- `docs/images/dashboard-two-nodes.png` - Dashboard showing both `node1` and `node2`
+- `docs/images/supabase-readings-proof.png` - Supabase table rows from both nodes
+
+Photo checklist template is provided in `docs/images/README.md`.
 
 ## Project Structure
 
 ```
 ├── arduino/sensor_node/       # Uno R4 firmware + wiring docs
-├── arduino/sensor_node_esp32/ # ESP32-S3 firmware
+├── docs/architecture.md       # End-to-end system architecture details
+├── docs/images/               # Circuit + deployment photo evidence
 ├── supabase/schema.sql        # Tables, RLS policies, RPC functions
 ├── web/src/
 │   ├── app/
@@ -161,6 +210,13 @@ Arduinos connect automatically once `secrets.h` is configured.
 | `SUPABASE_SERVICE_ROLE_KEY` | Vercel + local | **Secret**, server-only |
 | `GOOGLE_API_KEY` | Vercel + local | Server-only, Gemini |
 | `CRON_SECRET` | Vercel + local | Protects `/api/keepalive` |
+| `RESEND_API_KEY` | Vercel + local | Server-only, sends alert emails |
+| `ALERT_EMAIL_TO` | Vercel + local | Comma-separated recipients |
+| `ALERT_EMAIL_FROM` | Vercel + local | Optional sender identity for alerts |
+| `MONITORED_DEVICE_IDS` | Vercel + local | Device list, default `node1,node2` |
+| `ALERT_STALE_MINUTES` | Vercel + local | Stale threshold, default `10` |
+| `ENABLE_RECOVERY_ALERTS` | Vercel + local | Send recovery emails when node returns to OK |
+| `ALERT_DASHBOARD_URL` | Vercel + local | Optional dashboard URL in alert body |
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
@@ -168,7 +224,18 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 GOOGLE_API_KEY=your-google-api-key
 CRON_SECRET=some-random-secret
+RESEND_API_KEY=re_...
+ALERT_EMAIL_TO=you@example.com
+MONITORED_DEVICE_IDS=node1,node2
+ALERT_STALE_MINUTES=10
+ENABLE_RECOVERY_ALERTS=true
 ```
+
+Monitoring behavior:
+- A problem alert is sent once when a device first enters `missing`, `stale`, or `anomaly`.
+- No repeated alerts are sent while the device remains in the same problem state.
+- If enabled, one recovery alert is sent when the device returns to `ok`.
+- `MONITORED_DEVICE_IDS` controls which devices are evaluated (set this to `node1` if node2 is not deployed yet).
 
 ## Disabling Auth
 
@@ -225,6 +292,16 @@ To run as a fully public dashboard:
 **/api/keepalive returns 401**
 - Set `CRON_SECRET` in env vars
 - Vercel Cron must send `Authorization: Bearer <CRON_SECRET>` header
+
+**/api/keepalive monitoring fails with `device_alert_state` error**
+- Run the latest `supabase/schema.sql` so `device_alert_state` exists
+
+**No alert emails received**
+- Set `RESEND_API_KEY` and `ALERT_EMAIL_TO`
+- For custom sender addresses, verify your domain in Resend and set `ALERT_EMAIL_FROM`
+
+**Alerts for node2 even though node2 is not deployed**
+- Set `MONITORED_DEVICE_IDS=node1` in your environment so only deployed devices are monitored
 
 ## License
 
