@@ -38,11 +38,11 @@ function getServiceRoleClient() {
   return { client: createClient(url, serviceKey), error: null } as const;
 }
 
-export function getUtcHourBucketRange(now = new Date()) {
+export function getUtcHalfHourBucketRange(now = new Date()) {
   const start = new Date(now);
-  start.setUTCMinutes(0, 0, 0);
-  const end = new Date(start);
-  end.setUTCHours(end.getUTCHours() + 1);
+  const minutes = start.getUTCMinutes();
+  start.setUTCMinutes(minutes < 30 ? 0 : 30, 0, 0);
+  const end = new Date(start.getTime() + 30 * 60 * 1000);
   return {
     startIso: start.toISOString(),
     endIso: end.toISOString(),
@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
     let skippedExistingCount = 0;
     const errors: string[] = [];
     const { startIso: hourStartIso, endIso: hourEndIso } =
-      getUtcHourBucketRange();
+      getUtcHalfHourBucketRange();
 
     // Fetch weather for each unique zip code
     for (const [zipCode, targets] of targetsByZip) {
