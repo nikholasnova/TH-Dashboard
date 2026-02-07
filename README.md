@@ -4,21 +4,46 @@ Real-time environmental monitoring from multiple sensor nodes with historical an
 
 ## Architecture
 
-```
-[DHT20 #1] --I2C (0x38)--> [Node 1 Arduino Uno R4 WiFi] --HTTPS POST-->  ┌─────────────────────┐
-                                                                          │ Supabase Postgres   │
-[DHT20 #2] --I2C (0x38)--> [Node 2 Arduino Uno R4 WiFi] --HTTPS POST-->  │ (readings table)    │
-                                                                          └──────────┬──────────┘
-                                                                                     │
-                                                                                     │ Authenticated SELECT + RPC
-                                                                                     v
-                                                                           ┌─────────────────────┐
-                                                                           │ Next.js App         │
-                                                                           │ (Vercel)            │
-                                                                           └─────────────────────┘
+```mermaid
+flowchart TB
+  subgraph edge["1) Edge Sensor Layer"]
+    dht1["DHT20 #1"]
+    dht2["DHT20 #2"]
+    n1["Arduino node1<br/>15s reads, 3m averages"]
+    n2["Arduino node2<br/>15s reads, 3m averages"]
+    dht1 -->|"I2C (0x38)"| n1
+    dht2 -->|"I2C (0x38)"| n2
+  end
+
+  subgraph ingest["2) Ingestion + Automation (Vercel)"]
+    cron["Vercel Cron<br/>*/10 keepalive, 0 * * * * weather"]
+    keepalive["GET /api/keepalive"]
+    weatherRoute["GET /api/weather"]
+    wx["WeatherAPI.com<br/>Current conditions by ZIP"]
+    cron --> keepalive
+    cron --> weatherRoute
+    weatherRoute -->|"Fetch by ZIP"| wx
+  end
+
+  subgraph data["3) Data Platform"]
+    db[("Supabase Postgres<br/>readings / deployments / RPC")]
+  end
+
+  subgraph app["4) App + Analysis Layer"]
+    ui["Next.js App<br/>Dashboard / Charts / Compare / Analysis"]
+    chat["POST /api/chat<br/>Gemini tool calls"]
+  end
+
+  n1 -->|"HTTPS POST /rest/v1/readings"| db
+  n2 -->|"HTTPS POST /rest/v1/readings"| db
+  keepalive -->|"Health checks + alert state"| db
+  weatherRoute -->|"Insert weather_* rows<br/>source=weather"| db
+  ui <-->|"Authenticated SELECT + RPC"| db
+  chat -->|"Service-role queries"| db
+  ui -. "Chat requests" .-> chat
 ```
 
-Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute windows, and POST to Supabase. The dashboard polls every 30 seconds.
+Sensor nodes read temperature/humidity every 15 seconds, average over 3-minute windows, and POST to Supabase. An hourly cron route fetches outdoor weather by deployment ZIP code and writes companion `weather_*` rows to `readings`.
 
 Detailed design and end-to-end flow: `docs/architecture.md`
 
@@ -32,6 +57,17 @@ Detailed design and end-to-end flow: `docs/architecture.md`
 4. Supabase writes rows to `readings` with server timestamp (`created_at`).
 5. Next.js fetches live/historical data from Supabase using authenticated queries and RPC functions.
 
+## Weather Ingestion Details
+
+1. Active deployments can store an optional `zip_code` (validated as US ZIP or ZIP+4 in the deployment modal).
+2. Vercel Cron calls `GET /api/weather` hourly (`0 * * * *`) using `CRON_SECRET`.
+3. The route fetches active deployments with ZIP codes, normalizes ZIP values, and deduplicates WeatherAPI requests by ZIP.
+4. It inserts one weather row per active sensor device into `readings` with:
+   - `device_id`: `weather_<sensor_device_id>`
+   - `source`: `weather`
+   - `deployment_id`, `zip_code`, `observed_at`
+5. Compare and AI flows use these `weather_*` device IDs to compare sensor vs outdoor conditions.
+
 See board-specific details:
 - `arduino/sensor_node/README.md` (Uno R4 WiFi)
 
@@ -40,8 +76,9 @@ See board-specific details:
 - Live readings from multiple nodes (30s polling, offline detection after 5 min)
 - Deployment tracking: group readings by device + location + time range
 - Historical charts (1h/6h/24h/7d/custom) with device and deployment filters
-- Side-by-side stats comparison (avg, min, max, stddev, delta)
+- Side-by-side stats comparison (avg, min, max, stddev, delta) with weather rows and `% Error`
 - AI chat with Gemini tool-calling (queries deployments, stats, readings)
+- Hourly outdoor weather integration (WeatherAPI.com) tied to active deployment ZIP code
 - AI report generation: ask the chatbot to write a structured analysis report for your paper
 - Python statistical analysis (Pyodide): descriptive stats, correlation, hypothesis testing, seasonal decomposition, and Holt-Winters forecasting — runs entirely in the browser
 - CSV export per time range
@@ -65,11 +102,11 @@ See board-specific details:
 
 | Table | Purpose |
 |-------|---------|
-| `readings` | Temperature (Celsius) and humidity per device. Converted to Fahrenheit in UI. |
-| `deployments` | Device placement sessions: device + location + time range. Readings associate by matching `device_id` and `created_at` within the window. |
+| `readings` | Temperature (Celsius) and humidity per device. Includes both sensor and weather records via `source` (`sensor` or `weather`) plus weather metadata (`deployment_id`, `zip_code`, `observed_at`). Converted to Fahrenheit in UI. |
+| `deployments` | Device placement sessions: device + location + time range, plus optional `zip_code` used for hourly weather lookup. Readings associate by matching `device_id` and `created_at` within the window. |
 | `device_alert_state` | Monitoring state per device for keepalive alert transitions (`ok`, `missing`, `stale`, `anomaly`) and alert timestamps. |
 
-Device IDs: `node1`, `node2`
+Device IDs: `node1`, `node2` (sensor), and `weather_node1`, `weather_node2` (hourly outdoor weather companions).
 
 ## Two-Node Deployment
 
@@ -91,6 +128,7 @@ To verify two-node operation:
 |-------|------|---------|
 | `POST /api/chat` | Required | AI chat with tool-calling. Accepts `{ message, history }`. Streams response. |
 | `GET /api/keepalive` | CRON_SECRET | Cron health check + device monitoring + optional email alerts (one alert per incident + optional recovery alert). |
+| `GET /api/weather` | CRON_SECRET | Hourly weather ingestion route. Fetches WeatherAPI current conditions by active deployment ZIP and writes `weather_*` readings. |
 
 The `/analysis` page runs entirely client-side using Pyodide (no API route needed). Python packages load from CDN on first visit (~15MB, cached by the browser afterward).
 
@@ -99,7 +137,7 @@ The `/analysis` page runs entirely client-side using Pyodide (no API route neede
 - **RLS**: Authenticated users only for SELECT on dashboard data.
 - **Device writes**: Anon INSERT for Arduino fast path. Trade-off: data integrity relies on key secrecy rather than per-device auth.
 - **API routes**: Return 401 if unauthenticated or missing secret.
-- **Server-only secrets**: `SUPABASE_SERVICE_ROLE_KEY` and `GOOGLE_API_KEY` never exposed to client. Service role key bypasses RLS only after auth is verified at the request level.
+- **Server-only secrets**: `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_API_KEY`, and `WEATHER_API_KEY` never exposed to client. Service role key bypasses RLS only after auth/secret checks at the request level.
 
 ## Setup
 
@@ -152,7 +190,9 @@ cp secrets.example.h secrets.h
 2. Import in [Vercel](https://vercel.com), set **Root Directory** to `web`
 3. Add env vars (see table below)
 4. Deploy
-5. (Optional) Set up Vercel Cron for `/api/keepalive` with `CRON_SECRET` (default in `web/vercel.json`: every 10 minutes)
+5. (Optional) Verify Vercel Cron jobs in `web/vercel.json`:
+   - `/api/keepalive` every 10 minutes (`*/10 * * * *`)
+   - `/api/weather` hourly (`0 * * * *`)
 
 Arduinos connect automatically once `secrets.h` is configured.
 
@@ -183,7 +223,7 @@ Photo checklist template is provided in `docs/images/README.md`.
 │   │   ├── analysis/          # Pyodide statistical analysis
 │   │   ├── deployments/       # Deployment management
 │   │   ├── login/             # Auth page
-│   │   └── api/               # chat, keepalive
+│   │   └── api/               # chat, keepalive, weather
 │   ├── components/
 │   │   ├── AuthProvider.tsx    # Auth context
 │   │   ├── AuthGate.tsx       # Route protection
@@ -198,7 +238,9 @@ Photo checklist template is provided in `docs/images/README.md`.
 │       ├── serverAuth.ts      # Server-side session check
 │       ├── aiTools.ts         # Gemini tool execution
 │       ├── pyodide.ts         # Pyodide loader singleton
-│       └── analysisRunner.ts  # Python analysis scripts + data bridge
+│       ├── analysisRunner.ts  # Python analysis scripts + data bridge
+│       ├── weatherZip.ts      # ZIP validation + weather device ID helpers
+│       └── weatherCompare.ts  # Compare-page weather pairing + % error helper
 ```
 
 ## Env Vars
@@ -209,7 +251,8 @@ Photo checklist template is provided in `docs/images/README.md`.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel + local | Public |
 | `SUPABASE_SERVICE_ROLE_KEY` | Vercel + local | **Secret**, server-only |
 | `GOOGLE_API_KEY` | Vercel + local | Server-only, Gemini |
-| `CRON_SECRET` | Vercel + local | Protects `/api/keepalive` |
+| `WEATHER_API_KEY` | Vercel + local | Server-only, WeatherAPI.com key for `/api/weather` |
+| `CRON_SECRET` | Vercel + local | Protects `/api/keepalive` and `/api/weather` |
 | `RESEND_API_KEY` | Vercel + local | Server-only, sends alert emails |
 | `ALERT_EMAIL_TO` | Vercel + local | Comma-separated recipients |
 | `ALERT_EMAIL_FROM` | Vercel + local | Optional sender identity for alerts |
@@ -223,6 +266,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 GOOGLE_API_KEY=your-google-api-key
+WEATHER_API_KEY=your-weather-api-key
 CRON_SECRET=some-random-secret
 RESEND_API_KEY=re_...
 ALERT_EMAIL_TO=you@example.com
@@ -292,6 +336,15 @@ To run as a fully public dashboard:
 **/api/keepalive returns 401**
 - Set `CRON_SECRET` in env vars
 - Vercel Cron must send `Authorization: Bearer <CRON_SECRET>` header
+
+**/api/weather returns 401**
+- Set `CRON_SECRET` in env vars
+- Ensure manual calls include `?secret=<CRON_SECRET>` or `Authorization: Bearer <CRON_SECRET>`
+
+**Weather rows are missing in Compare or `% Error` shows `—`**
+- Ensure deployment has a valid ZIP (`12345` or `12345-6789`)
+- Confirm `WEATHER_API_KEY` is set in Vercel/local env
+- Trigger `/api/weather` manually and check response `errors` field
 
 **/api/keepalive monitoring fails with `device_alert_state` error**
 - Run the latest `supabase/schema.sql` so `device_alert_state` exists

@@ -5,15 +5,19 @@ This document describes the full data path from sensor read to dashboard/analysi
 ## 1) Scope
 
 - Hardware: two Arduino Uno R4 WiFi nodes with DHT20 sensors (I2C) and 16x2 LCDs.
-- Cloud: Supabase Postgres (`readings`, `deployments`, RPC functions).
-- Application: Next.js web app with authenticated dashboard, charts, comparisons, deployment management, AI chat, and in-browser Python analysis.
+- Cloud: Supabase Postgres (`readings`, `deployments`, `device_alert_state`, RPC functions) plus WeatherAPI.com for hourly outdoor reference data.
+- Application: Next.js web app with authenticated dashboard, charts, comparisons, deployment management, AI chat, in-browser Python analysis, and cron-backed weather ingestion.
 
 ## 2) Component Topology
 
 ```text
-[DHT20 #1] --I2C--> [Arduino Uno R4 node1] --HTTPS POST--> 
-                                                     [Supabase Postgres] <--authenticated queries/RPC-- [Next.js app]
-[DHT20 #2] --I2C--> [Arduino Uno R4 node2] --HTTPS POST-->
+[DHT20 #1] --I2C--> [Arduino Uno R4 node1] --HTTPS POST--> [Supabase Postgres]
+[DHT20 #2] --I2C--> [Arduino Uno R4 node2] --HTTPS POST--> [Supabase Postgres]
+
+[Vercel Cron (hourly)] --> [GET /api/weather] --> [WeatherAPI.com current endpoint]
+                                           \----> [Supabase Postgres]
+
+[Next.js app] <--authenticated queries/RPC--> [Supabase Postgres]
 ```
 
 ## 3) Embedded Node Pipeline
@@ -54,10 +58,14 @@ This document describes the full data path from sensor read to dashboard/analysi
 ### 4.1 Tables
 
 - `readings`
-  - `device_id`, `temperature` (C), `humidity`, `created_at`
+  - `device_id`, `temperature` (C), `humidity`, `created_at`, `source`, `deployment_id`, `zip_code`, `observed_at`
+  - `source` is constrained to `sensor` or `weather` (`sensor` default)
+  - weather inserts use `device_id = weather_<sensor_device_id>`
   - index on `(device_id, created_at DESC)`
+  - weather uniqueness guardrail on `(device_id, hour(created_at UTC))` for `source = weather` when historical duplicates allow it
 - `deployments`
-  - metadata for placement windows (`name`, `location`, `started_at`, `ended_at`)
+  - metadata for placement windows (`name`, `location`, `zip_code`, `started_at`, `ended_at`)
+  - optional unique-active guardrail on `device_id` where `ended_at is null` when historical duplicates allow it
 - `device_alert_state`
   - monitor state per device (`status`, `last_seen_at`, `last_alert_sent_at`, `last_recovery_sent_at`)
   - used by keepalive route to deduplicate incident and recovery notifications
@@ -73,6 +81,7 @@ This document describes the full data path from sensor read to dashboard/analysi
 - `device_alert_state`:
   - `authenticated`: `SELECT`
   - `service_role`: route-managed upsert from `/api/keepalive`
+- Weather ingestion route (`/api/weather`) uses service-role server credentials and `CRON_SECRET` authentication.
 
 ### 4.3 RPC Functions
 
@@ -84,6 +93,7 @@ This document describes the full data path from sensor read to dashboard/analysi
   - deployment-scoped aggregates using `device_id + deployment time window`.
 - `get_deployment_readings(p_deployment_id, p_limit)`
   - raw readings within a deployment window.
+- Weather data is written into `readings` so existing RPCs can include weather devices via `p_device_id` (for example `weather_node1`).
 
 ## 5) Web Application Data Flows
 
@@ -106,19 +116,21 @@ All UI pages are protected by `AuthGate`; users must be signed in with Supabase 
   - <=7d: 30 min
   - longer: 60 min
 - Calls `get_chart_samples`.
-- CSV export uses raw readings query for selected range/filter.
+- CSV export uses raw readings query for selected range/filter and excludes `weather_*` rows.
 
 ### 5.3 Compare (`/compare`)
 
 - Resolves time range (or deployment window).
-- Calls `get_device_stats`.
+- Calls `get_device_stats` for paired sensor and weather device IDs (`node1` + `weather_node1`, `node2` + `weather_node2`) when scoped.
 - Converts Celsius -> Fahrenheit in UI for presentation.
+- Shows Weather rows and `% Error` rows for temperature and humidity when data exists.
 
 ### 5.4 Deployments (`/deployments`)
 
 - Reads deployments with optional filters (device/location/status).
 - Computes reading counts per deployment using time-window queries.
 - Create/update/end/delete deployment metadata via Supabase client operations.
+- Supports optional ZIP code (`12345` or `12345-6789`) for weather lookups.
 - Deletion also removes readings in that deployment time window.
 
 ### 5.5 Python Analysis (`/analysis`)
@@ -143,6 +155,7 @@ All UI pages are protected by `AuthGate`; users must be signed in with Supabase 
 - Tools execute server-side through `aiTools.ts` with service-role Supabase client.
 - Tool loop is bounded (max 10 iterations).
 - Returned values include Fahrenheit convenience fields and local-time formatting (`America/Phoenix`).
+- System prompt/tool descriptions include weather device IDs so AI can compare indoor sensor readings against outdoor weather companions.
 
 ### 5.7 Keepalive (`GET /api/keepalive`)
 
@@ -153,17 +166,32 @@ All UI pages are protected by `AuthGate`; users must be signed in with Supabase 
 - Sends one problem alert per incident state transition (no repeated spam while state is unchanged).
 - Sends one optional recovery alert when a device returns to `ok`.
 
+### 5.8 Weather Ingestion (`GET /api/weather`)
+
+- Triggered by Vercel Cron hourly (`0 * * * *`).
+- Protected by `CRON_SECRET` (header bearer token or `?secret=` query param).
+- Requires server env vars: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `WEATHER_API_KEY`.
+- Reads active deployments with non-null `zip_code`.
+- Normalizes and validates ZIP codes, deduplicates WeatherAPI calls by ZIP, and resolves duplicates for the same active device by most recent `started_at`.
+- Writes one weather row per tracked sensor device into `readings` with `source = weather`, `deployment_id`, `zip_code`, and `observed_at`.
+- Performs idempotency checks per weather device per UTC hour to avoid duplicate inserts.
+- Returns summary counters (`fetched_count`, `inserted_count`, `skipped_existing_count`, `invalid_zip_count`, `duplicate_active_device_count`) and per-ZIP errors.
+
 ## 6) Data Semantics
 
 - Storage temperature unit: Celsius.
 - Display temperature unit: Fahrenheit (UI and AI helper fields).
-- `readings` are not foreign-keyed to `deployments`.
-  - Association is derived by `device_id` plus timestamp inclusion in deployment window.
+- Sensor device IDs: `node1`, `node2`.
+- Weather device IDs: `weather_node1`, `weather_node2` (derived from sensor IDs).
+- `source = sensor` rows come from Arduino nodes; `source = weather` rows come from `/api/weather`.
+- Sensor readings remain deployment-window derived by `device_id + timestamp`.
+- Weather rows also store `deployment_id` and `zip_code` metadata for traceability.
 
 ## 7) Timing and Throughput Characteristics
 
 - Node sampling: 15s.
 - Node upload: 3 min average packet (~12 samples per send window).
+- Weather fetch cadence: hourly (one WeatherAPI call per unique active ZIP code).
 - Dashboard refresh: 30s.
 - Chart data is downsampled in Postgres (bucket RPC) to control payload size.
 - Analysis page can request large windows; client-side Python runtime cost is amortized by browser caching.
@@ -178,6 +206,10 @@ All UI pages are protected by `AuthGate`; users must be signed in with Supabase 
   - window upload fails; next cycle continues with new window.
 - Supabase/RPC/UI errors:
   - client logs and returns empty-state fallbacks.
+- Weather route failure:
+  - missing weather key returns non-throwing JSON error (`ok: false`)
+  - WeatherAPI per-ZIP failures are collected in response `errors` while continuing remaining ZIPs
+  - duplicate insert races are tolerated (`23505` counted as skipped)
 - Pyodide load failure:
   - analysis page surfaces retry action.
 
@@ -189,7 +221,8 @@ All UI pages are protected by `AuthGate`; users must be signed in with Supabase 
   - browser uses public anon client + authenticated session for reads/RPC.
 - Server boundary:
   - API routes use service role only on server.
-  - `/api/chat` and `/api/keepalive` enforce request-level auth/secret checks.
+  - `/api/chat` enforces authenticated user checks.
+  - `/api/keepalive` and `/api/weather` enforce `CRON_SECRET`.
 
 ## 10) Primary Source Files
 
@@ -204,3 +237,5 @@ All UI pages are protected by `AuthGate`; users must be signed in with Supabase 
 - Analysis runtime + scripts: `web/src/lib/pyodide.ts`, `web/src/lib/analysisRunner.ts`
 - AI route + tools: `web/src/app/api/chat/route.ts`, `web/src/lib/aiTools.ts`
 - Keepalive route: `web/src/app/api/keepalive/route.ts`
+- Weather route: `web/src/app/api/weather/route.ts`
+- Weather helper utilities: `web/src/lib/weatherZip.ts`, `web/src/lib/weatherCompare.ts`
