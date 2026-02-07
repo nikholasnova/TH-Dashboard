@@ -107,8 +107,8 @@ interface ReadingWithContext {
 
 async function fetchReadingsForAnalysis(
   deploymentIds: number[],
-  _start: string,
-  _end: string
+  start: string,
+  end: string
 ): Promise<ReadingWithContext[]> {
   const allDeployments = await getDeployments();
   const deploymentsById = new Map<number, DeploymentWithCount>();
@@ -122,7 +122,11 @@ async function fetchReadingsForAnalysis(
     const dep = deploymentsById.get(depId);
     if (!dep) continue;
 
-    const readings = await getDeploymentReadings(depId, 5000);
+    const readings = await getDeploymentReadings(depId, 5000, {
+      start,
+      end,
+      preferLatest: true,
+    });
 
     for (const r of readings) {
       combined.push({
@@ -142,6 +146,7 @@ async function fetchReadingsForAnalysis(
 
 export const SETUP_SCRIPT = `
 import json
+import math
 import pandas as pd
 import numpy as np
 
@@ -152,12 +157,55 @@ df['temperature_f'] = df['temperature'] * 9/5 + 32
 df = df.sort_values('created_at')
 
 deployments_info = json.loads(deployments_json)
+
+def safe_float(value, fallback=0.0):
+    try:
+        v = float(value)
+    except Exception:
+        return float(fallback)
+    if math.isfinite(v):
+        return v
+    return float(fallback)
+
+def safe_p_value(value):
+    p = safe_float(value, 1.0)
+    if p < 0:
+        return 0.0
+    if p > 1:
+        return 1.0
+    return p
+
+def safe_optional_float(value):
+    try:
+        v = float(value)
+    except Exception:
+        return None
+    if math.isfinite(v):
+        return v
+    return None
+
+def sanitize_for_json(value):
+    if isinstance(value, dict):
+        return {k: sanitize_for_json(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [sanitize_for_json(v) for v in value]
+    if isinstance(value, tuple):
+        return [sanitize_for_json(v) for v in value]
+    if isinstance(value, (np.floating, float)):
+        return safe_float(value, 0.0)
+    if isinstance(value, (np.integer, int)):
+        return int(value)
+    if isinstance(value, (np.bool_, bool)):
+        return bool(value)
+    return value
+
+def dumps_json_safe(value):
+    return json.dumps(sanitize_for_json(value), allow_nan=False)
 `;
 
 export const ANALYSIS_SCRIPTS: Record<AnalysisType, string> = {
   descriptive: `
 from scipy import stats as scipy_stats
-import json
 
 results = []
 for (deployment_id, name, location), group in df.groupby(
@@ -165,35 +213,40 @@ for (deployment_id, name, location), group in df.groupby(
 ):
     for metric, col in [('temperature', 'temperature_f'), ('humidity', 'humidity')]:
         values = group[col].dropna()
-        if len(values) == 0:
+        count = int(len(values))
+        if count == 0:
             continue
+
         hist_counts, hist_edges = np.histogram(values, bins=20)
+        std_val = safe_float(values.std(), 0.0) if count > 1 else 0.0
+        skew_val = safe_float(scipy_stats.skew(values), 0.0) if count > 2 and std_val > 0 else 0.0
+        kurtosis_val = safe_float(scipy_stats.kurtosis(values), 0.0) if count > 3 and std_val > 0 else 0.0
+
         results.append({
             'deployment_id': int(deployment_id),
             'deployment_name': name,
             'location': location,
             'metric': metric,
-            'count': int(len(values)),
-            'mean': float(values.mean()),
-            'median': float(values.median()),
-            'std': float(values.std()),
-            'min': float(values.min()),
-            'max': float(values.max()),
-            'q25': float(values.quantile(0.25)),
-            'q75': float(values.quantile(0.75)),
-            'skewness': float(scipy_stats.skew(values)),
-            'kurtosis': float(scipy_stats.kurtosis(values)),
+            'count': count,
+            'mean': safe_float(values.mean(), 0.0),
+            'median': safe_float(values.median(), 0.0),
+            'std': std_val,
+            'min': safe_float(values.min(), 0.0),
+            'max': safe_float(values.max(), 0.0),
+            'q25': safe_float(values.quantile(0.25), 0.0),
+            'q75': safe_float(values.quantile(0.75), 0.0),
+            'skewness': skew_val,
+            'kurtosis': kurtosis_val,
             'histogram': {
                 'counts': hist_counts.tolist(),
                 'bin_edges': hist_edges.tolist(),
             }
         })
 
-result_json = json.dumps(results)
+result_json = dumps_json_safe(results)
 `,
   correlation: `
 from scipy import stats as scipy_stats
-import json
 
 results = []
 for (dep_id, name, location), group in df.groupby(
@@ -205,32 +258,44 @@ for (dep_id, name, location), group in df.groupby(
     t, h = temp[common], hum[common]
 
     if len(t) > 2:
-        r, p_val = scipy_stats.pearsonr(t, h)
-        slope, intercept, _, _, _ = scipy_stats.linregress(t, h)
+        t_std = safe_float(t.std(), 0.0)
+        h_std = safe_float(h.std(), 0.0)
+
+        if t_std > 0 and h_std > 0:
+            r_raw, p_raw = scipy_stats.pearsonr(t, h)
+            slope_raw, intercept_raw, _, _, _ = scipy_stats.linregress(t, h)
+            r = safe_float(r_raw, 0.0)
+            p_val = safe_p_value(p_raw)
+            slope = safe_float(slope_raw, 0.0)
+            intercept = safe_float(intercept_raw, safe_float(h.mean(), 0.0))
+        else:
+            r = 0.0
+            p_val = 1.0
+            slope = 0.0
+            intercept = safe_float(h.mean(), 0.0)
 
         step = max(1, len(t) // 500)
         results.append({
             'deployment_id': int(dep_id),
             'deployment_name': name,
             'location': location,
-            'pearson_r': float(r),
-            'p_value': float(p_val),
-            'r_squared': float(r**2),
-            'regression_slope': float(slope),
-            'regression_intercept': float(intercept),
+            'pearson_r': r,
+            'p_value': p_val,
+            'r_squared': safe_float(r**2, 0.0),
+            'regression_slope': slope,
+            'regression_intercept': intercept,
             'n_points': int(len(t)),
             'scatter_data': [
-                {'x': float(tv), 'y': float(hv)}
+                {'x': safe_float(tv, 0.0), 'y': safe_float(hv, 0.0)}
                 for tv, hv in zip(t.values[::step], h.values[::step])
             ],
         })
 
-result_json = json.dumps(results)
+result_json = dumps_json_safe(results)
 `,
   hypothesis_test: `
 from scipy import stats as scipy_stats
 from itertools import combinations
-import json
 
 results = []
 groups = df.groupby('deployment_id')
@@ -252,31 +317,38 @@ for dep_a, dep_b in deployment_pairs:
         b_vals = group_b[col].dropna()
 
         if len(a_vals) > 1 and len(b_vals) > 1:
-            t_stat, p_value = scipy_stats.ttest_ind(a_vals, b_vals, equal_var=False)
-            pooled_std = ((a_vals.std()**2 + b_vals.std()**2) / 2)**0.5
-            effect = float(abs(a_vals.mean() - b_vals.mean()) / pooled_std) if pooled_std > 0 else 0.0
+            mean_a = safe_float(a_vals.mean(), 0.0)
+            mean_b = safe_float(b_vals.mean(), 0.0)
+            std_a = safe_float(a_vals.std(), 0.0)
+            std_b = safe_float(b_vals.std(), 0.0)
+
+            t_stat_raw, p_value_raw = scipy_stats.ttest_ind(a_vals, b_vals, equal_var=False)
+            t_stat = safe_float(t_stat_raw, 0.0)
+            p_value = safe_p_value(p_value_raw)
+
+            pooled_std = safe_float(((std_a**2 + std_b**2) / 2)**0.5, 0.0)
+            effect = safe_float(abs(mean_a - mean_b) / pooled_std, 0.0) if pooled_std > 0 else 0.0
 
             results.append({
                 'deployment_a': {'id': int(dep_a), 'name': dep_meta.get(dep_a, {}).get('name', str(dep_a))},
                 'deployment_b': {'id': int(dep_b), 'name': dep_meta.get(dep_b, {}).get('name', str(dep_b))},
                 'metric': metric,
-                'mean_a': float(a_vals.mean()),
-                'mean_b': float(b_vals.mean()),
-                'std_a': float(a_vals.std()),
-                'std_b': float(b_vals.std()),
+                'mean_a': mean_a,
+                'mean_b': mean_b,
+                'std_a': std_a,
+                'std_b': std_b,
                 'n_a': int(len(a_vals)),
                 'n_b': int(len(b_vals)),
-                't_statistic': float(t_stat),
-                'p_value': float(p_value),
+                't_statistic': t_stat,
+                'p_value': p_value,
                 'significant': bool(p_value < 0.05),
                 'effect_size': effect,
             })
 
-result_json = json.dumps(results)
+result_json = dumps_json_safe(results)
 `,
   seasonal_decomposition: `
 from statsmodels.tsa.seasonal import seasonal_decompose
-import json
 
 results = []
 for (dep_id, name, location), group in df.groupby(
@@ -302,7 +374,7 @@ for (dep_id, name, location), group in df.groupby(
 
             def safe_list(arr):
                 vals = arr.values[::step]
-                return [None if (v != v) else float(v) for v in vals]
+                return [safe_optional_float(v) for v in vals]
 
             results.append({
                 'deployment_id': int(dep_id),
@@ -319,11 +391,10 @@ for (dep_id, name, location), group in df.groupby(
         except Exception:
             continue
 
-result_json = json.dumps(results)
+result_json = dumps_json_safe(results)
 `,
   forecasting: `
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
-import json
 
 FORECAST_HOURS = 24
 
@@ -358,10 +429,13 @@ for (dep_id, name, location), group in df.groupby(
             hist_cutoff = max(0, len(regular) - 7 * 96)
             hist_step = max(1, (len(regular) - hist_cutoff) // 500)
             hist_timestamps = [t.isoformat() for t in regular.index[hist_cutoff::hist_step]]
-            hist_values = regular.values[hist_cutoff::hist_step].tolist()
+            hist_values = [
+                safe_float(v, 0.0)
+                for v in regular.values[hist_cutoff::hist_step].tolist()
+            ]
 
             fc_timestamps = [t.isoformat() for t in forecast.index]
-            fc_values = forecast.values.tolist()
+            fc_values = [safe_float(v, 0.0) for v in forecast.values.tolist()]
 
             results.append({
                 'deployment_id': int(dep_id),
@@ -378,16 +452,16 @@ for (dep_id, name, location), group in df.groupby(
                     'values': fc_values,
                 },
                 'model_params': {
-                    'alpha': float(model.params['smoothing_level']),
-                    'beta': float(model.params['smoothing_trend']),
-                    'gamma': float(model.params['smoothing_seasonal']),
-                    'aic': float(model.aic),
+                    'alpha': safe_float(model.params['smoothing_level'], 0.0),
+                    'beta': safe_float(model.params['smoothing_trend'], 0.0),
+                    'gamma': safe_float(model.params['smoothing_seasonal'], 0.0),
+                    'aic': safe_float(model.aic, 0.0),
                 },
             })
         except Exception:
             continue
 
-result_json = json.dumps(results)
+result_json = dumps_json_safe(results)
 `,
 };
 

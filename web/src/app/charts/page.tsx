@@ -92,26 +92,54 @@ export default function ChartsPage() {
   const fetchData = useCallback(async () => {
     if (isCustom && !isCustomValid && !deploymentFilter) return;
     setIsLoading(true);
-    const { start, end } = await getRangeBounds();
-    const rangeMs = new Date(end).getTime() - new Date(start).getTime();
-    const bucketSeconds = pickBucketSeconds(rangeMs);
-    const data = await getChartSamples({
-      start,
-      end,
-      bucketSeconds,
-      device_id: deviceFilter || undefined,
-    });
-    setSamples(data);
-    setIsLoading(false);
-  }, [selectedRange, isCustom, isCustomValid, customStart, customEnd, deviceFilter, deploymentFilter, getRangeBounds]);
+    try {
+      const { start, end } = await getRangeBounds();
+      const rangeMs = new Date(end).getTime() - new Date(start).getTime();
+      const bucketSeconds = pickBucketSeconds(rangeMs);
+      const data = await getChartSamples({
+        start,
+        end,
+        bucketSeconds,
+        device_id: deviceFilter || undefined,
+      });
+      setSamples(data);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [deploymentFilter, deviceFilter, getRangeBounds, isCustom, isCustomValid]);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
-  useEffect(() => {
+  const handleRangeChange = (hours: number) => {
     setExportError(null);
-  }, [selectedRange, customStart, customEnd, deviceFilter, deploymentFilter]);
+    setSelectedRange(hours);
+  };
+
+  const handleCustomStartChange = (value: string) => {
+    setExportError(null);
+    setCustomStart(value);
+  };
+
+  const handleCustomEndChange = (value: string) => {
+    setExportError(null);
+    setCustomEnd(value);
+  };
+
+  const handleDeviceFilterChange = (value: string) => {
+    setExportError(null);
+    setDeviceFilter(value);
+    setDeploymentFilter('');
+  };
+
+  const handleDeploymentFilterChange = (value: string) => {
+    setExportError(null);
+    setDeploymentFilter(value);
+  };
 
   const exportCSV = async () => {
     if (isCustom && !isCustomValid && !deploymentFilter) return;
@@ -126,6 +154,7 @@ export default function ChartsPage() {
     if (deviceFilter) {
       rawReadings = rawReadings.filter(r => r.device_id === deviceFilter);
     }
+    rawReadings = rawReadings.filter(r => !r.device_id.startsWith('weather_'));
 
     if (rawReadings.length === 0) {
       setExportError('No data to export');
@@ -304,7 +333,7 @@ export default function ChartsPage() {
             {TIME_RANGES.map((range) => (
               <button
                 key={range.hours}
-                onClick={() => setSelectedRange(range.hours)}
+                onClick={() => handleRangeChange(range.hours)}
                 className={`px-5 py-2.5 text-sm rounded-xl transition-all ${
                   selectedRange === range.hours
                     ? 'nav-active text-white font-semibold'
@@ -320,12 +349,12 @@ export default function ChartsPage() {
             <div className="glass-card p-3 flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
                 <label className="text-xs text-[#a0aec0]">Start</label>
-                <input type="datetime-local" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
+                <input type="datetime-local" value={customStart} onChange={(e) => handleCustomStartChange(e.target.value)}
                   className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-xs text-[#a0aec0]">End</label>
-                <input type="datetime-local" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
+                <input type="datetime-local" value={customEnd} onChange={(e) => handleCustomEndChange(e.target.value)}
                   className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
               </div>
               {!isCustomValid && <span className="text-xs text-[#ffb547]">Pick a valid range</span>}
@@ -334,13 +363,13 @@ export default function ChartsPage() {
 
           <div className="glass-card p-3 flex flex-wrap items-center gap-4">
             <span className="text-xs text-[#a0aec0] font-medium">Filters:</span>
-            <select value={deviceFilter} onChange={(e) => { setDeviceFilter(e.target.value); setDeploymentFilter(''); }}
+            <select value={deviceFilter} onChange={(e) => handleDeviceFilterChange(e.target.value)}
               className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[100px]">
               <option value="">All Devices</option>
               <option value="node1">Node 1</option>
               <option value="node2">Node 2</option>
             </select>
-            <select value={deploymentFilter} onChange={(e) => setDeploymentFilter(e.target.value)}
+            <select value={deploymentFilter} onChange={(e) => handleDeploymentFilterChange(e.target.value)}
               className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[180px]">
               <option value="">All Deployments</option>
               {filteredDeployments.map((dep) => (
@@ -378,7 +407,7 @@ export default function ChartsPage() {
             <span className="text-sm text-white">
               Showing: {deployments.find(d => d.id.toString() === deploymentFilter)?.name}
             </span>
-            <button onClick={() => setDeploymentFilter('')} className="text-[#a0aec0] hover:text-white">✕</button>
+            <button onClick={() => handleDeploymentFilterChange('')} className="text-[#a0aec0] hover:text-white">✕</button>
           </div>
         )}
 

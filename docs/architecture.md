@@ -126,7 +126,8 @@ All UI pages are protected by `AuthGate`; users must be signed in with Supabase 
 - Loads Pyodide runtime from CDN (module singleton).
 - Loads packages: `numpy`, `pandas`, `scipy`, `statsmodels`.
 - Pulls deployment readings via Supabase client.
-- Current implementation scope is deployment-window based (up to 5000 rows per selected deployment).
+- Applies the selected analysis time range as an intersection with each deployment window.
+- Caps each selected deployment to the latest 5000 rows in that effective window (then restores chronological order for time-series analysis).
 - Runs selected analyses in-browser:
   - descriptive stats
   - correlation

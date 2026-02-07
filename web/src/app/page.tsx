@@ -49,15 +49,28 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    fetchReadings();
-    fetchDeployments();
-    const interval = setInterval(fetchReadings, REFRESH_INTERVAL);
-    return () => clearInterval(interval);
+    const initialTimer = setTimeout(() => {
+      void fetchReadings();
+      void fetchDeployments();
+    }, 0);
+    const interval = setInterval(() => {
+      void fetchReadings();
+    }, REFRESH_INTERVAL);
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
   }, [fetchReadings, fetchDeployments]);
 
   const handleDeploymentChange = () => {
     fetchDeployments();
   };
+
+  const selectedReading = selectedDevice ? readings[selectedDevice.id] : null;
+  const selectedDeviceConnected =
+    selectedReading && lastRefresh
+      ? lastRefresh.getTime() - new Date(selectedReading.created_at).getTime() < 5 * 60 * 1000
+      : false;
 
   return (
     <AuthGate>
@@ -101,7 +114,8 @@ export default function Dashboard() {
           <DeploymentModal
             deviceId={selectedDevice.id}
             deviceName={selectedDevice.name}
-            reading={readings[selectedDevice.id]}
+            reading={selectedReading}
+            isDeviceConnected={selectedDeviceConnected}
             isOpen={!!selectedDevice}
             onClose={() => setSelectedDevice(null)}
             onDeploymentChange={handleDeploymentChange}

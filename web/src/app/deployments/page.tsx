@@ -45,7 +45,10 @@ export default function DeploymentsPage() {
   }, [deviceFilter, locationFilter, statusFilter]);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const formatDateRange = (dep: DeploymentWithCount) => {

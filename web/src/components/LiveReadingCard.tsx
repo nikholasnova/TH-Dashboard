@@ -17,8 +17,10 @@ interface LiveReadingCardProps {
 export function LiveReadingCard({ deviceId, deviceName, reading, activeDeployment, isLoading, onClick, onRefresh, lastRefresh }: LiveReadingCardProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const isStale = reading
-    ? Date.now() - new Date(reading.created_at).getTime() > 5 * 60 * 1000 // 5 minutes (device sends every 3 min)
+  const readingTimestampMs = reading ? new Date(reading.created_at).getTime() : null;
+  const referenceTimestampMs = lastRefresh?.getTime() ?? readingTimestampMs;
+  const isStale = readingTimestampMs !== null
+    ? (referenceTimestampMs ?? readingTimestampMs) - readingTimestampMs > 5 * 60 * 1000
     : true;
 
   const formatTime = (dateString: string) => {

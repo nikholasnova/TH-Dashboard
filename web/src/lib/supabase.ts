@@ -18,6 +18,10 @@ export interface Reading {
   temperature: number; // Celsius
   humidity: number;
   created_at: string;
+  source?: 'sensor' | 'weather';
+  deployment_id?: number | null;
+  zip_code?: string | null;
+  observed_at?: string | null;
 }
 
 export interface ChartSample {
@@ -47,6 +51,7 @@ export interface Deployment {
   name: string;
   location: string;
   notes: string | null;
+  zip_code: string | null;
   started_at: string;
   ended_at: string | null;
   created_at: string;
@@ -304,6 +309,7 @@ export async function createDeployment(deployment: {
   name: string;
   location: string;
   notes?: string;
+  zip_code?: string;
   started_at?: string;
 }): Promise<Deployment | null> {
   if (!supabase) return null;
@@ -315,6 +321,7 @@ export async function createDeployment(deployment: {
       name: deployment.name,
       location: deployment.location,
       notes: deployment.notes || null,
+      zip_code: deployment.zip_code || null,
       started_at: deployment.started_at || new Date().toISOString(),
     })
     .select()
@@ -334,6 +341,7 @@ export async function updateDeployment(
     name?: string;
     location?: string;
     notes?: string | null;
+    zip_code?: string | null;
     started_at?: string;
     ended_at?: string | null;
   }
@@ -450,23 +458,52 @@ export async function getDeploymentStats(
 
 export async function getDeploymentReadings(
   deploymentId: number,
-  limit?: number
+  limit?: number,
+  options?: {
+    start?: string;
+    end?: string;
+    preferLatest?: boolean;
+  }
 ): Promise<Reading[]> {
   if (!supabase) return [];
 
   const deployment = await getDeployment(deploymentId);
   if (!deployment) return [];
 
+  const deploymentStartMs = new Date(deployment.started_at).getTime();
+  const deploymentEndMs = new Date(
+    deployment.ended_at || new Date().toISOString()
+  ).getTime();
+  const requestedStartMs = options?.start
+    ? new Date(options.start).getTime()
+    : deploymentStartMs;
+  const requestedEndMs = options?.end
+    ? new Date(options.end).getTime()
+    : deploymentEndMs;
+
+  if (!Number.isFinite(requestedStartMs) || !Number.isFinite(requestedEndMs)) {
+    console.error('Invalid date range passed to getDeploymentReadings');
+    return [];
+  }
+
+  const clampedStartMs = Math.max(deploymentStartMs, requestedStartMs);
+  const clampedEndMs = Math.min(deploymentEndMs, requestedEndMs);
+
+  if (clampedStartMs > clampedEndMs) {
+    return [];
+  }
+
+  const shouldFetchLatestWindow = Boolean(limit) && (options?.preferLatest ?? false);
+  const startIso = new Date(clampedStartMs).toISOString();
+  const endIso = new Date(clampedEndMs).toISOString();
+
   let query = supabase
     .from('readings')
     .select('*')
     .eq('device_id', deployment.device_id)
-    .gte('created_at', deployment.started_at)
-    .order('created_at', { ascending: true });
-
-  if (deployment.ended_at) {
-    query = query.lte('created_at', deployment.ended_at);
-  }
+    .gte('created_at', startIso)
+    .lte('created_at', endIso)
+    .order('created_at', { ascending: !shouldFetchLatestWindow });
 
   if (limit) {
     query = query.limit(limit);
@@ -479,7 +516,15 @@ export async function getDeploymentReadings(
     return [];
   }
 
-  return data || [];
+  const rows = data || [];
+  if (!shouldFetchLatestWindow) return rows;
+
+  // When we fetch newest-first to apply LIMIT efficiently, restore chronological
+  // order for downstream time-series analyses.
+  return [...rows].sort(
+    (a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
 }
 
 export async function getDistinctLocations(): Promise<string[]> {

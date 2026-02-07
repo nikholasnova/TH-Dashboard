@@ -228,3 +228,110 @@ GRANT EXECUTE ON FUNCTION public.get_deployment_stats(BIGINT[]) TO authenticated
 
 REVOKE EXECUTE ON FUNCTION public.get_deployment_readings(BIGINT, INT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_deployment_readings(BIGINT, INT) TO authenticated, service_role;
+
+-- Weather API integration: add zip_code to deployments for geocoding
+ALTER TABLE deployments ADD COLUMN IF NOT EXISTS zip_code TEXT;
+
+-- Weather/source metadata for future sensor-vs-weather analysis and traceability.
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'sensor';
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS deployment_id BIGINT;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS zip_code TEXT;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS observed_at TIMESTAMPTZ;
+
+-- Backfill any null source values and enforce allowed source labels.
+UPDATE readings SET source = 'sensor' WHERE source IS NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'readings_source_check'
+      AND conrelid = 'public.readings'::regclass
+  ) THEN
+    ALTER TABLE readings
+      ADD CONSTRAINT readings_source_check
+      CHECK (source IN ('sensor', 'weather'));
+  END IF;
+END $$;
+
+ALTER TABLE readings ALTER COLUMN source SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'readings_deployment_id_fkey'
+      AND conrelid = 'public.readings'::regclass
+  ) THEN
+    ALTER TABLE readings
+      ADD CONSTRAINT readings_deployment_id_fkey
+      FOREIGN KEY (deployment_id) REFERENCES deployments(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_readings_source_time
+  ON readings (source, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_readings_deployment_id
+  ON readings (deployment_id);
+CREATE INDEX IF NOT EXISTS idx_readings_zip_time
+  ON readings (zip_code, created_at DESC);
+
+-- Enforce one weather row per weather-device per hour when possible.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = 'idx_readings_weather_device_hour'
+  ) THEN
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'readings'
+        AND column_name = 'source'
+    ) THEN
+      RAISE NOTICE 'Skipping idx_readings_weather_device_hour: readings.source column missing';
+    ELSIF EXISTS (
+      SELECT 1
+      FROM readings r
+      WHERE r.source = 'weather'
+      GROUP BY r.device_id, date_trunc('hour', (r.created_at AT TIME ZONE 'UTC'))
+      HAVING COUNT(*) > 1
+    ) THEN
+      RAISE NOTICE 'Skipping idx_readings_weather_device_hour: duplicate historical weather rows detected';
+    ELSE
+      CREATE UNIQUE INDEX idx_readings_weather_device_hour
+        ON readings (device_id, date_trunc('hour', (created_at AT TIME ZONE 'UTC')))
+        WHERE source = 'weather';
+    END IF;
+  END IF;
+END $$;
+
+-- Guardrail: one active deployment per device when data allows it.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND indexname = 'idx_deployments_one_active_per_device'
+  ) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM deployments d
+      WHERE d.ended_at IS NULL
+      GROUP BY d.device_id
+      HAVING COUNT(*) > 1
+    ) THEN
+      RAISE NOTICE 'Skipping idx_deployments_one_active_per_device: duplicate active deployments exist';
+    ELSE
+      CREATE UNIQUE INDEX idx_deployments_one_active_per_device
+        ON deployments (device_id)
+        WHERE ended_at IS NULL;
+    END IF;
+  END IF;
+END $$;

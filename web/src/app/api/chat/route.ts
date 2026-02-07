@@ -70,6 +70,13 @@ GUIDELINES:
 - Never fabricate data - if a deployment doesn't exist, say so
 - This is a school data-gathering tool, so be helpful with analysis, observations, and insights
 
+WEATHER DATA:
+- Outdoor weather is fetched hourly from WeatherAPI.com and stored with device_id 'weather_node1', 'weather_node2', etc.
+- Weather device_ids correspond to the outdoor conditions at each sensor node's deployment location.
+- Use get_device_stats to compare a sensor's readings against its weather counterpart.
+- Example: "How does node1 compare to outdoor weather?" → get_device_stats for both 'node1' and 'weather_node1'.
+- Weather data is NOT deployment-scoped, so get_readings (which is deployment-based) won't return weather. Use get_device_stats or get_chart_data instead.
+
 Keep responses concise and focused on actionable insights.`;
 
 // Tool declarations
@@ -124,7 +131,7 @@ const getDeviceStatsDecl: FunctionDeclaration = {
     properties: {
       start: { type: SchemaType.STRING, description: 'Start of time range (ISO 8601 datetime, e.g. "2025-01-01T00:00:00Z"). Use a very early date for all-time stats.' },
       end: { type: SchemaType.STRING, description: 'End of time range (ISO 8601 datetime). Use current time for up-to-now stats.' },
-      device_id: { type: SchemaType.STRING, description: 'Optional device filter (node1 or node2). Omit for all devices.' },
+      device_id: { type: SchemaType.STRING, description: 'Filter by device (node1, node2, weather_node1, weather_node2). Omit for all devices.' },
     },
     required: ['start', 'end'],
   },
@@ -139,7 +146,7 @@ const getChartDataDecl: FunctionDeclaration = {
       start: { type: SchemaType.STRING, description: 'Start of time range (ISO 8601 datetime)' },
       end: { type: SchemaType.STRING, description: 'End of time range (ISO 8601 datetime)' },
       bucket_minutes: { type: SchemaType.NUMBER, description: 'Size of each time bucket in minutes (e.g. 15 for 15-min averages, 60 for hourly, 1440 for daily)' },
-      device_id: { type: SchemaType.STRING, description: 'Optional device filter (node1 or node2). Omit for all devices.' },
+      device_id: { type: SchemaType.STRING, description: 'Filter by device (node1, node2, weather_node1, weather_node2). Omit for all devices.' },
     },
     required: ['start', 'end', 'bucket_minutes'],
   },

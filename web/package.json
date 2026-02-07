@@ -6,10 +6,10 @@
     "dev": "node ./node_modules/next/dist/bin/next dev",
     "build": "node ./node_modules/next/dist/bin/next build",
     "start": "node ./node_modules/next/dist/bin/next start",
-    "lint": "eslint",
-    "test": "vitest",
-    "test:watch": "vitest --watch",
-    "test:coverage": "vitest --coverage"
+    "lint": "node ./node_modules/eslint/bin/eslint.js .",
+    "test": "node ./node_modules/vitest/vitest.mjs",
+    "test:watch": "node ./node_modules/vitest/vitest.mjs --watch",
+    "test:coverage": "node ./node_modules/vitest/vitest.mjs --coverage"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

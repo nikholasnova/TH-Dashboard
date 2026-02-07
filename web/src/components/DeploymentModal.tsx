@@ -10,11 +10,13 @@ import {
   updateDeployment,
   deleteDeployment,
 } from '@/lib/supabase';
+import { isValidOptionalUsZipCode, normalizeUsZipCode } from '@/lib/weatherZip';
 
 interface DeploymentModalProps {
   deviceId: string;
   deviceName: string;
   reading?: Reading | null;
+  isDeviceConnected?: boolean;
   existingDeployment?: Deployment | null; // If provided, manage this specific deployment
   isOpen: boolean;
   onClose: () => void;
@@ -26,12 +28,14 @@ interface FormData {
   location: string;
   notes: string;
   device_id: string;
+  zip_code: string;
 }
 
 interface EditFormData {
   name: string;
   location: string;
   notes: string;
+  zip_code: string;
   started_at: string;
   ended_at: string;
 }
@@ -40,23 +44,23 @@ export function DeploymentModal({
   deviceId,
   deviceName,
   reading,
+  isDeviceConnected: isDeviceConnectedProp,
   existingDeployment,
   isOpen,
   onClose,
   onDeploymentChange,
 }: DeploymentModalProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  // Device is connected if there's a reading from the last 5 minutes
-  const isDeviceConnected = reading
-    ? Date.now() - new Date(reading.created_at).getTime() < 5 * 60 * 1000
-    : false;
+  const isDeviceConnected = isDeviceConnectedProp ?? Boolean(reading);
   const isViewingSpecific = !!existingDeployment;
   const [currentDeployment, setCurrentDeployment] = useState<Deployment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState<FormData>({ name: '', location: '', notes: '', device_id: deviceId });
-  const [editFormData, setEditFormData] = useState<EditFormData>({ name: '', location: '', notes: '', started_at: '', ended_at: '' });
+  const [formData, setFormData] = useState<FormData>({ name: '', location: '', notes: '', device_id: deviceId, zip_code: '' });
+  const [editFormData, setEditFormData] = useState<EditFormData>({ name: '', location: '', notes: '', zip_code: '', started_at: '', ended_at: '' });
+  const isCreateZipValid = isValidOptionalUsZipCode(formData.zip_code);
+  const isEditZipValid = isValidOptionalUsZipCode(editFormData.zip_code);
 
   const fetchDeployment = useCallback(async () => {
     setIsLoading(true);
@@ -66,6 +70,7 @@ export function DeploymentModal({
         name: existingDeployment.name,
         location: existingDeployment.location,
         notes: existingDeployment.notes || '',
+        zip_code: existingDeployment.zip_code || '',
         started_at: existingDeployment.started_at.slice(0, 16),
         ended_at: existingDeployment.ended_at?.slice(0, 16) || '',
       });
@@ -79,6 +84,7 @@ export function DeploymentModal({
         name: deployment.name,
         location: deployment.location,
         notes: deployment.notes || '',
+        zip_code: deployment.zip_code || '',
         started_at: deployment.started_at.slice(0, 16),
         ended_at: deployment.ended_at?.slice(0, 16) || '',
       });
@@ -87,12 +93,14 @@ export function DeploymentModal({
   }, [deviceId, existingDeployment]);
 
   useEffect(() => {
-    if (isOpen) {
-      fetchDeployment();
+    if (!isOpen) return;
+    const timer = setTimeout(() => {
+      void fetchDeployment();
       setIsEditing(false);
-      setFormData({ name: '', location: '', notes: '', device_id: deviceId });
-    }
-  }, [isOpen, fetchDeployment]);
+      setFormData({ name: '', location: '', notes: '', device_id: deviceId, zip_code: '' });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [deviceId, fetchDeployment, isOpen]);
 
   const handleEndDeployment = async () => {
     if (!currentDeployment) return;
@@ -106,6 +114,7 @@ export function DeploymentModal({
 
   const handleStartDeployment = async () => {
     if (!formData.name.trim() || !formData.location.trim()) return;
+    if (!isCreateZipValid) return;
     setIsSaving(true);
 
     if (currentDeployment) {
@@ -117,6 +126,7 @@ export function DeploymentModal({
       name: formData.name.trim(),
       location: formData.location.trim(),
       notes: formData.notes.trim() || undefined,
+      zip_code: normalizeUsZipCode(formData.zip_code) || undefined,
     });
 
     if (newDeployment) {
@@ -125,10 +135,11 @@ export function DeploymentModal({
         name: newDeployment.name,
         location: newDeployment.location,
         notes: newDeployment.notes || '',
+        zip_code: newDeployment.zip_code || '',
         started_at: newDeployment.started_at.slice(0, 16),
         ended_at: newDeployment.ended_at?.slice(0, 16) || '',
       });
-      setFormData({ name: '', location: '', notes: '', device_id: deviceId });
+      setFormData({ name: '', location: '', notes: '', device_id: deviceId, zip_code: '' });
     }
 
     onDeploymentChange();
@@ -141,12 +152,14 @@ export function DeploymentModal({
     if (!currentDeployment) return;
     if (!editFormData.name.trim() || !editFormData.location.trim()) return;
     if (!editFormData.started_at || !isEditTimeValid) return;
+    if (!isEditZipValid) return;
     setIsSaving(true);
 
     const updated = await updateDeployment(currentDeployment.id, {
       name: editFormData.name.trim(),
       location: editFormData.location.trim(),
       notes: editFormData.notes.trim() || null,
+      zip_code: normalizeUsZipCode(editFormData.zip_code),
       started_at: new Date(editFormData.started_at).toISOString(),
       ended_at: editFormData.ended_at ? new Date(editFormData.ended_at).toISOString() : null,
     });
@@ -278,6 +291,21 @@ export function DeploymentModal({
                         placeholder="Optional notes..."
                       />
                     </div>
+                    <div>
+                      <label className="block text-sm text-[#a0aec0] mb-2">Zip Code (for weather)</label>
+                      <input
+                        type="text"
+                        value={editFormData.zip_code}
+                        onChange={(e) => setEditFormData({ ...editFormData, zip_code: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white placeholder-[#a0aec0]/50 focus:outline-none focus:border-white/40 transition-colors"
+                        placeholder="e.g., 85142"
+                      />
+                      {!isEditZipValid && (
+                        <p className="text-xs text-[#e31a1a] mt-2">
+                          Enter a valid US ZIP (12345 or 12345-6789).
+                        </p>
+                      )}
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm text-[#a0aec0] mb-2">Start Time</label>
@@ -314,7 +342,7 @@ export function DeploymentModal({
                     <div className="flex gap-3">
                       <button
                         onClick={handleSaveEdit}
-                        disabled={isSaving || !editFormData.name.trim() || !editFormData.location.trim() || !editFormData.started_at || !isEditTimeValid}
+                        disabled={isSaving || !editFormData.name.trim() || !editFormData.location.trim() || !editFormData.started_at || !isEditTimeValid || !isEditZipValid}
                         className="btn-glass px-4 py-2 text-sm font-semibold text-[#01b574] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isSaving ? 'Saving...' : 'Save'}
@@ -453,9 +481,24 @@ export function DeploymentModal({
                     placeholder="Any additional context..."
                   />
                 </div>
+                <div>
+                  <label className="block text-sm text-[#a0aec0] mb-2">Zip Code (for weather)</label>
+                  <input
+                    type="text"
+                    value={formData.zip_code}
+                    onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white placeholder-[#a0aec0]/50 focus:outline-none focus:border-white/40 transition-colors"
+                    placeholder="e.g., 85142"
+                  />
+                  {!isCreateZipValid && (
+                    <p className="text-xs text-[#e31a1a] mt-2">
+                      Enter a valid US ZIP (12345 or 12345-6789).
+                    </p>
+                  )}
+                </div>
                 <button
                   onClick={handleStartDeployment}
-                  disabled={isSaving || !formData.name.trim() || !formData.location.trim()}
+                  disabled={isSaving || !formData.name.trim() || !formData.location.trim() || !isCreateZipValid}
                   className="btn-glass w-full px-6 py-3 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSaving ? 'Starting...' : currentDeployment ? 'End Current & Start New' : 'Start Deployment'}

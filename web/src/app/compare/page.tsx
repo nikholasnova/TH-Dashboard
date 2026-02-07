@@ -12,6 +12,7 @@ import {
   celsiusToFahrenheit,
   celsiusDeltaToFahrenheit,
 } from '@/lib/supabase';
+import { computePercentError, getScopedCompareDeviceIds } from '@/lib/weatherCompare';
 
 const TIME_RANGES = [
   { label: '1h', hours: 1 },
@@ -62,28 +63,51 @@ export default function ComparePage() {
     if (isCustom && !isCustomValid && !deploymentFilter) return;
     setIsLoading(true);
 
-    const { start, end } = await getRangeBounds();
+    try {
+      const { start, end } = await getRangeBounds();
+      const fetchForDeviceIds = async (deviceIds: string[]) => {
+        const uniqueIds = Array.from(new Set(deviceIds));
+        const statsByDevice = await Promise.all(
+          uniqueIds.map((deviceId) => getDeviceStats({ start, end, device_id: deviceId }))
+        );
+        return statsByDevice.flat();
+      };
 
-    if (deploymentFilter) {
-      const dep = await getDeployment(parseInt(deploymentFilter, 10));
-      const data = await getDeviceStats({ start, end, device_id: dep?.device_id || undefined });
-      setStats(data);
-    } else {
-      const data = await getDeviceStats({ start, end, device_id: deviceFilter || undefined });
-      setStats(data);
+      if (deploymentFilter) {
+        const dep = await getDeployment(parseInt(deploymentFilter, 10));
+        if (!dep) {
+          setStats([]);
+        } else {
+          const scoped = getScopedCompareDeviceIds({ deploymentDeviceId: dep.device_id });
+          const data = scoped
+            ? await fetchForDeviceIds(scoped)
+            : await getDeviceStats({ start, end, device_id: dep.device_id });
+          setStats(data);
+        }
+      } else {
+        const scoped = getScopedCompareDeviceIds({ deviceFilter });
+        const data = scoped
+          ? await fetchForDeviceIds(scoped)
+          : await getDeviceStats({ start, end, device_id: undefined });
+        setStats(data);
+      }
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  }, [selectedRange, isCustom, isCustomValid, customStart, customEnd, deviceFilter, deploymentFilter, getRangeBounds]);
+  }, [deploymentFilter, deviceFilter, getRangeBounds, isCustom, isCustomValid]);
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [fetchData]);
 
   const filteredDeployments = deviceFilter ? deployments.filter(d => d.device_id === deviceFilter) : deployments;
   const activeDeployment = deploymentFilter ? deployments.find(d => d.id.toString() === deploymentFilter) : null;
 
   const statsByDevice = useMemo(() => {
-    const map: Record<string, DeviceStats | null> = { node1: null, node2: null };
+    const map: Record<string, DeviceStats | null> = { node1: null, node2: null, weather_node1: null, weather_node2: null };
     for (const row of stats) {
       if (row.device_id in map) map[row.device_id] = row;
     }
@@ -102,8 +126,22 @@ export default function ComparePage() {
     return `${sign}${delta.toFixed(1)}`;
   };
 
+  const formatPercent = (value: number | undefined) => {
+    if (value === undefined) return '—';
+    return `${value.toFixed(1)}%`;
+  };
+
+  const formatPercentDelta = (a: number | undefined, b: number | undefined) => {
+    if (a === undefined || b === undefined) return '—';
+    const delta = a - b;
+    const sign = delta >= 0 ? '+' : '';
+    return `${sign}${delta.toFixed(1)}%`;
+  };
+
   const node1 = statsByDevice.node1;
   const node2 = statsByDevice.node2;
+  const weatherNode1 = statsByDevice.weather_node1;
+  const weatherNode2 = statsByDevice.weather_node2;
 
   const node1TempAvgF = node1?.temp_avg != null ? celsiusToFahrenheit(node1.temp_avg) : undefined;
   const node2TempAvgF = node2?.temp_avg != null ? celsiusToFahrenheit(node2.temp_avg) : undefined;
@@ -113,6 +151,12 @@ export default function ComparePage() {
   const node2TempMaxF = node2?.temp_max != null ? celsiusToFahrenheit(node2.temp_max) : undefined;
   const node1TempStdF = node1?.temp_stddev != null ? celsiusDeltaToFahrenheit(node1.temp_stddev) : undefined;
   const node2TempStdF = node2?.temp_stddev != null ? celsiusDeltaToFahrenheit(node2.temp_stddev) : undefined;
+  const weatherNode1TempAvgF = weatherNode1?.temp_avg != null ? celsiusToFahrenheit(weatherNode1.temp_avg) : undefined;
+  const weatherNode2TempAvgF = weatherNode2?.temp_avg != null ? celsiusToFahrenheit(weatherNode2.temp_avg) : undefined;
+  const node1TempErrorPct = computePercentError(node1TempAvgF, weatherNode1TempAvgF);
+  const node2TempErrorPct = computePercentError(node2TempAvgF, weatherNode2TempAvgF);
+  const node1HumidityErrorPct = computePercentError(node1?.humidity_avg, weatherNode1?.humidity_avg);
+  const node2HumidityErrorPct = computePercentError(node2?.humidity_avg, weatherNode2?.humidity_avg);
 
   return (
     <AuthGate>
@@ -244,6 +288,18 @@ export default function ComparePage() {
                     <td className="py-4 text-right font-semibold text-white">{formatValue(node2TempStdF, 2)}</td>
                     <td className="py-4 text-right text-[#a0aec0]/60">—</td>
                   </tr>
+                  <tr className="border-t border-white/10 border-b border-white/5">
+                    <td className="py-4 text-[#a0aec0]">Weather</td>
+                    <td className="py-4 text-right font-semibold text-white">{formatValue(weatherNode1TempAvgF)}</td>
+                    <td className="py-4 text-right font-semibold text-white">{formatValue(weatherNode2TempAvgF)}</td>
+                    <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(weatherNode1TempAvgF, weatherNode2TempAvgF)}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 text-[#a0aec0]">% Error</td>
+                    <td className="py-4 text-right font-semibold text-white">{formatPercent(node1TempErrorPct)}</td>
+                    <td className="py-4 text-right font-semibold text-white">{formatPercent(node2TempErrorPct)}</td>
+                    <td className="py-4 text-right text-[#a0aec0]/60">{formatPercentDelta(node1TempErrorPct, node2TempErrorPct)}</td>
+                  </tr>
                 </tbody>
               </table>
               </div>
@@ -285,6 +341,18 @@ export default function ComparePage() {
                     <td className="py-4 text-right font-semibold text-white">{formatValue(node1?.humidity_stddev, 2)}</td>
                     <td className="py-4 text-right font-semibold text-white">{formatValue(node2?.humidity_stddev, 2)}</td>
                     <td className="py-4 text-right text-[#a0aec0]/60">—</td>
+                  </tr>
+                  <tr className="border-t border-white/10 border-b border-white/5">
+                    <td className="py-4 text-[#a0aec0]">Weather</td>
+                    <td className="py-4 text-right font-semibold text-white">{formatValue(weatherNode1?.humidity_avg)}</td>
+                    <td className="py-4 text-right font-semibold text-white">{formatValue(weatherNode2?.humidity_avg)}</td>
+                    <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(weatherNode1?.humidity_avg, weatherNode2?.humidity_avg)}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 text-[#a0aec0]">% Error</td>
+                    <td className="py-4 text-right font-semibold text-white">{formatPercent(node1HumidityErrorPct)}</td>
+                    <td className="py-4 text-right font-semibold text-white">{formatPercent(node2HumidityErrorPct)}</td>
+                    <td className="py-4 text-right text-[#a0aec0]/60">{formatPercentDelta(node1HumidityErrorPct, node2HumidityErrorPct)}</td>
                   </tr>
                 </tbody>
               </table>
