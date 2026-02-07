@@ -28,7 +28,7 @@ flowchart TB
   end
 
   subgraph data["3) Data Platform"]
-    db[(("Supabase Postgres<br/>readings / deployments / RPC"))]
+    db[("Supabase Postgres<br/>readings / deployments / RPC")]
   end
 
   subgraph app["4) App + Analysis Layer"]
