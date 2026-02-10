@@ -6,10 +6,6 @@ interface SeasonalResultsProps {
   results: SeasonalResult[];
 }
 
-// ---------------------------------------------------------------------------
-// SVG line chart for a single decomposition panel
-// ---------------------------------------------------------------------------
-
 const CHART_HEIGHT = 120;
 const CHART_PADDING_LEFT = 40;
 const CHART_PADDING_RIGHT = 8;

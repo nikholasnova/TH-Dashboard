@@ -5,7 +5,7 @@ Full data path from sensor read to dashboard consumption.
 ## 1) Scope
 
 - Hardware: two Arduino Uno R4 WiFi nodes with DHT20 sensors (I2C) and 16x2 LCDs.
-- Cloud: Supabase Postgres (`readings`, `deployments`, `device_alert_state`, RPC functions) + WeatherAPI.com for hourly weather reference.
+- Cloud: Supabase Postgres (`readings`, `deployments`, `device_alert_state`, RPC functions) + WeatherAPI.com for every-30-min weather reference.
 - App: Next.js with authenticated dashboard, charts, comparisons, deployment management, AI chat, in-browser Python analysis, and cron-driven weather ingestion.
 
 ## 2) Component Topology
@@ -14,7 +14,7 @@ Full data path from sensor read to dashboard consumption.
 [DHT20 #1] --I2C--> [Arduino node1] --HTTPS POST--> [Supabase Postgres]
 [DHT20 #2] --I2C--> [Arduino node2] --HTTPS POST--> [Supabase Postgres]
 
-[Vercel Cron (hourly)] --> [GET /api/weather] --> [WeatherAPI.com]
+[Vercel Cron (every 30 min)] --> [GET /api/weather] --> [WeatherAPI.com]
                                            \----> [Supabase Postgres]
 
 [Next.js app] <--authenticated queries/RPC--> [Supabase Postgres]
@@ -56,7 +56,7 @@ Full data path from sensor read to dashboard consumption.
 - `source` constrained to `sensor` (default) or `weather`
 - Weather inserts use `device_id = weather_<sensor_device_id>`
 - Index on `(device_id, created_at DESC)`
-- Uniqueness guardrail on `(device_id, hour(created_at UTC))` for `source = weather`
+- Soft dedup on half-hour buckets in route code; DB unique index on `(device_id, hour(created_at UTC))` as fallback for `source = weather`
 
 **`deployments`**
 - Placement window metadata: `name`, `location`, `zip_code`, `started_at`, `ended_at`
@@ -97,7 +97,10 @@ All pages require Supabase Auth session (`AuthGate`).
 
 - Polls every 30s per device (`node1`, `node2`).
 - Fetches latest reading + active deployment.
-- Renders live cards with deployment context.
+- Renders live cards with deployment context, weather comparison, and 6h sparklines.
+- `DashboardStats`: 24h aggregates (avg temp, high/low, reading count, sensor accuracy vs weather).
+- `DashboardForecast`: 7-day Holt-Winters forecast per device (runs via Pyodide client-side).
+- Floating `ChatShell` available on all pages (mounted in root layout).
 
 ### 5.2 Charts (`/charts`)
 
@@ -129,10 +132,14 @@ All pages require Supabase Auth session (`AuthGate`).
 ### 5.6 AI Chat (`POST /api/chat`)
 
 - Authenticated route using Gemini 2.5 Flash with function-calling.
+- 7 tools: `get_deployments`, `get_deployment_stats`, `get_readings`, `get_device_stats`, `get_chart_data`, `get_report_data`, `get_weather`.
 - Tools execute via `aiTools.ts` with service-role Supabase client.
-- Tool loop bounded at 10 iterations.
+- Tool loop bounded at 10 iterations; streaming via `TransformStream` with `__STATUS__` markers.
+- In-memory rate limiting: 30 requests per 15 min per user (resets on deploy).
+- Page context injected into system prompt from `ChatPageContextProvider`.
 - Returns Fahrenheit fields and `America/Phoenix` local time.
 - System prompt includes weather device IDs for sensor-vs-weather comparisons.
+- Accessed via floating `ChatShell` component (layout-level, available on every page).
 
 ### 5.7 Keepalive (`GET /api/keepalive`)
 
@@ -143,7 +150,7 @@ All pages require Supabase Auth session (`AuthGate`).
 
 ### 5.8 Weather Ingestion (`GET /api/weather`)
 
-- Hourly cron (`0 * * * *`), `CRON_SECRET`-protected.
+- Every-30-min cron (`0,30 * * * *`), `CRON_SECRET`-protected.
 - Reads active deployments with non-null `zip_code`.
 - Normalizes/validates ZIPs, deduplicates API calls by ZIP.
 - Writes one weather row per tracked device with `source = weather`, `deployment_id`, `zip_code`, `observed_at`.
@@ -198,7 +205,8 @@ All pages require Supabase Auth session (`AuthGate`).
 | Schema | `supabase/schema.sql` |
 | Supabase client | `web/src/lib/supabase.ts` |
 | Pages | `web/src/app/{page,charts,compare,deployments,analysis}/page.tsx` |
-| AI | `web/src/app/api/chat/route.ts`, `web/src/lib/aiTools.ts` |
+| AI | `web/src/app/api/chat/route.ts`, `web/src/lib/aiTools.ts`, `web/src/components/ChatShell.tsx`, `web/src/lib/chatContext.tsx` |
 | Keepalive | `web/src/app/api/keepalive/route.ts` |
 | Weather | `web/src/app/api/weather/route.ts`, `web/src/lib/weatherZip.ts`, `web/src/lib/weatherCompare.ts` |
 | Analysis | `web/src/lib/pyodide.ts`, `web/src/lib/analysisRunner.ts` |
+| Dashboard extras | `web/src/components/DashboardStats.tsx`, `web/src/components/DashboardForecast.tsx` |

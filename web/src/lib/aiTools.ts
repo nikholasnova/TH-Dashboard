@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 import {
   DeploymentWithCount,
   DeploymentStats,
@@ -7,23 +6,24 @@ import {
   Reading,
   Deployment,
   celsiusToFahrenheit,
+  celsiusDeltaToFahrenheit,
+  getServerClient,
 } from './supabase';
+import { normalizeUsZipCode } from './weatherZip';
 
 const TIMEZONE = 'America/Phoenix';
 
-function toLocalTime(utcString: string): string {
-  return new Date(utcString).toLocaleString('en-US', { timeZone: TIMEZONE });
-}
+function toLocalTime(utcString: unknown): string {
+  if (typeof utcString !== 'string') return '';
+  const trimmed = utcString.trim();
+  if (!trimmed) return '';
 
-function getServerClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) {
-    throw new Error('Server Supabase configuration missing (NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required)');
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return trimmed;
   }
 
-  return createClient(url, key);
+  return parsed.toLocaleString('en-US', { timeZone: TIMEZONE });
 }
 
 export async function executeGetDeployments(params: {
@@ -31,6 +31,7 @@ export async function executeGetDeployments(params: {
   location?: string;
   name?: string;
   active_only?: boolean;
+  zip_code?: string;
 }): Promise<DeploymentWithCount[]> {
   const supabase = getServerClient();
 
@@ -48,6 +49,10 @@ export async function executeGetDeployments(params: {
   if (params.name) {
     // Case-insensitive partial match for deployment name
     query = query.ilike('name', `%${params.name}%`);
+  }
+
+  if (params.zip_code) {
+    query = query.eq('zip_code', params.zip_code);
   }
 
   if (params.active_only) {
@@ -80,15 +85,16 @@ export async function executeGetDeployments(params: {
   return deploymentsWithCounts;
 }
 
-const MAX_DEPLOYMENT_IDS = 20;
+const MAX_DEPLOYMENT_IDS = 100;
 
 export async function executeGetDeploymentStats(params: {
   deployment_ids: number[];
-}): Promise<DeploymentStats[]> {
+}): Promise<{ stats: DeploymentStats[]; truncated: boolean }> {
   const supabase = getServerClient();
 
-  if (params.deployment_ids.length === 0) return [];
+  if (params.deployment_ids.length === 0) return { stats: [], truncated: false };
 
+  const truncated = params.deployment_ids.length > MAX_DEPLOYMENT_IDS;
   const cappedIds = params.deployment_ids.slice(0, MAX_DEPLOYMENT_IDS);
 
   const { data, error } = await supabase.rpc('get_deployment_stats', {
@@ -99,7 +105,7 @@ export async function executeGetDeploymentStats(params: {
     throw new Error(`RPC get_deployment_stats failed: ${error.message} (code: ${error.code})`);
   }
 
-  return data || [];
+  return { stats: data || [], truncated };
 }
 
 export async function executeGetReadings(params: {
@@ -193,6 +199,7 @@ export async function executeGetReportData(): Promise<{
   overall_device_stats: DeviceStats[];
   data_range: { earliest: string; latest: string };
   total_readings: number;
+  note?: string;
 }> {
   const deployments = await executeGetDeployments({});
 
@@ -207,7 +214,7 @@ export async function executeGetReportData(): Promise<{
   }
 
   const allIds = deployments.map((d) => d.id);
-  const deploymentStats = await executeGetDeploymentStats({ deployment_ids: allIds });
+  const { stats: deploymentStats, truncated } = await executeGetDeploymentStats({ deployment_ids: allIds });
 
   const earliest = deployments.reduce(
     (min, d) => (d.started_at < min ? d.started_at : min),
@@ -225,7 +232,45 @@ export async function executeGetReportData(): Promise<{
     overall_device_stats: overallDeviceStats,
     data_range: { earliest, latest },
     total_readings: totalReadings,
+    ...(truncated && { note: `Only the first ${MAX_DEPLOYMENT_IDS} deployments were included in stats. Use a narrower time range for complete results.` }),
   };
+}
+
+export async function executeGetWeather(params: {
+  zip_code?: string;
+  device_id?: string;
+  limit?: number;
+}): Promise<Record<string, unknown>[]> {
+  const supabase = getServerClient();
+
+  let query = supabase
+    .from('readings')
+    .select('*')
+    .eq('source', 'weather')
+    .order('created_at', { ascending: false });
+
+  if (params.zip_code) {
+    const normalized = normalizeUsZipCode(params.zip_code);
+    if (!normalized) {
+      throw new Error(`Invalid US zip code: "${params.zip_code}". Must be a 5-digit US zip code.`);
+    }
+    query = query.eq('zip_code', normalized);
+  }
+
+  if (params.device_id) {
+    query = query.eq('device_id', params.device_id);
+  }
+
+  const limit = Math.min(params.limit || 1, 100);
+  query = query.limit(limit);
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`Failed to fetch weather readings: ${error.message}`);
+  }
+
+  return (data || []) as Record<string, unknown>[];
 }
 
 export async function executeTool(
@@ -243,13 +288,18 @@ export async function executeTool(
       }));
     }
     case 'get_deployment_stats': {
-      const stats = await executeGetDeploymentStats(params as Parameters<typeof executeGetDeploymentStats>[0]);
-      return stats.map((s) => ({
+      const { stats, truncated } = await executeGetDeploymentStats(params as Parameters<typeof executeGetDeploymentStats>[0]);
+      const mapped = stats.map((s) => ({
         ...s,
         temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
         temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
         temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
+        temp_stddev_f: s.temp_stddev !== null ? celsiusDeltaToFahrenheit(s.temp_stddev) : null,
       }));
+      return {
+        stats: mapped,
+        ...(truncated ? { note: `Results limited to first ${MAX_DEPLOYMENT_IDS} deployments.` } : {}),
+      };
     }
     case 'get_readings': {
       const readings = await executeGetReadings(params as Parameters<typeof executeGetReadings>[0]);
@@ -266,6 +316,7 @@ export async function executeTool(
         temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
         temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
         temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
+        temp_stddev_f: s.temp_stddev !== null ? celsiusDeltaToFahrenheit(s.temp_stddev) : null,
       }));
     }
     case 'get_chart_data': {
@@ -290,45 +341,33 @@ export async function executeTool(
           temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
           temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
           temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
+          temp_stddev_f: s.temp_stddev !== null ? celsiusDeltaToFahrenheit(s.temp_stddev) : null,
         })),
         overall_device_stats: reportData.overall_device_stats.map((s) => ({
           ...s,
           temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
           temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
           temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
+          temp_stddev_f: s.temp_stddev !== null ? celsiusDeltaToFahrenheit(s.temp_stddev) : null,
         })),
         data_range: {
           earliest: toLocalTime(reportData.data_range.earliest),
           latest: toLocalTime(reportData.data_range.latest),
         },
         total_readings: reportData.total_readings,
+        ...(reportData.note ? { note: reportData.note } : {}),
       };
+    }
+    case 'get_weather': {
+      const weatherReadings = await executeGetWeather(params as Parameters<typeof executeGetWeather>[0]);
+      return weatherReadings.map((r) => ({
+        ...r,
+        created_at: toLocalTime(r.created_at as string),
+        observed_at: r.observed_at ? toLocalTime(r.observed_at as string) : null,
+        temperature_f: celsiusToFahrenheit(r.temperature as number),
+      }));
     }
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
-}
-
-export interface AIResponse {
-  summary: string;
-  data?: {
-    comparisons?: Array<{
-      deployment: string;
-      location: string;
-      device: string;
-      temp_avg_f: number;
-      humidity_avg: number;
-      reading_count: number;
-    }>;
-    stats?: Record<string, {
-      temp: { avg: number; min: number; max: number };
-      humidity: { avg: number; min: number; max: number };
-    }>;
-    trends?: Array<{
-      observation: string;
-      direction: 'up' | 'down' | 'stable';
-    }>;
-  };
-  insights: string[];
-  followUp?: string;
 }

@@ -3,6 +3,7 @@
 import { ReactNode } from 'react';
 import Link from 'next/link';
 import { useSession } from './AuthProvider';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface AuthGateProps {
   children: ReactNode;
@@ -14,23 +15,7 @@ export function AuthGate({ children }: AuthGateProps) {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex gap-1">
-            <span
-              className="w-3 h-3 bg-[#a0aec0] rounded-full animate-bounce"
-              style={{ animationDelay: '0ms' }}
-            />
-            <span
-              className="w-3 h-3 bg-[#a0aec0] rounded-full animate-bounce"
-              style={{ animationDelay: '150ms' }}
-            />
-            <span
-              className="w-3 h-3 bg-[#a0aec0] rounded-full animate-bounce"
-              style={{ animationDelay: '300ms' }}
-            />
-          </div>
-          <p className="text-[#a0aec0] text-sm">Loading...</p>
-        </div>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }

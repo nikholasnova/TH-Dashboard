@@ -1,81 +1,12 @@
-import { createBrowserClient } from '@supabase/ssr';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase env vars missing. Check web/.env.local');
-}
-
-export const supabase =
-  supabaseUrl && supabaseAnonKey
-    ? createBrowserClient(supabaseUrl, supabaseAnonKey)
-    : null;
-
-export interface Reading {
-  id: number;
-  device_id: string;
-  temperature: number; // Celsius
-  humidity: number;
-  created_at: string;
-  source?: 'sensor' | 'weather';
-  deployment_id?: number | null;
-  zip_code?: string | null;
-  observed_at?: string | null;
-}
-
-export interface ChartSample {
-  bucket_ts: string;
-  device_id: string;
-  temperature_avg: number;
-  humidity_avg: number;
-  reading_count: number;
-}
-
-export interface DeviceStats {
-  device_id: string;
-  temp_avg: number | null;
-  temp_min: number | null;
-  temp_max: number | null;
-  temp_stddev: number | null;
-  humidity_avg: number | null;
-  humidity_min: number | null;
-  humidity_max: number | null;
-  humidity_stddev: number | null;
-  reading_count: number | null;
-}
-
-export interface Deployment {
-  id: number;
-  device_id: string;
-  name: string;
-  location: string;
-  notes: string | null;
-  zip_code: string | null;
-  started_at: string;
-  ended_at: string | null;
-  created_at: string;
-}
-
-export interface DeploymentWithCount extends Deployment {
-  reading_count: number;
-}
-
-export interface DeploymentStats {
-  deployment_id: number;
-  deployment_name?: string;
-  location?: string;
-  device_id?: string;
-  temp_avg: number | null;
-  temp_min: number | null;
-  temp_max: number | null;
-  temp_stddev: number | null;
-  humidity_avg: number | null;
-  humidity_min: number | null;
-  humidity_max: number | null;
-  humidity_stddev: number | null;
-  reading_count: number | null;
-}
+import { supabase } from './client';
+import type {
+  Reading,
+  ChartSample,
+  DeviceStats,
+  Deployment,
+  DeploymentWithCount,
+  DeploymentStats,
+} from './types';
 
 export function celsiusToFahrenheit(celsius: number): number {
   return (celsius * 9) / 5 + 32;
@@ -96,12 +27,10 @@ export async function getLatestReading(
     .eq('device_id', deviceId)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (error) {
-    if (error.code !== 'PGRST116') {
-      console.error(`Error fetching latest reading for ${deviceId}:`, error);
-    }
+    console.error(`Error fetching latest reading for ${deviceId}:`, error);
     return null;
   }
   return data;
@@ -198,17 +127,24 @@ export async function getChartSamples(params: {
   end: string;
   bucketSeconds: number;
   device_id?: string;
+  maxRows?: number;
 }): Promise<ChartSample[]> {
   if (!supabase) return [];
 
   const bucketMinutes = Math.max(1, Math.round(params.bucketSeconds / 60));
 
-  const { data, error } = await supabase.rpc('get_chart_samples', {
+  let query = supabase.rpc('get_chart_samples', {
     p_start: params.start,
     p_end: params.end,
     p_bucket_minutes: bucketMinutes,
     p_device_id: params.device_id || null,
   });
+
+  if (params.maxRows) {
+    query = query.limit(params.maxRows);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching chart samples:', error.message || error.code || JSON.stringify(error));
@@ -273,7 +209,7 @@ export async function getDeployments(filters?: {
 
   const deploymentsWithCounts: DeploymentWithCount[] = await Promise.all(
     deployments.map(async (d) => {
-      const { count } = await supabase
+      const { count } = await supabase!
         .from('readings')
         .select('*', { count: 'exact', head: true })
         .eq('device_id', d.device_id)
@@ -519,8 +455,6 @@ export async function getDeploymentReadings(
   const rows = data || [];
   if (!shouldFetchLatestWindow) return rows;
 
-  // When we fetch newest-first to apply LIMIT efficiently, restore chronological
-  // order for downstream time-series analyses.
   return [...rows].sort(
     (a, b) =>
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -543,3 +477,4 @@ export async function getDistinctLocations(): Promise<string[]> {
   const locations = [...new Set(data?.map((d) => d.location) || [])];
   return locations;
 }
+

@@ -2,7 +2,7 @@
 
 A full-stack IoT platform for collecting temperature and humidity from Arduino sensor nodes, comparing readings against local weather references, and analyzing the data through charts, statistics, and AI. Built as an educational project.
 
-Two Arduino Uno R4 WiFi nodes with DHT20 sensors post readings to Supabase every 3 minutes. A Vercel cron fetches hourly weather from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, deployment management, in-browser Python analysis via Pyodide, and an AI chat powered by Gemini.
+Two Arduino Uno R4 WiFi nodes with DHT20 sensors post readings to Supabase every 3 minutes. A Vercel cron fetches weather every 30 minutes from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, deployment management, in-browser Python analysis via Pyodide, and an AI chat powered by Gemini.
 
 ## Architecture
 
@@ -18,7 +18,7 @@ flowchart TB
   end
 
   subgraph ingest["2) Ingestion + Automation (Vercel)"]
-    cron["Vercel Cron<br/>*/10 keepalive, 0 * * * * weather"]
+    cron["Vercel Cron<br/>*/10 keepalive, 0,30 * * * * weather"]
     keepalive["GET /api/keepalive"]
     weatherRoute["GET /api/weather"]
     wx["WeatherAPI.com<br/>Current conditions by ZIP"]
@@ -49,12 +49,12 @@ flowchart TB
 
 | Route | Purpose |
 |-------|---------|
-| `/` | Live readings, device status, deployment context |
+| `/` | Live readings, device status, deployment context, 24h quick stats, 7-day forecast |
 | `/charts` | Historical trends with time range selector + CSV export |
 | `/compare` | Side-by-side stats, weather reference, `% Error` per node |
 | `/deployments` | Manage placement windows and ZIP codes |
 | `/analysis` | In-browser Python stats and forecasting (Pyodide) |
-| `/api/chat` | AI chat with tool-calling for data questions and reports |
+| `/api/chat` | AI chat backend (floating chat shell available on every page) |
 
 ## Tech Stack
 

@@ -14,18 +14,21 @@ CAPABILITIES:
 - Compare deployments across different locations, devices, or time periods
 
 AVAILABLE TOOLS:
-- get_deployments: List deployments with optional filters (device, location, active status)
+- get_deployments: List deployments with optional filters (device, location, zip_code, active status)
 - get_deployment_stats: Get aggregate stats for specific deployments by ID
 - get_readings: Get raw readings for a deployment (most recent first, up to 2000)
 - get_device_stats: Get overall stats per device for any time range — not deployment-scoped. Great for broad analysis.
 - get_chart_data: Get time-bucketed averages for trend analysis (e.g. hourly or daily averages)
 - get_report_data: Get ALL deployments with full statistics in one call. Use this first when generating reports or comprehensive analyses.
+- get_weather: Get the latest stored weather readings from the database, filtered by zip code or weather device ID. Use this for weather-specific queries.
 
 HOW TO ANSWER COMMON QUESTIONS:
 - "What's the last/latest/current temperature?": Use get_deployments to find the right deployment (filter by location if mentioned), then use get_readings with limit=1 to get the most recent reading.
 - "Compare deployments": Use get_deployment_stats with the relevant deployment IDs.
 - "What's the temperature in [location]?": Use get_deployments with the location filter, then get_readings with limit=1 for the latest value, or get_deployment_stats for an overview.
+- "What's the weather in [zip code]?" / "Temperature in 85142?": Use get_weather with the zip code. This returns the latest stored weather data for that zip code — separate from sensor readings. If the user gives a location name instead of a zip, use get_deployments to find the zip_code first, then use get_weather.
 - "Analyze all my data" / "Give me a full analysis": Use get_device_stats with a broad time range for overall stats, then get_chart_data with appropriate buckets to identify trends. Combine with get_deployments for context on locations.
+- "How accurate are my sensors?" / "Compare sensors to official weather" / "Margin of error": Call get_device_stats with start 7 days ago and end now, with NO device_id filter. This returns stats for ALL devices — sensors (node1, node2) AND official weather references (weather_node1, weather_node2). Compare each sensor to its weather counterpart: node1↔weather_node1, node2↔weather_node2. Calculate the difference (delta) and percent error for temperature and humidity. Frame results as sensor accuracy validation.
 - "Show me trends" / "How has temperature changed?": Use get_chart_data with appropriate bucket sizes (15-60 min for a day, 1440 min for weeks/months).
 - If a user references a room, location, or place name, search deployments by location OR name to find matching deployments. Filters use partial matching, so "Queen Creek" will find "Queen Creek, AZ" and "patio" will find "Nik's Patio".
 
@@ -70,25 +73,33 @@ GUIDELINES:
 - Never fabricate data - if a deployment doesn't exist, say so
 - This is a school data-gathering tool, so be helpful with analysis, observations, and insights
 
+SENSOR CONTEXT:
+- The physical sensors (node1, node2) are deployed OUTDOORS, measuring the same outdoor conditions as official weather stations.
+- There is NO indoor/outdoor distinction here. Both sensors and weather reference data measure outdoor conditions at the same locations.
+- The purpose of the project is to gather outdoor environmental data and validate sensor accuracy by comparing against an official reference (WeatherAPI.com).
+- When comparing sensor vs. weather data, frame it as "sensor accuracy" or "margin of error" — e.g. "node1 averaged 2.1°F higher than official weather (3.2% error)".
+
 WEATHER DATA:
-- Outdoor weather is fetched hourly from WeatherAPI.com and stored with device_id 'weather_node1', 'weather_node2', etc.
-- Weather device_ids correspond to the outdoor conditions at each sensor node's deployment location.
-- Use get_device_stats to compare a sensor's readings against its weather counterpart.
-- Example: "How does node1 compare to outdoor weather?" → get_device_stats for both 'node1' and 'weather_node1'.
-- Weather data is NOT deployment-scoped, so get_readings (which is deployment-based) won't return weather. Use get_device_stats or get_chart_data instead.
+- Official reference weather data is fetched periodically from WeatherAPI.com and stored in the database with device_id 'weather_node1', 'weather_node2', etc.
+- Weather device_ids contain the official WeatherAPI conditions for the same zip code/location as the corresponding sensor deployment.
+- Use get_weather to retrieve the latest stored weather reading for a specific zip code or weather device ID.
+- Use get_device_stats to compare a sensor's readings against its weather counterpart over a time range.
+  Example: "How accurate is node1?" → get_device_stats for both 'node1' and 'weather_node1', then calculate delta and % error.
+- Stored weather data is NOT deployment-scoped, so get_readings won't return weather. Use get_weather, get_device_stats, or get_chart_data instead.
+- When a user asks "what's the weather in [zip code]?", use get_weather — do NOT confuse this with sensor readings.
 
 Keep responses concise and focused on actionable insights.`;
 
-// Tool declarations
 const getDeploymentsDecl: FunctionDeclaration = {
   name: 'get_deployments',
-  description: 'List deployments. Returns id, name, device_id, location, started_at, ended_at, and reading_count. Filters use case-insensitive partial matching.',
+  description: 'List deployments. Returns id, name, device_id, location, zip_code, started_at, ended_at, and reading_count. Filters use case-insensitive partial matching.',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
       device_id: { type: SchemaType.STRING, description: 'Filter by device (node1 or node2)' },
       location: { type: SchemaType.STRING, description: 'Filter by location (partial match, e.g. "Queen Creek" matches "Queen Creek, AZ")' },
       name: { type: SchemaType.STRING, description: 'Filter by deployment name (partial match, e.g. "patio" matches "Nik\'s Patio")' },
+      zip_code: { type: SchemaType.STRING, description: 'Filter by zip code (exact match, e.g. "85142")' },
       active_only: { type: SchemaType.BOOLEAN, description: 'Only return active deployments' },
     },
   },
@@ -161,6 +172,49 @@ const getReportDataDecl: FunctionDeclaration = {
   },
 };
 
+const getWeatherDecl: FunctionDeclaration = {
+  name: 'get_weather',
+  description: 'Get the latest stored weather readings from the database. Weather data is fetched periodically from WeatherAPI.com and stored with source=\'weather\'. Returns temperature (C and F), humidity, zip code, and observation time. Use this when a user asks about current weather conditions for a zip code or location.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      zip_code: { type: SchemaType.STRING, description: 'Filter by US zip code (e.g. "85142")' },
+      device_id: { type: SchemaType.STRING, description: 'Filter by weather device ID (e.g. "weather_node1")' },
+      limit: { type: SchemaType.NUMBER, description: 'Number of recent weather readings to return (default 1, max 100)' },
+    },
+  },
+};
+
+const TOOL_LABELS: Record<string, string> = {
+  get_deployments: 'Looking up deployments',
+  get_deployment_stats: 'Calculating statistics',
+  get_readings: 'Fetching readings',
+  get_device_stats: 'Analyzing device data',
+  get_chart_data: 'Analyzing trends',
+  get_report_data: 'Gathering all deployment data',
+  get_weather: 'Fetching weather data',
+};
+
+// In-memory rate limiter — resets on deploy, sufficient for class project
+const rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RATE_LIMIT_MAX = 30;
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const timestamps = rateLimitMap.get(userId) || [];
+  const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+  rateLimitMap.set(userId, valid);
+
+  if (valid.length >= RATE_LIMIT_MAX) return false;
+
+  valid.push(now);
+  return true;
+}
+
+// Allow up to 120s for report generation (multi-step tool calls + Gemini response)
+export const maxDuration = 120;
+
 export async function POST(req: Request) {
   try {
     const user = await getServerUser();
@@ -171,7 +225,14 @@ export async function POST(req: Request) {
       });
     }
 
-    const { message, history } = await req.json();
+    if (!checkRateLimit(user.id)) {
+      return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please wait a few minutes.' }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { message, history, pageContext } = await req.json();
 
     if (!message || typeof message !== 'string') {
       return new Response(JSON.stringify({ error: 'Message is required' }), {
@@ -180,10 +241,31 @@ export async function POST(req: Request) {
       });
     }
 
-    const chatHistory = (history || []).map((msg: { role: string; content: string }) => ({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }],
-    }));
+    // Cap message length and history size to limit cost/latency abuse
+    const cappedMessage = message.slice(0, 4000);
+    const cappedHistory = Array.isArray(history) ? history.slice(-50) : [];
+
+    const chatHistory = cappedHistory
+      .map((msg) => {
+        if (!msg || typeof msg !== 'object') return null;
+
+        const role = (msg as { role?: unknown }).role === 'assistant' ? 'model' : 'user';
+        const content = (msg as { content?: unknown }).content;
+        const safeContent = typeof content === 'string' ? content : '';
+
+        return {
+          role,
+          parts: [{ text: safeContent.slice(0, 8000) }],
+        };
+      })
+      .filter(
+        (
+          msg
+        ): msg is {
+          role: 'model' | 'user';
+          parts: Array<{ text: string }>;
+        } => msg !== null
+      );
 
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
@@ -195,11 +277,31 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
+    // Inject current timestamp with timezone context so the model can compute relative time ranges
+    const now = new Date();
+    const azTime = now.toLocaleString('en-US', { timeZone: 'America/Phoenix' });
+    let systemPrompt = SYSTEM_PROMPT +
+      `\n\nCURRENT TIME: ${azTime} (Arizona, America/Phoenix).` +
+      ` UTC equivalent: ${now.toISOString()}.` +
+      ` Tool parameters (start/end) require UTC ISO 8601 strings.` +
+      ` Tool responses return timestamps in Arizona local time.`;
+
+    // Clamp individual fields to prevent oversized payloads sneaking into the prompt
+    if (pageContext && typeof pageContext === 'object' && typeof pageContext.page === 'string') {
+      const page = pageContext.page.slice(0, 30);
+      let contextNote = `\n\nUSER CONTEXT: The user is currently on the "${page}" page`;
+      if (typeof pageContext.timeRange === 'string') contextNote += `, viewing a ${pageContext.timeRange.slice(0, 20)} time range`;
+      if (typeof pageContext.deviceFilter === 'string') contextNote += `, filtered to ${pageContext.deviceFilter.slice(0, 30)}`;
+      if (typeof pageContext.deploymentId === 'number') contextNote += `, viewing deployment #${pageContext.deploymentId}`;
+      contextNote += '. Use this context to provide more relevant answers when appropriate.';
+      systemPrompt += contextNote;
+    }
+
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: systemPrompt,
       tools: [{
-        functionDeclarations: [getDeploymentsDecl, getDeploymentStatsDecl, getReadingsDecl, getDeviceStatsDecl, getChartDataDecl, getReportDataDecl],
+        functionDeclarations: [getDeploymentsDecl, getDeploymentStatsDecl, getReadingsDecl, getDeviceStatsDecl, getChartDataDecl, getReportDataDecl, getWeatherDecl],
       }],
     });
 
@@ -209,19 +311,29 @@ export async function POST(req: Request) {
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
 
+    const signal = req.signal;
+
     (async () => {
       try {
-        let response = await chat.sendMessage(message);
+        if (signal.aborted) return;
+
+        let response = await chat.sendMessage(cappedMessage, { signal });
         let result = response.response;
 
-        // Handle tool calls in a loop (max 10 iterations to prevent infinite loops)
+        // Max 10 iterations to prevent infinite tool-call loops
         let iterations = 0;
         let calls = result.functionCalls?.();
         while (calls && calls.length > 0 && iterations < 10) {
+          if (signal.aborted) break;
           iterations++;
           const functionResponses = [];
 
           for (const call of calls) {
+            if (signal.aborted) break;
+
+            const label = TOOL_LABELS[call.name] || call.name;
+            await writer.write(encoder.encode(`__STATUS__${label}\n`));
+
             try {
               const toolResult = await executeTool(call.name, call.args as Record<string, unknown>);
               functionResponses.push({
@@ -231,29 +343,71 @@ export async function POST(req: Request) {
                 },
               });
             } catch (error) {
+              console.error(`Tool ${call.name} failed:`, error);
               functionResponses.push({
                 functionResponse: {
                   name: call.name,
-                  response: { error: String(error) },
+                  response: { error: `The ${call.name} tool encountered an error. Please try a different approach.` },
                 },
               });
             }
           }
 
-          response = await chat.sendMessage(functionResponses);
+          if (signal.aborted) break;
+
+          response = await chat.sendMessage(functionResponses, { signal });
           result = response.response;
           calls = result.functionCalls?.();
         }
 
-        const text = result.text();
+        if (signal.aborted) return;
+
+        if (iterations >= 10 && calls && calls.length > 0) {
+          await writer.write(encoder.encode(
+            '\n\n*Note: This query required extensive data retrieval. The response may be incomplete — try asking a more specific question.*'
+          ));
+        }
+
+        // Write final response in chunks for streaming feel
+        let text = '';
+        try {
+          text = result.text();
+        } catch (textError) {
+          // text() throws if response was blocked or has no candidates
+          const blockReason = result.candidates?.[0]?.finishReason;
+          console.error('Gemini text() failed:', textError, '| finishReason:', blockReason);
+          if (blockReason === 'SAFETY') {
+            text = 'My response was filtered by safety settings. Please try rephrasing your question.';
+          }
+        }
+
         if (text) {
-          await writer.write(encoder.encode(text));
+          const chunkSize = 100;
+          for (let i = 0; i < text.length; i += chunkSize) {
+            if (signal.aborted) return;
+            await writer.write(encoder.encode(text.slice(i, i + chunkSize)));
+          }
+        } else {
+          console.error('Gemini returned empty text. iterations:', iterations, '| pending calls:', calls?.length ?? 0);
+          await writer.write(encoder.encode(
+            'I wasn\'t able to generate a response for that query. Please try rephrasing or asking something more specific.'
+          ));
         }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        await writer.write(encoder.encode(`Error: ${errorMessage}`));
+        // Client disconnected — stop silently
+        if (signal.aborted || (error as Error).name === 'AbortError') return;
+        console.error('Chat streaming error:', error);
+        try {
+          await writer.write(encoder.encode('Sorry, an error occurred while processing your request. Please try again.'));
+        } catch {
+          // Writer closed (client disconnected) — ignore
+        }
       } finally {
-        await writer.close();
+        try {
+          await writer.close();
+        } catch {
+          // Writer may already be closed if client disconnected
+        }
       }
     })();
 
@@ -264,8 +418,8 @@ export async function POST(req: Request) {
       },
     });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    console.error('Chat route error:', error);
+    return new Response(JSON.stringify({ error: 'An internal error occurred. Please try again.' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });

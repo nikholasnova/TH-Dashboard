@@ -2,16 +2,10 @@
 
 const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.27.5/full/";
 
-// Use `any` for the Pyodide instance — the real types come from the CDN script,
-// not the npm package, so we can't get static types without bundler issues.
 export type PyodideInterface = any;
 
-// Module-level singleton — survives component remounts and navigation
 let pyodideInstance: PyodideInterface | null = null;
 let loadingPromise: Promise<PyodideInterface> | null = null;
-
-// Swappable callback — when a new component mounts mid-load, it can
-// replace this so progress events go to the current (mounted) component.
 let currentProgressCallback: ((status: LoadingStatus) => void) | null = null;
 
 export type LoadingStatus = {
@@ -19,7 +13,6 @@ export type LoadingStatus = {
   message: string;
 };
 
-/** Load the Pyodide script from CDN via a <script> tag (bypasses bundler). */
 function loadPyodideScript(): Promise<void> {
   return new Promise((resolve, reject) => {
     if ((globalThis as any).loadPyodide) {
@@ -55,7 +48,6 @@ export async function getPyodide(
         message: "Loading Python runtime...",
       });
 
-      // Load pyodide.js from CDN via script tag — NOT via import()
       await loadPyodideScript();
 
       const loadPyodide = (globalThis as any).loadPyodide;
@@ -71,7 +63,28 @@ export async function getPyodide(
         stage: "loading-packages",
         message: "Loading scientific packages...",
       });
-      await pyodide.loadPackage(["numpy", "pandas", "scipy", "statsmodels"]);
+      await pyodide.loadPackage(["micropip", "numpy", "pandas", "scipy", "statsmodels"]);
+
+      // loadPackage can silently skip packages — verify and fallback to micropip
+      const missing: string = await pyodide.runPythonAsync(`
+missing = []
+for pkg in ["numpy", "pandas", "scipy", "statsmodels"]:
+    try:
+        __import__(pkg)
+    except ImportError:
+        missing.append(pkg)
+",".join(missing)
+`);
+      if (missing) {
+        currentProgressCallback?.({
+          stage: "loading-packages",
+          message: `Installing ${missing} via micropip...`,
+        });
+        await pyodide.runPythonAsync(`
+import micropip
+await micropip.install([${missing.split(",").map((p: string) => `"${p.trim()}"`).join(",")}])
+`);
+      }
 
       pyodideInstance = pyodide;
       currentProgressCallback?.({ stage: "ready", message: "Python ready" });

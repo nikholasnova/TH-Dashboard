@@ -1,63 +1,39 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { AuthGate } from '@/components/AuthGate';
-import { Navbar } from '@/components/Navbar';
-import {
-  DeviceStats,
-  DeploymentWithCount,
-  getDeviceStats,
-  getDeployments,
-  getDeployment,
-  celsiusToFahrenheit,
-  celsiusDeltaToFahrenheit,
-} from '@/lib/supabase';
+import { PageLayout } from '@/components/PageLayout';
+import { DeviceStats, getDeviceStats, getDeployment } from '@/lib/supabase';
 import { computePercentError, getScopedCompareDeviceIds } from '@/lib/weatherCompare';
-
-const TIME_RANGES = [
-  { label: '1h', hours: 1 },
-  { label: '6h', hours: 6 },
-  { label: '24h', hours: 24 },
-  { label: '7d', hours: 168 },
-  { label: 'Custom', hours: -1 },
-];
+import { formatValue, formatDelta, formatPercent, formatPercentDelta, safeC2F, safeDeltaC2F } from '@/lib/format';
+import { useSetChatPageContext } from '@/lib/chatContext';
+import { TIME_RANGES } from '@/lib/constants';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { FilterToolbar } from '@/components/FilterToolbar';
+import { useTimeRange } from '@/hooks/useTimeRange';
+import { useDeployments } from '@/hooks/useDeployments';
 
 export default function ComparePage() {
   const [stats, setStats] = useState<DeviceStats[]>([]);
-  const [selectedRange, setSelectedRange] = useState(24);
   const [isLoading, setIsLoading] = useState(true);
-  const [customStart, setCustomStart] = useState('');
-  const [customEnd, setCustomEnd] = useState('');
 
-  const [deviceFilter, setDeviceFilter] = useState<string>('');
-  const [deploymentFilter, setDeploymentFilter] = useState<string>('');
-  const [deployments, setDeployments] = useState<DeploymentWithCount[]>([]);
+  const timeRange = useTimeRange();
+  const { deployments } = useDeployments(timeRange.deviceFilter);
+  const {
+    selectedRange, isCustom, isCustomValid,
+    deploymentFilter, deviceFilter,
+    getRangeBounds,
+  } = timeRange;
 
-  const isCustom = selectedRange === -1;
-  const isCustomValid = !!customStart && !!customEnd && new Date(customStart).getTime() < new Date(customEnd).getTime();
-
+  const setPageContext = useSetChatPageContext();
   useEffect(() => {
-    async function fetchDeployments() {
-      const deps = await getDeployments();
-      setDeployments(deps);
-    }
-    fetchDeployments();
-  }, []);
-
-  const getRangeBounds = useCallback(async () => {
-    if (deploymentFilter) {
-      const dep = await getDeployment(parseInt(deploymentFilter, 10));
-      if (dep) {
-        return { start: dep.started_at, end: dep.ended_at || new Date().toISOString() };
-      }
-    }
-    if (isCustom) {
-      return { start: new Date(customStart).toISOString(), end: new Date(customEnd).toISOString() };
-    }
-    const end = new Date();
-    const start = new Date(end.getTime() - selectedRange * 60 * 60 * 1000);
-    return { start: start.toISOString(), end: end.toISOString() };
-  }, [selectedRange, isCustom, customStart, customEnd, deploymentFilter]);
+    setPageContext({
+      page: 'compare',
+      timeRange: TIME_RANGES.find(r => r.hours === selectedRange)?.label || `${selectedRange}h`,
+      deviceFilter: deviceFilter || undefined,
+      deploymentId: deploymentFilter ? parseInt(deploymentFilter, 10) : undefined,
+    });
+    return () => setPageContext({});
+  }, [setPageContext, selectedRange, deviceFilter, deploymentFilter]);
 
   const fetchData = useCallback(async () => {
     if (isCustom && !isCustomValid && !deploymentFilter) return;
@@ -103,7 +79,6 @@ export default function ComparePage() {
     return () => clearTimeout(timer);
   }, [fetchData]);
 
-  const filteredDeployments = deviceFilter ? deployments.filter(d => d.device_id === deviceFilter) : deployments;
   const activeDeployment = deploymentFilter ? deployments.find(d => d.id.toString() === deploymentFilter) : null;
 
   const statsByDevice = useMemo(() => {
@@ -114,113 +89,37 @@ export default function ComparePage() {
     return map;
   }, [stats]);
 
-  const formatValue = (value: number | null | undefined, decimals = 1) => {
-    if (value === undefined || value === null) return '—';
-    return value.toFixed(decimals);
-  };
-
-  const formatDelta = (a: number | null | undefined, b: number | null | undefined) => {
-    if (a === undefined || b === undefined || a === null || b === null) return '—';
-    const delta = a - b;
-    const sign = delta >= 0 ? '+' : '';
-    return `${sign}${delta.toFixed(1)}`;
-  };
-
-  const formatPercent = (value: number | undefined) => {
-    if (value === undefined) return '—';
-    return `${value.toFixed(1)}%`;
-  };
-
-  const formatPercentDelta = (a: number | undefined, b: number | undefined) => {
-    if (a === undefined || b === undefined) return '—';
-    const delta = a - b;
-    const sign = delta >= 0 ? '+' : '';
-    return `${sign}${delta.toFixed(1)}%`;
-  };
 
   const node1 = statsByDevice.node1;
   const node2 = statsByDevice.node2;
   const weatherNode1 = statsByDevice.weather_node1;
   const weatherNode2 = statsByDevice.weather_node2;
 
-  const node1TempAvgF = node1?.temp_avg != null ? celsiusToFahrenheit(node1.temp_avg) : undefined;
-  const node2TempAvgF = node2?.temp_avg != null ? celsiusToFahrenheit(node2.temp_avg) : undefined;
-  const node1TempMinF = node1?.temp_min != null ? celsiusToFahrenheit(node1.temp_min) : undefined;
-  const node2TempMinF = node2?.temp_min != null ? celsiusToFahrenheit(node2.temp_min) : undefined;
-  const node1TempMaxF = node1?.temp_max != null ? celsiusToFahrenheit(node1.temp_max) : undefined;
-  const node2TempMaxF = node2?.temp_max != null ? celsiusToFahrenheit(node2.temp_max) : undefined;
-  const node1TempStdF = node1?.temp_stddev != null ? celsiusDeltaToFahrenheit(node1.temp_stddev) : undefined;
-  const node2TempStdF = node2?.temp_stddev != null ? celsiusDeltaToFahrenheit(node2.temp_stddev) : undefined;
-  const weatherNode1TempAvgF = weatherNode1?.temp_avg != null ? celsiusToFahrenheit(weatherNode1.temp_avg) : undefined;
-  const weatherNode2TempAvgF = weatherNode2?.temp_avg != null ? celsiusToFahrenheit(weatherNode2.temp_avg) : undefined;
+  const node1TempAvgF = safeC2F(node1?.temp_avg);
+  const node2TempAvgF = safeC2F(node2?.temp_avg);
+  const node1TempMinF = safeC2F(node1?.temp_min);
+  const node2TempMinF = safeC2F(node2?.temp_min);
+  const node1TempMaxF = safeC2F(node1?.temp_max);
+  const node2TempMaxF = safeC2F(node2?.temp_max);
+  const node1TempStdF = safeDeltaC2F(node1?.temp_stddev);
+  const node2TempStdF = safeDeltaC2F(node2?.temp_stddev);
+  const weatherNode1TempAvgF = safeC2F(weatherNode1?.temp_avg);
+  const weatherNode2TempAvgF = safeC2F(weatherNode2?.temp_avg);
   const node1TempErrorPct = computePercentError(node1TempAvgF, weatherNode1TempAvgF);
   const node2TempErrorPct = computePercentError(node2TempAvgF, weatherNode2TempAvgF);
   const node1HumidityErrorPct = computePercentError(node1?.humidity_avg, weatherNode1?.humidity_avg);
   const node2HumidityErrorPct = computePercentError(node2?.humidity_avg, weatherNode2?.humidity_avg);
 
   return (
-    <AuthGate>
-      <div className="min-h-screen">
-        <div className="container-responsive">
-          {/* flex-col-reverse puts nav above header on mobile */}
-          <div className="flex flex-col-reverse sm:flex-col">
-            <header className="mb-6 sm:mb-10">
-              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Compare</h1>
-              <p className="text-base sm:text-lg text-[#a0aec0]">Side-by-side sensor statistics</p>
-            </header>
-            <Navbar />
-          </div>
-
-        <div className="flex flex-wrap gap-4 mb-8">
-          <div className="glass-card p-2 flex gap-1">
-            {TIME_RANGES.map((range) => (
-              <button key={range.hours} onClick={() => setSelectedRange(range.hours)}
-                className={`px-5 py-2.5 text-sm rounded-xl transition-all ${selectedRange === range.hours ? 'nav-active text-white font-semibold' : 'text-[#a0aec0] hover:text-white hover:bg-white/5'}`}>
-                {range.label}
-              </button>
-            ))}
-          </div>
-
-          {isCustom && !deploymentFilter && (
-            <div className="glass-card p-3 flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-[#a0aec0]">Start</label>
-                <input type="datetime-local" value={customStart} onChange={(e) => setCustomStart(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-[#a0aec0]">End</label>
-                <input type="datetime-local" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white" />
-              </div>
-              {!isCustomValid && <span className="text-xs text-[#ffb547]">Pick a valid range</span>}
-            </div>
-          )}
-
-          <div className="glass-card p-3 flex flex-wrap items-center gap-4">
-            <span className="text-xs text-[#a0aec0] font-medium">Filters:</span>
-            <select value={deviceFilter} onChange={(e) => { setDeviceFilter(e.target.value); setDeploymentFilter(''); }}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[100px]">
-              <option value="">All Devices</option>
-              <option value="node1">Node 1</option>
-              <option value="node2">Node 2</option>
-            </select>
-            <select value={deploymentFilter} onChange={(e) => setDeploymentFilter(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[180px]">
-              <option value="">All Deployments</option>
-              {filteredDeployments.map((dep) => (
-                <option key={dep.id} value={dep.id.toString()}>{dep.name} ({dep.device_id})</option>
-              ))}
-            </select>
-          </div>
-        </div>
+    <PageLayout title="Compare" subtitle="Side-by-side sensor statistics">
+        <FilterToolbar timeRange={timeRange} deployments={deployments} />
 
         {deploymentFilter && activeDeployment && (
           <div className="mb-6 px-4 py-2 rounded-lg bg-[#0075ff]/20 border border-[#0075ff]/30 inline-flex items-center gap-2">
             <span className="text-sm text-white">
               Showing: {activeDeployment.name} ({activeDeployment.location})
             </span>
-            <button onClick={() => setDeploymentFilter('')} className="text-[#a0aec0] hover:text-white">✕</button>
+            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[#a0aec0] hover:text-white">✕</button>
           </div>
         )}
 
@@ -228,25 +127,11 @@ export default function ComparePage() {
           <>
             <div className="glass-card card-stats p-8 mb-8">
               <h2 className="text-2xl font-bold text-white mb-6">Temperature (°F)</h2>
-              <div className="flex flex-col items-center justify-center flex-1">
-                <div className="flex gap-1 mb-3">
-                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-                <p className="text-sm text-[#a0aec0]">Loading stats...</p>
-              </div>
+              <LoadingSpinner message="Loading stats..." />
             </div>
             <div className="glass-card card-stats p-8">
               <h2 className="text-2xl font-bold text-white mb-6">Humidity (%)</h2>
-              <div className="flex flex-col items-center justify-center flex-1">
-                <div className="flex gap-1 mb-3">
-                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-                <p className="text-sm text-[#a0aec0]">Loading stats...</p>
-              </div>
+              <LoadingSpinner message="Loading stats..." />
             </div>
           </>
         ) : (
@@ -360,8 +245,6 @@ export default function ComparePage() {
             </div>
           </div>
         )}
-      </div>
-    </div>
-    </AuthGate>
+    </PageLayout>
   );
 }

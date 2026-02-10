@@ -39,13 +39,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
     getSession().then((session) => {
       setSession(session);
       setLoading(false);
     });
 
-    // Listen for auth state changes
     const unsubscribe = onAuthStateChange((session) => {
       setSession(session);
       setLoading(false);

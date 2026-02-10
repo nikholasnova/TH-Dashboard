@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { buildWeatherTargets, GET, getUtcHalfHourBucketRange } from './route';
+import { buildWeatherTargets, GET, getUtcHourBucketRange } from './route';
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(),
@@ -175,19 +175,19 @@ describe('/api/weather route', () => {
 });
 
 describe('weather route helpers', () => {
-  it('builds UTC half-hour bucket boundaries (first half)', () => {
-    const { startIso, endIso } = getUtcHalfHourBucketRange(
+  it('builds UTC hour bucket boundaries (first half)', () => {
+    const { startIso, endIso } = getUtcHourBucketRange(
       new Date('2026-02-06T16:13:20.000Z')
     );
     expect(startIso).toBe('2026-02-06T16:00:00.000Z');
-    expect(endIso).toBe('2026-02-06T16:30:00.000Z');
+    expect(endIso).toBe('2026-02-06T17:00:00.000Z');
   });
 
-  it('builds UTC half-hour bucket boundaries (second half)', () => {
-    const { startIso, endIso } = getUtcHalfHourBucketRange(
+  it('builds UTC hour bucket boundaries (second half)', () => {
+    const { startIso, endIso } = getUtcHourBucketRange(
       new Date('2026-02-06T16:43:20.000Z')
     );
-    expect(startIso).toBe('2026-02-06T16:30:00.000Z');
+    expect(startIso).toBe('2026-02-06T16:00:00.000Z');
     expect(endIso).toBe('2026-02-06T17:00:00.000Z');
   });
 

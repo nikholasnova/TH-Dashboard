@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Reading, Deployment, celsiusToFahrenheit } from '@/lib/supabase';
+import { Reading, Deployment, ChartSample, celsiusToFahrenheit } from '@/lib/supabase';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { STALE_THRESHOLD_MS } from '@/lib/constants';
 
 interface LiveReadingCardProps {
   deviceId: string;
@@ -12,15 +14,42 @@ interface LiveReadingCardProps {
   onClick?: () => void;
   onRefresh?: () => void;
   lastRefresh?: Date | null;
+  weatherReading?: Reading | null;
+  sparklineData?: ChartSample[];
 }
 
-export function LiveReadingCard({ deviceId, deviceName, reading, activeDeployment, isLoading, onClick, onRefresh, lastRefresh }: LiveReadingCardProps) {
+function Sparkline({ data }: { data: ChartSample[] }) {
+  if (data.length < 2) return null;
+  const values = data.map((s) => celsiusToFahrenheit(s.temperature_avg));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const w = 1000;
+  const h = 40;
+  const pad = 2;
+
+  let path = '';
+  for (let i = 0; i < values.length; i++) {
+    const x = (i / (values.length - 1)) * w;
+    const y = h - pad - ((values[i] - min) / range) * (h - pad * 2);
+    path += i === 0 ? `M${x.toFixed(1)},${y.toFixed(1)}` : ` L${x.toFixed(1)},${y.toFixed(1)}`;
+  }
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full" style={{ height: 40 }}>
+      <line x1="0" y1={h / 2} x2={w} y2={h / 2} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+      <path d={path} fill="none" stroke="#0075ff" strokeWidth="2" opacity={0.8} vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+export function LiveReadingCard({ deviceId, deviceName, reading, activeDeployment, isLoading, onClick, onRefresh, lastRefresh, weatherReading, sparklineData }: LiveReadingCardProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const readingTimestampMs = reading ? new Date(reading.created_at).getTime() : null;
   const referenceTimestampMs = lastRefresh?.getTime() ?? readingTimestampMs;
   const isStale = readingTimestampMs !== null
-    ? (referenceTimestampMs ?? readingTimestampMs) - readingTimestampMs > 5 * 60 * 1000
+    ? (referenceTimestampMs ?? readingTimestampMs) - readingTimestampMs > STALE_THRESHOLD_MS
     : true;
 
   const formatTime = (dateString: string) => {
@@ -49,7 +78,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
 
   return (
     <div
-      className={`glass-card p-8 card-reading ${onClick ? 'cursor-pointer hover:border-white/30 transition-all' : ''}`}
+      className={`glass-card p-4 sm:p-8 card-reading ${onClick ? 'cursor-pointer hover:border-white/30 transition-all' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">
@@ -104,35 +133,58 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
       </div>
 
       {isLoading && !reading ? (
-        <div className="flex flex-col justify-center items-center flex-1 min-h-[140px]">
-          <div className="flex gap-1 mb-3">
-            <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-            <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-            <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-          </div>
-          <p className="text-sm text-[#a0aec0]">Loading...</p>
-        </div>
+        <LoadingSpinner message="Loading..." className="flex-1 min-h-[140px]" />
       ) : reading && !isStale ? (
         <>
-          <div className="grid grid-cols-2 gap-8 mb-8">
-            <div className="glass-card p-6 !rounded-xl !border-white/10">
-              <p className="text-sm text-[#a0aec0] uppercase tracking-wider mb-3">Temperature</p>
+          <div className="grid grid-cols-2 gap-3 sm:gap-8 mb-6 sm:mb-8">
+            <div className="glass-card p-3 sm:p-6 !rounded-xl !border-white/10">
+              <p className="text-xs sm:text-sm text-[#a0aec0] uppercase tracking-wider mb-2 sm:mb-3">Temperature</p>
               <p className="stat-value">
                 {celsiusToFahrenheit(reading.temperature).toFixed(1)}
-                <span className="text-xl text-[#a0aec0] font-normal ml-1">°F</span>
+                <span className="text-base sm:text-xl text-[#a0aec0] font-normal ml-1">°F</span>
               </p>
-              <p className="text-sm text-[#a0aec0] mt-2">
+              <p className="text-xs sm:text-sm text-[#a0aec0] mt-1 sm:mt-2">
                 {reading.temperature.toFixed(1)}°C
               </p>
+              {weatherReading && (() => {
+                const sensorF = celsiusToFahrenheit(reading.temperature);
+                const weatherF = celsiusToFahrenheit(weatherReading.temperature);
+                const delta = sensorF - weatherF;
+                const absDelta = Math.abs(delta);
+                const deltaColor = absDelta < 3 ? '#01b574' : absDelta < 5 ? '#ffb547' : '#e31a1a';
+                return (
+                  <p className="text-xs mt-2 text-[#a0aec0]">
+                    vs Official: {weatherF.toFixed(1)}°F{' '}
+                    <span style={{ color: deltaColor }}>({delta >= 0 ? '+' : ''}{delta.toFixed(1)}°F)</span>
+                  </p>
+                );
+              })()}
             </div>
-            <div className="glass-card p-6 !rounded-xl !border-white/10">
-              <p className="text-sm text-[#a0aec0] uppercase tracking-wider mb-3">Humidity</p>
+            <div className="glass-card p-3 sm:p-6 !rounded-xl !border-white/10">
+              <p className="text-xs sm:text-sm text-[#a0aec0] uppercase tracking-wider mb-2 sm:mb-3">Humidity</p>
               <p className="stat-value">
                 {reading.humidity.toFixed(1)}
-                <span className="text-xl text-[#a0aec0] font-normal ml-1">%</span>
+                <span className="text-base sm:text-xl text-[#a0aec0] font-normal ml-1">%</span>
               </p>
+              {weatherReading && (() => {
+                const delta = reading.humidity - weatherReading.humidity;
+                const absDelta = Math.abs(delta);
+                const deltaColor = absDelta < 5 ? '#01b574' : absDelta < 10 ? '#ffb547' : '#e31a1a';
+                return (
+                  <p className="text-xs mt-2 text-[#a0aec0]">
+                    vs Official: {weatherReading.humidity.toFixed(1)}%{' '}
+                    <span style={{ color: deltaColor }}>({delta >= 0 ? '+' : ''}{delta.toFixed(1)}%)</span>
+                  </p>
+                );
+              })()}
             </div>
           </div>
+
+          {sparklineData && sparklineData.length >= 2 && (
+            <div className="mb-4 -mx-2">
+              <Sparkline data={sparklineData} />
+            </div>
+          )}
 
           <div className="text-sm text-[#a0aec0]">
             {formatDate(reading.created_at)} at {formatTime(reading.created_at)}

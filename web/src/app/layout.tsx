@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
+import { ChatShell } from "@/components/ChatShell";
+import { ChatPageContextProvider } from "@/lib/chatContext";
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains",
@@ -25,7 +27,10 @@ export default function RootLayout({
         className={`${jetbrainsMono.variable} antialiased`}
       >
         <AuthProvider>
-          {children}
+          <ChatPageContextProvider>
+            {children}
+            <ChatShell />
+          </ChatPageContextProvider>
         </AuthProvider>
       </body>
     </html>

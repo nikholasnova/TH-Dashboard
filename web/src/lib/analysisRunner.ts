@@ -1,5 +1,5 @@
 import type { PyodideInterface } from './pyodide';
-import { getDeployments, getDeploymentReadings } from './supabase';
+import { getDeployments, getDeploymentReadings, getChartSamples, celsiusToFahrenheit } from './supabase';
 import type { DeploymentWithCount } from './supabase';
 
 export type AnalysisType =
@@ -501,4 +501,125 @@ export async function runAnalyses(
   }
 
   return results;
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard 7-day forecast (standalone, not deployment-scoped)
+// ---------------------------------------------------------------------------
+
+export interface DailyForecast {
+  date: string;        // YYYY-MM-DD
+  day_name: string;    // "Today", "Mon", "Tue", etc.
+  temp_high_f: number;
+  temp_low_f: number;
+}
+
+const DASHBOARD_FORECAST_SCRIPT = `
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+import json, math
+import pandas as pd
+import numpy as np
+
+def safe_float(value, fallback=0.0):
+    try:
+        v = float(value)
+    except Exception:
+        return float(fallback)
+    if math.isfinite(v):
+        return v
+    return float(fallback)
+
+data = json.loads(chart_samples_json)
+df = pd.DataFrame(data)
+df['bucket_ts'] = pd.to_datetime(df['bucket_ts'])
+df = df.sort_values('bucket_ts').set_index('bucket_ts')
+
+series = df['temperature_f'].dropna()
+
+period = 24  # 24h / 1h = 24 intervals per day
+forecast_steps = 7 * period  # 7 days
+
+result_json = '[]'
+
+if len(series) >= period * 2:
+    try:
+        model = ExponentialSmoothing(
+            series,
+            seasonal_periods=period,
+            trend='add',
+            seasonal='add',
+            initialization_method='estimated',
+        ).fit(optimized=True)
+
+        forecast = model.forecast(forecast_steps)
+        fc_timestamps = [t.isoformat() for t in forecast.index]
+        fc_values = [safe_float(v, 0.0) for v in forecast.values.tolist()]
+
+        result_json = json.dumps({
+            'timestamps': fc_timestamps,
+            'values': fc_values,
+        })
+    except Exception:
+        result_json = '[]'
+`;
+
+export async function runDashboardForecast(
+  pyodide: PyodideInterface,
+  deviceId: string,
+): Promise<DailyForecast[]> {
+  const now = new Date();
+  const start = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
+  const end = now.toISOString();
+
+  const samples = await getChartSamples({
+    start,
+    end,
+    bucketSeconds: 3600, // 1-hour buckets for better data coverage
+    device_id: deviceId,
+    maxRows: 5000, // 180 days × 24h = 4320 rows max
+  });
+
+  if (samples.length < 48) return []; // need at least 2 days (2 × 24)
+
+  // Convert temps to Fahrenheit before sending to Python
+  const samplesWithF = samples.map((s) => ({
+    bucket_ts: s.bucket_ts,
+    temperature_f: celsiusToFahrenheit(s.temperature_avg),
+  }));
+
+  pyodide.globals.set('chart_samples_json', JSON.stringify(samplesWithF));
+  await pyodide.runPythonAsync(DASHBOARD_FORECAST_SCRIPT);
+
+  const resultJson: string = pyodide.globals.get('result_json');
+  const raw = JSON.parse(resultJson);
+
+  if (!raw || !raw.timestamps || raw.timestamps.length === 0) return [];
+
+  // Aggregate hourly forecast points into daily high/low
+  const dailyMap = new Map<string, { highs: number[]; lows: number[] }>();
+  const todayStr = now.toISOString().slice(0, 10);
+
+  for (let i = 0; i < raw.timestamps.length; i++) {
+    const dateStr = raw.timestamps[i].slice(0, 10);
+    if (!dailyMap.has(dateStr)) {
+      dailyMap.set(dateStr, { highs: [], lows: [] });
+    }
+    dailyMap.get(dateStr)!.highs.push(raw.values[i]);
+    dailyMap.get(dateStr)!.lows.push(raw.values[i]);
+  }
+
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const result: DailyForecast[] = [];
+
+  for (const [dateStr, { highs, lows }] of dailyMap) {
+    const dayDate = new Date(dateStr + 'T12:00:00');
+    result.push({
+      date: dateStr,
+      day_name: dateStr === todayStr ? 'Today' : dayNames[dayDate.getDay()],
+      temp_high_f: Math.max(...highs),
+      temp_low_f: Math.min(...lows),
+    });
+  }
+
+  return result.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 7);
 }

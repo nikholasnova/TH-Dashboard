@@ -38,11 +38,10 @@ function getServiceRoleClient() {
   return { client: createClient(url, serviceKey), error: null } as const;
 }
 
-export function getUtcHalfHourBucketRange(now = new Date()) {
+export function getUtcHourBucketRange(now = new Date()) {
   const start = new Date(now);
-  const minutes = start.getUTCMinutes();
-  start.setUTCMinutes(minutes < 30 ? 0 : 30, 0, 0);
-  const end = new Date(start.getTime() + 30 * 60 * 1000);
+  start.setUTCMinutes(0, 0, 0);
+  const end = new Date(start.getTime() + 60 * 60 * 1000);
   return {
     startIso: start.toISOString(),
     endIso: end.toISOString(),
@@ -100,10 +99,9 @@ export function buildWeatherTargets(activeDeployments: ActiveDeployment[]) {
   };
 }
 
-// Fetched by Vercel cron once per hour to pull outdoor weather for active deployments.
+// Fetched by Vercel cron every 30 min to pull outdoor weather for active deployments.
 // Protected by CRON_SECRET — only trusted callers should invoke this route.
 export async function GET(request: NextRequest) {
-  // Validate CRON_SECRET from Authorization header or query param
   const authHeader = request.headers.get('authorization');
   const { searchParams } = new URL(request.url);
   const querySecret = searchParams.get('secret');
@@ -115,7 +113,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Check for WeatherAPI key — if missing, return early (don't break the cron)
+  // If missing, return early — don't break the cron
   const weatherApiKey = process.env.WEATHER_API_KEY;
   if (!weatherApiKey) {
     return NextResponse.json({
@@ -176,7 +174,7 @@ export async function GET(request: NextRequest) {
     let skippedExistingCount = 0;
     const errors: string[] = [];
     const { startIso: hourStartIso, endIso: hourEndIso } =
-      getUtcHalfHourBucketRange();
+      getUtcHourBucketRange();
 
     // Fetch weather for each unique zip code
     for (const [zipCode, targets] of targetsByZip) {
@@ -206,7 +204,6 @@ export async function GET(request: NextRequest) {
 
         fetchedCount++;
 
-        // Insert one weather reading per tracked sensor device.
         for (const target of targets) {
           const weatherDeviceId = toWeatherDeviceId(target.deviceId);
           const { count: existingCount, error: existingError } = await supabase

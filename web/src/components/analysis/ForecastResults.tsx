@@ -6,10 +6,6 @@ interface ForecastResultsProps {
   results: ForecastResult[];
 }
 
-// ---------------------------------------------------------------------------
-// SVG line chart showing historical + forecast data
-// ---------------------------------------------------------------------------
-
 const CHART_HEIGHT = 200;
 const CHART_PADDING_LEFT = 48;
 const CHART_PADDING_RIGHT = 8;

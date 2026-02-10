@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { DeploymentModal } from '@/components/DeploymentModal';
-import { AuthGate } from '@/components/AuthGate';
-import { Navbar } from '@/components/Navbar';
+import { PageLayout } from '@/components/PageLayout';
 import {
   DeploymentWithCount,
   getDeployments,
   getDistinctLocations,
 } from '@/lib/supabase';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { EmptyState } from '@/components/EmptyState';
 
 type StatusFilter = 'all' | 'active' | 'ended';
 
@@ -64,18 +65,7 @@ export default function DeploymentsPage() {
   };
 
   return (
-    <AuthGate>
-      <div className="min-h-screen">
-        <div className="container-responsive">
-          {/* flex-col-reverse puts nav above header on mobile */}
-          <div className="flex flex-col-reverse sm:flex-col">
-            <header className="mb-6 sm:mb-10">
-              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">Deployments</h1>
-              <p className="text-base sm:text-lg text-[#a0aec0]">Manage device placement sessions</p>
-            </header>
-            <Navbar />
-          </div>
-
+    <PageLayout title="Deployments" subtitle="Manage device placement sessions">
         <div className="flex flex-wrap items-center gap-4 mb-8">
           <div className="glass-card p-3 flex flex-wrap items-center gap-4">
             <span className="text-xs text-[#a0aec0] font-medium">Filters:</span>
@@ -122,24 +112,17 @@ export default function DeploymentsPage() {
 
         {isLoading ? (
           <div className="glass-card p-12">
-            <div className="flex flex-col items-center justify-center">
-              <div className="flex gap-1 mb-3">
-                <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-              <p className="text-sm text-[#a0aec0]">Loading deployments...</p>
-            </div>
+            <LoadingSpinner message="Loading deployments..." />
           </div>
         ) : deployments.length === 0 ? (
-          <div className="glass-card p-12 text-center">
-            <p className="text-xl text-[#a0aec0] mb-2">No deployments found</p>
-            <p className="text-sm text-[#a0aec0]/60">
-              {deviceFilter || locationFilter || statusFilter !== 'all'
+          <EmptyState
+            title="No deployments found"
+            subtitle={
+              deviceFilter || locationFilter || statusFilter !== 'all'
                 ? 'Try adjusting your filters'
-                : 'Create your first deployment by clicking a device on the dashboard'}
-            </p>
-          </div>
+                : 'Create your first deployment by clicking a device on the dashboard'
+            }
+          />
         ) : (
           <div className="space-y-4">
             {deployments.map((dep) => (
@@ -174,7 +157,6 @@ export default function DeploymentsPage() {
             ))}
           </div>
         )}
-      </div>
 
       {selectedDeployment && (
         <DeploymentModal
@@ -196,7 +178,6 @@ export default function DeploymentsPage() {
           onDeploymentChange={fetchData}
         />
       )}
-    </div>
-    </AuthGate>
+    </PageLayout>
   );
 }

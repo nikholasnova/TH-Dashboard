@@ -51,7 +51,7 @@ Two nodes: `DEVICE_ID = node1` and `DEVICE_ID = node2`.
 4. Deploy
 5. Verify cron jobs from `web/vercel.json`:
    - `/api/keepalive` — every 10 min
-   - `/api/weather` — hourly
+   - `/api/weather` — every 30 min
 
 ## 6) Environment Variables
 

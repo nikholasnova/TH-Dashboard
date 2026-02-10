@@ -1,12 +1,23 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Use service role key to bypass RLS (this is a server-only route with secret protection)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+type ServiceRoleClient = SupabaseClient;
+
+function getServiceRoleClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    return {
+      client: null,
+      error:
+        'NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required',
+    } as const;
+  }
+
+  return { client: createClient(url, serviceRoleKey), error: null } as const;
+}
 
 type DeviceStatus = 'ok' | 'missing' | 'stale' | 'anomaly';
 
@@ -70,7 +81,10 @@ function minutesSince(isoDate: string | null, nowMs: number): number | null {
   return Math.max(0, (nowMs - parsed) / 60000);
 }
 
-async function getLatestReading(deviceId: string): Promise<LatestReading | null> {
+async function getLatestReading(
+  supabase: ServiceRoleClient,
+  deviceId: string
+): Promise<LatestReading | null> {
   const { data, error } = await supabase
     .from('readings')
     .select('created_at, temperature, humidity')
@@ -272,7 +286,7 @@ function buildRecoveryAlertMessage(params: {
   return { subject, body };
 }
 
-async function runMonitoring() {
+async function runMonitoring(supabase: ServiceRoleClient) {
   const monitoredDevices = parseDeviceList();
   const staleMinutes = parseNumberEnv('ALERT_STALE_MINUTES', DEFAULT_STALE_MINUTES);
   const recoveryEnabled = process.env.ENABLE_RECOVERY_ALERTS !== 'false';
@@ -281,7 +295,10 @@ async function runMonitoring() {
   const nowMs = now.getTime();
 
   const latestByDeviceEntries = await Promise.all(
-    monitoredDevices.map(async (deviceId) => [deviceId, await getLatestReading(deviceId)] as const)
+    monitoredDevices.map(async (deviceId) => [
+      deviceId,
+      await getLatestReading(supabase, deviceId),
+    ] as const)
   );
   const latestByDevice = new Map<string, LatestReading | null>(latestByDeviceEntries);
 
@@ -405,7 +422,6 @@ async function runMonitoring() {
 // Pinged by Vercel cron for health checks and lightweight keepalive traffic.
 // Protected by CRON_SECRET - only trusted callers should invoke this route.
 export async function GET(request: NextRequest) {
-  // Validate CRON_SECRET from Authorization header or query param
   const authHeader = request.headers.get('authorization');
   const { searchParams } = new URL(request.url);
   const querySecret = searchParams.get('secret');
@@ -417,6 +433,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { client: supabase, error: supabaseConfigError } = getServiceRoleClient();
+  if (!supabase) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `Server Supabase configuration missing: ${supabaseConfigError}`,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
+  }
+
   const { count, error } = await supabase
     .from('readings')
     .select('*', { count: 'exact', head: true });
@@ -426,7 +454,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const monitoring = await runMonitoring();
+    const monitoring = await runMonitoring(supabase);
     return NextResponse.json({
       ok: true,
       readings: count,

@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { AuthGate } from '@/components/AuthGate';
-import { Navbar } from '@/components/Navbar';
+import { PageLayout } from '@/components/PageLayout';
 import { DeploymentWithCount, getDeployments } from '@/lib/supabase';
+import { useSetChatPageContext } from '@/lib/chatContext';
 import { getPyodide, LoadingStatus, PyodideInterface } from '@/lib/pyodide';
 import {
   runAnalyses,
@@ -15,14 +15,8 @@ import { CorrelationResults } from '@/components/analysis/CorrelationResults';
 import { HypothesisTestResults } from '@/components/analysis/HypothesisTestResults';
 import { SeasonalResults } from '@/components/analysis/SeasonalResults';
 import { ForecastResults } from '@/components/analysis/ForecastResults';
-
-const TIME_RANGES = [
-  { label: '1h', hours: 1 },
-  { label: '6h', hours: 6 },
-  { label: '24h', hours: 24 },
-  { label: '7d', hours: 168 },
-  { label: 'Custom', hours: -1 },
-];
+import { TIME_RANGES } from '@/lib/constants';
+import { BounceDots } from '@/components/LoadingSpinner';
 
 const ANALYSIS_TYPES = [
   { id: 'descriptive', label: 'Descriptive Stats' },
@@ -73,13 +67,21 @@ export default function AnalysisPage() {
 
   const [selectedAnalyses, setSelectedAnalyses] = useState<string[]>([]);
 
+  const setPageContext = useSetChatPageContext();
+  useEffect(() => {
+    setPageContext({
+      page: 'analysis',
+      timeRange: TIME_RANGES.find(r => r.hours === selectedRange)?.label || `${selectedRange}h`,
+    });
+    return () => setPageContext({});
+  }, [setPageContext, selectedRange]);
+
   const isCustom = selectedRange === -1;
   const isCustomValid =
     !!customStart &&
     !!customEnd &&
     new Date(customStart).getTime() < new Date(customEnd).getTime();
 
-  // Wizard step completion states
   const step1Complete = selectedDeployments.length > 0;
   const step2Complete = !isCustom || isCustomValid;
   const step3Complete = selectedAnalyses.length > 0;
@@ -214,20 +216,7 @@ export default function AnalysisPage() {
       return (
         <div>
           <div className="flex items-center gap-3">
-            <div className="flex gap-1">
-              <span
-                className="w-2 h-2 bg-[#0075ff] rounded-full animate-bounce"
-                style={{ animationDelay: '0ms' }}
-              />
-              <span
-                className="w-2 h-2 bg-[#0075ff] rounded-full animate-bounce"
-                style={{ animationDelay: '150ms' }}
-              />
-              <span
-                className="w-2 h-2 bg-[#0075ff] rounded-full animate-bounce"
-                style={{ animationDelay: '300ms' }}
-              />
-            </div>
+            <BounceDots color="#0075ff" />
             <span className="text-[#a0aec0] text-sm">
               {stage === 'loading-pyodide'
                 ? 'Loading Python runtime...'
@@ -241,23 +230,9 @@ export default function AnalysisPage() {
       );
     }
 
-    // idle — initial state before loading begins
     return (
       <div className="flex items-center gap-3">
-        <div className="flex gap-1">
-          <span
-            className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce"
-            style={{ animationDelay: '0ms' }}
-          />
-          <span
-            className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce"
-            style={{ animationDelay: '150ms' }}
-          />
-          <span
-            className="w-2 h-2 bg-[#a0aec0] rounded-full animate-bounce"
-            style={{ animationDelay: '300ms' }}
-          />
-        </div>
+        <BounceDots />
         <span className="text-[#a0aec0] text-sm">
           Initializing Python environment...
         </span>
@@ -266,21 +241,7 @@ export default function AnalysisPage() {
   };
 
   return (
-    <AuthGate>
-      <div className="min-h-screen">
-        <div className="container-responsive">
-          <div className="flex flex-col-reverse sm:flex-col">
-            <header className="mb-6 sm:mb-10">
-              <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                Python Statistical Analysis
-              </h1>
-              <p className="text-base sm:text-lg text-[#a0aec0]">
-                Run scientific analyses on sensor data using Python
-              </p>
-            </header>
-            <Navbar />
-          </div>
-
+    <PageLayout title="Python Statistical Analysis" subtitle="Run scientific analyses on sensor data using Python">
           <div className="glass-card p-4 sm:p-6 mb-6">{renderPyodideStatus()}</div>
 
           <div className="glass-card p-4 sm:p-6 mb-6">
@@ -288,7 +249,6 @@ export default function AnalysisPage() {
               Configuration
             </h2>
 
-            {/* Step 1: Deployments - always visible */}
             <div className="mb-5">
               <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
                 Deployments
@@ -320,7 +280,6 @@ export default function AnalysisPage() {
               </div>
             </div>
 
-            {/* Step 2: Time Range - appears after deployment selection */}
             {step1Complete && (
               <div className="wizard-step-enter mb-5">
                 <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
@@ -377,7 +336,6 @@ export default function AnalysisPage() {
               </div>
             )}
 
-            {/* Step 3: Analysis Types - appears after time range selection */}
             {step1Complete && step2Complete && (
               <div className="wizard-step-enter mb-5">
                 <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
@@ -412,7 +370,6 @@ export default function AnalysisPage() {
               </div>
             )}
 
-            {/* Step 4: Run button - appears after analysis type selection */}
             {step1Complete && step2Complete && step3Complete && (
               <div className="wizard-step-enter">
                 <button
@@ -444,20 +401,7 @@ export default function AnalysisPage() {
             {isRunning && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="flex gap-1">
-                    <span
-                      className="w-2 h-2 bg-[#0075ff] rounded-full animate-bounce"
-                      style={{ animationDelay: '0ms' }}
-                    />
-                    <span
-                      className="w-2 h-2 bg-[#0075ff] rounded-full animate-bounce"
-                      style={{ animationDelay: '150ms' }}
-                    />
-                    <span
-                      className="w-2 h-2 bg-[#0075ff] rounded-full animate-bounce"
-                      style={{ animationDelay: '300ms' }}
-                    />
-                  </div>
+                  <BounceDots color="#0075ff" />
                   <span className="text-[#a0aec0] text-sm">{runProgress}</span>
                 </div>
                 {[1, 2, 3].map((i) => (
@@ -551,8 +495,6 @@ export default function AnalysisPage() {
               </div>
             )}
           </div>
-        </div>
-      </div>
-    </AuthGate>
+    </PageLayout>
   );
 }
