@@ -92,7 +92,9 @@ describe('/api/weather route', () => {
 
   it('returns 500 when service-role env is missing', async () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const request = new NextRequest('http://localhost/api/weather?secret=secret');
+    const request = new NextRequest('http://localhost/api/weather', {
+      headers: { authorization: 'Bearer secret' },
+    });
     const response = await GET(request);
     const body = await response.json();
 
@@ -150,7 +152,9 @@ describe('/api/weather route', () => {
       )
     ) as typeof fetch;
 
-    const request = new NextRequest('http://localhost/api/weather?secret=secret');
+    const request = new NextRequest('http://localhost/api/weather', {
+      headers: { authorization: 'Bearer secret' },
+    });
     const response = await GET(request);
     const body = await response.json();
 

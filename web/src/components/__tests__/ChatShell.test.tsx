@@ -9,8 +9,8 @@ vi.mock('../AuthProvider', () => ({
 }));
 
 vi.mock('../AIChat', () => ({
-  AIChat: ({ compact }: { compact?: boolean }) => (
-    <div data-testid="ai-chat">AI Chat {compact ? 'compact' : 'full'}</div>
+  AIChat: () => (
+    <div data-testid="ai-chat">AI Chat</div>
   ),
 }));
 
@@ -42,7 +42,7 @@ describe('ChatShell', () => {
     expect(screen.getByTitle('Open Kelvin AI')).toBeInTheDocument();
     await user.click(screen.getByTitle('Open Kelvin AI'));
 
-    expect(screen.getByTestId('ai-chat')).toHaveTextContent('AI Chat compact');
+    expect(screen.getByTestId('ai-chat')).toHaveTextContent('AI Chat');
     expect(screen.getByTitle('Close chat')).toBeInTheDocument();
 
     await user.click(screen.getByTitle('Close chat'));

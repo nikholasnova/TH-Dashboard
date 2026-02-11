@@ -10,11 +10,19 @@ import { useSetChatPageContext } from '@/lib/chatContext';
 import { DEVICES, REFRESH_INTERVAL, STALE_THRESHOLD_MS } from '@/lib/constants';
 import { PageLayout } from '@/components/PageLayout';
 
+interface DeviceData {
+  reading: Reading | null;
+  deployment: Deployment | null;
+  weather: Reading | null;
+  sparkline: ChartSample[];
+}
+
+const emptyDevice: DeviceData = { reading: null, deployment: null, weather: null, sparkline: [] };
+
 export default function Dashboard() {
-  const [readings, setReadings] = useState<Record<string, Reading | null>>({});
-  const [deployments, setDeployments] = useState<Record<string, Deployment | null>>({});
-  const [weatherReadings, setWeatherReadings] = useState<Record<string, Reading | null>>({});
-  const [sparklineData, setSparklineData] = useState<Record<string, ChartSample[]>>({});
+  const [deviceData, setDeviceData] = useState<Record<string, DeviceData>>(() =>
+    Object.fromEntries(DEVICES.map(d => [d.id, emptyDevice]))
+  );
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState<{ id: string; name: string } | null>(null);
@@ -25,77 +33,69 @@ export default function Dashboard() {
     return () => setPageContext({});
   }, [setPageContext]);
 
-  const fetchReadings = useCallback(async () => {
-    const results: Record<string, Reading | null> = {};
+  const fetchLiveData = useCallback(async () => {
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const now = new Date().toISOString();
+
+    const updates: Record<string, Partial<DeviceData>> = {};
 
     await Promise.all(
-      DEVICES.map(async (device) => {
-        results[device.id] = await getLatestReading(device.id);
-      })
+      DEVICES.flatMap((device) => [
+        getLatestReading(device.id).then(r => { updates[device.id] = { ...updates[device.id], reading: r }; }),
+        getLatestReading(`weather_${device.id}`).then(r => { updates[device.id] = { ...updates[device.id], weather: r }; }),
+        getChartSamples({ start: sixHoursAgo, end: now, bucketSeconds: 900, device_id: device.id })
+          .then(s => { updates[device.id] = { ...updates[device.id], sparkline: s }; }),
+      ])
     );
 
-    setReadings(results);
+    setDeviceData(prev => {
+      const next = { ...prev };
+      for (const id of Object.keys(updates)) {
+        next[id] = { ...next[id], ...updates[id] };
+      }
+      return next;
+    });
     setLastRefresh(new Date());
     setIsLoading(false);
   }, []);
 
   const fetchDeployments = useCallback(async () => {
-    const results: Record<string, Deployment | null> = {};
+    const updates: Record<string, Deployment | null> = {};
 
     await Promise.all(
       DEVICES.map(async (device) => {
-        results[device.id] = await getActiveDeployment(device.id);
+        updates[device.id] = await getActiveDeployment(device.id);
       })
     );
 
-    setDeployments(results);
-  }, []);
-
-  const fetchWeatherAndSparkline = useCallback(async () => {
-    const weather: Record<string, Reading | null> = {};
-    const sparklines: Record<string, ChartSample[]> = {};
-    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-    const now = new Date().toISOString();
-
-    await Promise.all([
-      ...DEVICES.map(async (device) => {
-        weather[device.id] = await getLatestReading(`weather_${device.id}`);
-      }),
-      ...DEVICES.map(async (device) => {
-        sparklines[device.id] = await getChartSamples({
-          start: sixHoursAgo,
-          end: now,
-          bucketSeconds: 900,
-          device_id: device.id,
-        });
-      }),
-    ]);
-
-    setWeatherReadings(weather);
-    setSparklineData(sparklines);
+    setDeviceData(prev => {
+      const next = { ...prev };
+      for (const id of Object.keys(updates)) {
+        next[id] = { ...next[id], deployment: updates[id] };
+      }
+      return next;
+    });
   }, []);
 
   useEffect(() => {
     const initialTimer = setTimeout(() => {
-      void fetchReadings();
+      void fetchLiveData();
       void fetchDeployments();
-      void fetchWeatherAndSparkline();
     }, 0);
     const interval = setInterval(() => {
-      void fetchReadings();
-      void fetchWeatherAndSparkline();
+      void fetchLiveData();
     }, REFRESH_INTERVAL);
     return () => {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [fetchReadings, fetchDeployments, fetchWeatherAndSparkline]);
+  }, [fetchLiveData, fetchDeployments]);
 
   const handleDeploymentChange = () => {
     fetchDeployments();
   };
 
-  const selectedReading = selectedDevice ? readings[selectedDevice.id] : null;
+  const selectedReading = selectedDevice ? deviceData[selectedDevice.id]?.reading : null;
   const selectedDeviceConnected =
     selectedReading && lastRefresh
       ? lastRefresh.getTime() - new Date(selectedReading.created_at).getTime() < STALE_THRESHOLD_MS
@@ -109,14 +109,14 @@ export default function Dashboard() {
             key={device.id}
             deviceId={device.id}
             deviceName={device.name}
-            reading={readings[device.id]}
-            activeDeployment={deployments[device.id]}
+            reading={deviceData[device.id]?.reading}
+            activeDeployment={deviceData[device.id]?.deployment}
             isLoading={isLoading}
             onClick={() => setSelectedDevice(device)}
-            onRefresh={fetchReadings}
+            onRefresh={fetchLiveData}
             lastRefresh={lastRefresh}
-            weatherReading={weatherReadings[device.id]}
-            sparklineData={sparklineData[device.id]}
+            weatherReading={deviceData[device.id]?.weather}
+            sparklineData={deviceData[device.id]?.sparkline}
           />
         ))}
       </div>

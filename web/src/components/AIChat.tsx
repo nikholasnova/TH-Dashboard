@@ -69,7 +69,7 @@ function simpleMarkdownToHtml(md: string): string {
   return html;
 }
 
-export function AIChat({ compact: _compact = false }: { compact?: boolean }) {
+export function AIChat() {
   const pageContext = useChatPageContext();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -79,6 +79,7 @@ export function AIChat({ compact: _compact = false }: { compact?: boolean }) {
   const [deploymentNames, setDeploymentNames] = useState<{ name: string; location: string }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
 
   useEffect(() => {
     async function loadDeployments() {
@@ -139,6 +140,8 @@ export function AIChat({ compact: _compact = false }: { compact?: boolean }) {
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
+      readerRef.current?.cancel();
+      readerRef.current = null;
     };
   }, []);
 
@@ -178,6 +181,7 @@ export function AIChat({ compact: _compact = false }: { compact?: boolean }) {
       }
 
       const reader = response.body?.getReader();
+      readerRef.current = reader || null;
       const decoder = new TextDecoder();
       let assistantContent = '';
       let buffer = '';
@@ -251,6 +255,7 @@ export function AIChat({ compact: _compact = false }: { compact?: boolean }) {
       setIsLoading(false);
       setToolStatus(null);
       abortControllerRef.current = null;
+      readerRef.current = null;
     }
   };
 

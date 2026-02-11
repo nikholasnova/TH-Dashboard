@@ -203,7 +203,7 @@ All pages require Supabase Auth session (`AuthGate`).
 |------|-------|
 | Firmware | `arduino/sensor_node/sensor_node.ino` |
 | Schema | `supabase/schema.sql` |
-| Supabase client | `web/src/lib/supabase.ts` |
+| Supabase client | `web/src/lib/supabase/` (types, client, server, queries) |
 | Pages | `web/src/app/{page,charts,compare,deployments,analysis}/page.tsx` |
 | AI | `web/src/app/api/chat/route.ts`, `web/src/lib/aiTools.ts`, `web/src/components/ChatShell.tsx`, `web/src/lib/chatContext.tsx` |
 | Keepalive | `web/src/app/api/keepalive/route.ts` |

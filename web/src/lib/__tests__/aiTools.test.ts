@@ -106,32 +106,14 @@ describe('aiTools executeTool', () => {
       started_at: '2026-01-01T00:00:00.000Z',
       ended_at: null,
       created_at: '2026-01-01T00:00:00.000Z',
+      reading_count: 3,
     }));
 
-    const from = vi.fn((table: string) => {
-      if (table === 'deployments') {
-        const query: Record<string, unknown> = {};
-        query.select = vi.fn(() => query);
-        query.eq = vi.fn(() => query);
-        query.ilike = vi.fn(() => query);
-        query.is = vi.fn(() => query);
-        query.order = vi.fn(async () => ({ data: deployments, error: null }));
-        return query;
-      }
-
-      if (table === 'readings') {
-        const query: Record<string, unknown> = {};
-        query.select = vi.fn(() => query);
-        query.eq = vi.fn(() => query);
-        query.gte = vi.fn(() => query);
-        query.lte = vi.fn(async () => ({ count: 3, error: null }));
-        return query;
-      }
-
-      throw new Error(`Unexpected table: ${table}`);
-    });
-
     const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
+      if (fn === 'get_deployments_with_counts') {
+        return { data: deployments, error: null };
+      }
+
       if (fn === 'get_deployment_stats') {
         const deploymentIds = (args.deployment_ids as number[]) || [];
         return {
@@ -177,7 +159,7 @@ describe('aiTools executeTool', () => {
       return { data: [], error: null };
     });
 
-    vi.mocked(createClient).mockReturnValue({ from, rpc } as never);
+    vi.mocked(createClient).mockReturnValue({ rpc } as never);
 
     const result = await executeTool('get_report_data', {}) as {
       deployment_stats: unknown[];

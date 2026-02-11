@@ -39,7 +39,7 @@ describe('AIChat', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<AIChat compact />);
+    render(<AIChat />);
     const user = userEvent.setup();
 
     await user.type(screen.getByPlaceholderText('Ask about your data...'), 'What is the latest temp?');
@@ -69,7 +69,7 @@ describe('AIChat', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<AIChat compact />);
+    render(<AIChat />);
     const user = userEvent.setup();
 
     await user.type(screen.getByPlaceholderText('Ask about your data...'), 'hello');

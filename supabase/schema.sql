@@ -28,11 +28,14 @@ CREATE POLICY "Allow authenticated select" ON readings
   TO authenticated
   USING (auth.uid() IS NOT NULL);
 
+-- Only service_role (server-side) may delete readings; the
+-- delete_deployment_cascade RPC uses SECURITY DEFINER for this.
 DROP POLICY IF EXISTS "Allow authenticated delete" ON readings;
-CREATE POLICY "Allow authenticated delete" ON readings
+DROP POLICY IF EXISTS "Allow service_role delete" ON readings;
+CREATE POLICY "Allow service_role delete" ON readings
   FOR DELETE
-  TO authenticated
-  USING (auth.uid() IS NOT NULL);
+  TO service_role
+  USING (true);
 
 -- Deployment metadata used to group readings by place/time window.
 CREATE TABLE IF NOT EXISTS deployments (
@@ -310,6 +313,78 @@ BEGIN
     END IF;
   END IF;
 END $$;
+
+CREATE OR REPLACE FUNCTION get_deployments_with_counts(
+  p_device_id TEXT DEFAULT NULL,
+  p_active_only BOOLEAN DEFAULT FALSE
+)
+RETURNS TABLE (
+  id BIGINT,
+  device_id TEXT,
+  name TEXT,
+  location TEXT,
+  notes TEXT,
+  zip_code TEXT,
+  started_at TIMESTAMPTZ,
+  ended_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ,
+  reading_count BIGINT
+)
+LANGUAGE SQL STABLE
+SET search_path = public
+AS $$
+  SELECT
+    d.id, d.device_id, d.name, d.location, d.notes, d.zip_code,
+    d.started_at, d.ended_at, d.created_at,
+    COUNT(r.id) AS reading_count
+  FROM public.deployments d
+  LEFT JOIN public.readings r
+    ON r.device_id = d.device_id
+    AND r.created_at >= d.started_at
+    AND r.created_at <= COALESCE(d.ended_at, NOW())
+  WHERE
+    (p_device_id IS NULL OR d.device_id = p_device_id)
+    AND (NOT p_active_only OR d.ended_at IS NULL)
+  GROUP BY d.id
+  ORDER BY d.started_at DESC;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.get_deployments_with_counts(TEXT, BOOLEAN) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_deployments_with_counts(TEXT, BOOLEAN) TO authenticated, service_role;
+
+-- Cascade-delete a deployment and its associated readings in one call.
+-- SECURITY DEFINER lets authenticated callers delete readings even though
+-- the readings RLS policy restricts DELETE to service_role.
+CREATE OR REPLACE FUNCTION delete_deployment_cascade(p_deployment_id BIGINT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_device_id TEXT;
+  v_started_at TIMESTAMPTZ;
+  v_ended_at TIMESTAMPTZ;
+BEGIN
+  SELECT device_id, started_at, ended_at
+    INTO v_device_id, v_started_at, v_ended_at
+    FROM public.deployments WHERE id = p_deployment_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Deployment % not found', p_deployment_id;
+  END IF;
+
+  DELETE FROM public.readings
+    WHERE device_id = v_device_id
+      AND created_at >= v_started_at
+      AND (v_ended_at IS NULL OR created_at <= v_ended_at);
+
+  DELETE FROM public.deployments WHERE id = p_deployment_id;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.delete_deployment_cascade(BIGINT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.delete_deployment_cascade(BIGINT) TO authenticated, service_role;
 
 -- Guardrail: one active deployment per device when data allows it.
 DO $$

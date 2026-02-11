@@ -80,7 +80,7 @@ export function ChatShell() {
             </div>
           </div>
           <div className={bodyClass}>
-            <AIChat compact />
+            <AIChat />
           </div>
         </div>
       )}

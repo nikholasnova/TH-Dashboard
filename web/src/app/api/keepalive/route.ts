@@ -56,7 +56,7 @@ const MAX_TEMP_C = 85;
 const MIN_HUMIDITY = 0;
 const MAX_HUMIDITY = 100;
 
-function parseDeviceList(): string[] {
+export function parseDeviceList(): string[] {
   const raw = process.env.MONITORED_DEVICE_IDS;
   if (!raw) return DEFAULT_DEVICES;
   const parsed = raw
@@ -66,7 +66,7 @@ function parseDeviceList(): string[] {
   return parsed.length > 0 ? parsed : DEFAULT_DEVICES;
 }
 
-function parseNumberEnv(name: string, fallback: number): number {
+export function parseNumberEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
   const parsed = Number(raw);
@@ -74,7 +74,7 @@ function parseNumberEnv(name: string, fallback: number): number {
   return parsed;
 }
 
-function minutesSince(isoDate: string | null, nowMs: number): number | null {
+export function minutesSince(isoDate: string | null, nowMs: number): number | null {
   if (!isoDate) return null;
   const parsed = new Date(isoDate).getTime();
   if (!Number.isFinite(parsed)) return null;
@@ -101,7 +101,7 @@ async function getLatestReading(
   return data as LatestReading;
 }
 
-function classifyDevice(latest: LatestReading | null, staleMinutes: number, nowMs: number): {
+export function classifyDevice(latest: LatestReading | null, staleMinutes: number, nowMs: number): {
   status: DeviceStatus;
   ageMinutes: number | null;
   reason: string;
@@ -142,18 +142,18 @@ function classifyDevice(latest: LatestReading | null, staleMinutes: number, nowM
   };
 }
 
-function shouldSendProblemAlert(
+export function shouldSendProblemAlert(
   previous: DeviceAlertState | undefined,
   nextStatus: Exclude<DeviceStatus, 'ok'>
 ): boolean {
   if (!previous) return true;
   if (previous.status === 'ok') return true;
   if (previous.status !== nextStatus) return true;
-  // Same incident state: retry until at least one alert was successfully sent.
+  // Same incident state: only alert once (last_alert_sent_at is set on attempt).
   return !previous.last_alert_sent_at;
 }
 
-function shouldSendRecoveryAlert(
+export function shouldSendRecoveryAlert(
   previous: DeviceAlertState | undefined,
   recoveryEnabled: boolean
 ): boolean {
@@ -323,15 +323,15 @@ async function runMonitoring(supabase: ServiceRoleClient) {
     const previous = stateByDevice.get(deviceId);
     const classification = classifyDevice(latest, staleMinutes, nowMs);
 
-    let problemAlertSent = false;
-    let recoveryAlertSent = false;
+    let problemAlertAttempted = false;
+    let recoveryAlertAttempted = false;
     let notificationSummary: NotificationResult | null = null;
 
     if (classification.status === 'ok') {
       if (shouldSendRecoveryAlert(previous, recoveryEnabled)) {
         const msg = buildRecoveryAlertMessage({ deviceId, latest });
         notificationSummary = await dispatchNotifications(msg.subject, msg.body);
-        recoveryAlertSent = notificationSummary.sent > 0;
+        recoveryAlertAttempted = true;
       }
     } else {
       if (shouldSendProblemAlert(previous, classification.status)) {
@@ -344,7 +344,7 @@ async function runMonitoring(supabase: ServiceRoleClient) {
           staleMinutes,
         });
         notificationSummary = await dispatchNotifications(msg.subject, msg.body);
-        problemAlertSent = notificationSummary.sent > 0;
+        problemAlertAttempted = true;
       }
     }
 
@@ -360,12 +360,15 @@ async function runMonitoring(supabase: ServiceRoleClient) {
       updated_at: nowIso,
     };
 
-    if (problemAlertSent) {
+    // Record the attempt timestamp regardless of delivery success.
+    // This prevents infinite retries when the email provider is down;
+    // operators should check Vercel logs for dispatch failures.
+    if (problemAlertAttempted) {
       stateUpdate.last_alert_type = classification.status;
       stateUpdate.last_alert_sent_at = nowIso;
     }
 
-    if (recoveryAlertSent) {
+    if (recoveryAlertAttempted) {
       stateUpdate.last_recovery_sent_at = nowIso;
     }
 
@@ -393,8 +396,8 @@ async function runMonitoring(supabase: ServiceRoleClient) {
       last_seen_at: latest?.created_at || null,
       latest_temperature_c: latest?.temperature ?? null,
       latest_humidity: latest?.humidity ?? null,
-      problem_alert_sent: problemAlertSent,
-      recovery_alert_sent: recoveryAlertSent,
+      problem_alert_attempted: problemAlertAttempted,
+      recovery_alert_attempted: recoveryAlertAttempted,
     });
   }
 
@@ -423,11 +426,9 @@ async function runMonitoring(supabase: ServiceRoleClient) {
 // Protected by CRON_SECRET - only trusted callers should invoke this route.
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
-  const { searchParams } = new URL(request.url);
-  const querySecret = searchParams.get('secret');
 
   const expectedSecret = process.env.CRON_SECRET;
-  const providedSecret = authHeader?.replace('Bearer ', '') || querySecret;
+  const providedSecret = authHeader?.replace('Bearer ', '');
 
   if (!expectedSecret || providedSecret !== expectedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

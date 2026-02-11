@@ -1,226 +1,42 @@
-import { supabase } from './client';
+import { supabase } from '../client';
 import type {
   Reading,
-  ChartSample,
-  DeviceStats,
   Deployment,
   DeploymentWithCount,
   DeploymentStats,
-} from './types';
-
-export function celsiusToFahrenheit(celsius: number): number {
-  return (celsius * 9) / 5 + 32;
-}
-
-export function celsiusDeltaToFahrenheit(celsiusDelta: number): number {
-  return (celsiusDelta * 9) / 5;
-}
-
-export async function getLatestReading(
-  deviceId: string
-): Promise<Reading | null> {
-  if (!supabase) return null;
-
-  const { data, error } = await supabase
-    .from('readings')
-    .select('*')
-    .eq('device_id', deviceId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    console.error(`Error fetching latest reading for ${deviceId}:`, error);
-    return null;
-  }
-  return data;
-}
-
-export async function getReadings(
-  deviceId: string,
-  hoursAgo: number,
-  maxRows?: number
-): Promise<Reading[]> {
-  if (!supabase) return [];
-
-  const since = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
-  let query = supabase
-    .from('readings')
-    .select('*')
-    .eq('device_id', deviceId)
-    .gte('created_at', since)
-    .order('created_at', { ascending: true });
-
-  if (maxRows) {
-    query = query.limit(maxRows);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error(`Error fetching readings for ${deviceId}:`, error);
-    return [];
-  }
-  return data || [];
-}
-
-export async function getAllReadings(
-  hoursAgo: number,
-  maxRows?: number
-): Promise<Reading[]> {
-  if (!supabase) return [];
-
-  const since = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
-  let query = supabase
-    .from('readings')
-    .select('*')
-    .gte('created_at', since)
-    .order('created_at', { ascending: true });
-
-  if (maxRows) {
-    query = query.limit(maxRows);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Error fetching all readings:', error);
-    return [];
-  }
-  return data || [];
-}
-
-export async function getAllReadingsRange(params: {
-  start: string;
-  end: string;
-  device_id?: string;
-  maxRows?: number;
-}): Promise<Reading[]> {
-  if (!supabase) return [];
-
-  let query = supabase
-    .from('readings')
-    .select('*')
-    .gte('created_at', params.start)
-    .lte('created_at', params.end)
-    .order('created_at', { ascending: true });
-
-  if (params.device_id) {
-    query = query.eq('device_id', params.device_id);
-  }
-
-  if (params.maxRows) {
-    query = query.limit(params.maxRows);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Error fetching readings range:', error);
-    return [];
-  }
-  return data || [];
-}
-
-export async function getChartSamples(params: {
-  start: string;
-  end: string;
-  bucketSeconds: number;
-  device_id?: string;
-  maxRows?: number;
-}): Promise<ChartSample[]> {
-  if (!supabase) return [];
-
-  const bucketMinutes = Math.max(1, Math.round(params.bucketSeconds / 60));
-
-  let query = supabase.rpc('get_chart_samples', {
-    p_start: params.start,
-    p_end: params.end,
-    p_bucket_minutes: bucketMinutes,
-    p_device_id: params.device_id || null,
-  });
-
-  if (params.maxRows) {
-    query = query.limit(params.maxRows);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Error fetching chart samples:', error.message || error.code || JSON.stringify(error));
-    return [];
-  }
-  return data || [];
-}
-
-export async function getDeviceStats(params: {
-  start: string;
-  end: string;
-  device_id?: string;
-}): Promise<DeviceStats[]> {
-  if (!supabase) return [];
-
-  const { data, error } = await supabase.rpc('get_device_stats', {
-    p_start: params.start,
-    p_end: params.end,
-    p_device_id: params.device_id || null,
-  });
-
-  if (error) {
-    console.error('Error fetching device stats:', error.message || error.code || JSON.stringify(error));
-    return [];
-  }
-  return data || [];
-}
+} from '../types';
+import { normalizeUsZipCode } from '../../weatherZip';
 
 export async function getDeployments(filters?: {
   deviceId?: string;
   location?: string;
   status?: 'all' | 'active' | 'ended';
 }): Promise<DeploymentWithCount[]> {
-  if (!supabase) return [];
-
-  let query = supabase.from('deployments').select('*');
-
-  if (filters?.deviceId) {
-    query = query.eq('device_id', filters.deviceId);
+  if (!supabase) {
+    console.warn('Supabase client not initialized');
+    return [];
   }
 
-  if (filters?.location) {
-    query = query.eq('location', filters.location);
-  }
-
-  if (filters?.status === 'active') {
-    query = query.is('ended_at', null);
-  } else if (filters?.status === 'ended') {
-    query = query.not('ended_at', 'is', null);
-  }
-
-  query = query.order('started_at', { ascending: false });
-
-  const { data: deployments, error } = await query;
+  const { data, error } = await supabase.rpc('get_deployments_with_counts', {
+    p_device_id: filters?.deviceId || null,
+    p_active_only: filters?.status === 'active',
+  });
 
   if (error) {
     console.error('Error fetching deployments:', error);
     return [];
   }
 
-  if (!deployments || deployments.length === 0) return [];
+  let results = (data || []) as DeploymentWithCount[];
 
-  const deploymentsWithCounts: DeploymentWithCount[] = await Promise.all(
-    deployments.map(async (d) => {
-      const { count } = await supabase!
-        .from('readings')
-        .select('*', { count: 'exact', head: true })
-        .eq('device_id', d.device_id)
-        .gte('created_at', d.started_at)
-        .lte('created_at', d.ended_at || new Date().toISOString());
+  if (filters?.location) {
+    results = results.filter(d => d.location === filters.location);
+  }
+  if (filters?.status === 'ended') {
+    results = results.filter(d => d.ended_at !== null);
+  }
 
-      return { ...d, reading_count: count || 0 };
-    })
-  );
-
-  return deploymentsWithCounts;
+  return results;
 }
 
 export async function getDeployment(id: number): Promise<Deployment | null> {
@@ -257,7 +73,7 @@ export async function createDeployment(deployment: {
       name: deployment.name,
       location: deployment.location,
       notes: deployment.notes || null,
-      zip_code: deployment.zip_code || null,
+      zip_code: deployment.zip_code ? normalizeUsZipCode(deployment.zip_code) : null,
       started_at: deployment.started_at || new Date().toISOString(),
     })
     .select()
@@ -283,6 +99,10 @@ export async function updateDeployment(
   }
 ): Promise<Deployment | null> {
   if (!supabase) return null;
+
+  if ('zip_code' in updates && updates.zip_code != null) {
+    updates.zip_code = normalizeUsZipCode(updates.zip_code);
+  }
 
   const { data, error } = await supabase
     .from('deployments')
@@ -320,30 +140,9 @@ export async function endDeployment(id: number): Promise<Deployment | null> {
 export async function deleteDeployment(id: number): Promise<boolean> {
   if (!supabase) return false;
 
-  const deployment = await getDeployment(id);
-  if (!deployment) {
-    console.error('Deployment not found for deletion:', id);
-    return false;
-  }
-
-  let readingsQuery = supabase
-    .from('readings')
-    .delete()
-    .eq('device_id', deployment.device_id)
-    .gte('created_at', deployment.started_at);
-
-  if (deployment.ended_at) {
-    readingsQuery = readingsQuery.lte('created_at', deployment.ended_at);
-  }
-
-  const { error: readingsError } = await readingsQuery;
-
-  if (readingsError) {
-    console.error('Error deleting deployment readings:', readingsError);
-    return false;
-  }
-
-  const { error } = await supabase.from('deployments').delete().eq('id', id);
+  const { error } = await supabase.rpc('delete_deployment_cascade', {
+    p_deployment_id: id,
+  });
 
   if (error) {
     console.error('Error deleting deployment:', error);
@@ -477,4 +276,3 @@ export async function getDistinctLocations(): Promise<string[]> {
   const locations = [...new Set(data?.map((d) => d.location) || [])];
   return locations;
 }
-

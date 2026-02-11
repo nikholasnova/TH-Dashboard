@@ -4,7 +4,6 @@ import {
   DeviceStats,
   ChartSample,
   Reading,
-  Deployment,
   celsiusToFahrenheit,
   celsiusDeltaToFahrenheit,
   getServerClient,
@@ -12,6 +11,18 @@ import {
 import { normalizeUsZipCode } from './weatherZip';
 
 const TIMEZONE = 'America/Phoenix';
+
+function convertStatsToF<T extends { temp_avg: number | null; temp_min: number | null; temp_max: number | null; temp_stddev: number | null }>(
+  stats: T
+): T & { temp_avg_f: number | null; temp_min_f: number | null; temp_max_f: number | null; temp_stddev_f: number | null } {
+  return {
+    ...stats,
+    temp_avg_f: stats.temp_avg !== null ? celsiusToFahrenheit(stats.temp_avg) : null,
+    temp_min_f: stats.temp_min !== null ? celsiusToFahrenheit(stats.temp_min) : null,
+    temp_max_f: stats.temp_max !== null ? celsiusToFahrenheit(stats.temp_max) : null,
+    temp_stddev_f: stats.temp_stddev !== null ? celsiusDeltaToFahrenheit(stats.temp_stddev) : null,
+  };
+}
 
 function toLocalTime(utcString: unknown): string {
   if (typeof utcString !== 'string') return '';
@@ -35,54 +46,30 @@ export async function executeGetDeployments(params: {
 }): Promise<DeploymentWithCount[]> {
   const supabase = getServerClient();
 
-  let query = supabase.from('deployments').select('*');
-
-  if (params.device_id) {
-    query = query.eq('device_id', params.device_id);
-  }
-
-  if (params.location) {
-    // Case-insensitive partial match for more forgiving searches
-    query = query.ilike('location', `%${params.location}%`);
-  }
-
-  if (params.name) {
-    // Case-insensitive partial match for deployment name
-    query = query.ilike('name', `%${params.name}%`);
-  }
-
-  if (params.zip_code) {
-    query = query.eq('zip_code', params.zip_code);
-  }
-
-  if (params.active_only) {
-    query = query.is('ended_at', null);
-  }
-
-  query = query.order('started_at', { ascending: false });
-
-  const { data: deployments, error } = await query;
+  const { data, error } = await supabase.rpc('get_deployments_with_counts', {
+    p_device_id: params.device_id || null,
+    p_active_only: params.active_only || false,
+  });
 
   if (error) {
     throw new Error(`Failed to fetch deployments: ${error.message}`);
   }
 
-  if (!deployments) return [];
+  let results = (data || []) as DeploymentWithCount[];
 
-  const deploymentsWithCounts: DeploymentWithCount[] = await Promise.all(
-    deployments.map(async (d: Deployment) => {
-      const { count } = await supabase
-        .from('readings')
-        .select('*', { count: 'exact', head: true })
-        .eq('device_id', d.device_id)
-        .gte('created_at', d.started_at)
-        .lte('created_at', d.ended_at || new Date().toISOString());
+  if (params.location) {
+    const loc = params.location.toLowerCase();
+    results = results.filter(d => d.location.toLowerCase().includes(loc));
+  }
+  if (params.name) {
+    const name = params.name.toLowerCase();
+    results = results.filter(d => d.name.toLowerCase().includes(name));
+  }
+  if (params.zip_code) {
+    results = results.filter(d => d.zip_code === params.zip_code);
+  }
 
-      return { ...d, reading_count: count || 0 };
-    })
-  );
-
-  return deploymentsWithCounts;
+  return results;
 }
 
 const MAX_DEPLOYMENT_IDS = 100;
@@ -289,13 +276,7 @@ export async function executeTool(
     }
     case 'get_deployment_stats': {
       const { stats, truncated } = await executeGetDeploymentStats(params as Parameters<typeof executeGetDeploymentStats>[0]);
-      const mapped = stats.map((s) => ({
-        ...s,
-        temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
-        temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
-        temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
-        temp_stddev_f: s.temp_stddev !== null ? celsiusDeltaToFahrenheit(s.temp_stddev) : null,
-      }));
+      const mapped = stats.map((s) => convertStatsToF(s));
       return {
         stats: mapped,
         ...(truncated ? { note: `Results limited to first ${MAX_DEPLOYMENT_IDS} deployments.` } : {}),
@@ -311,13 +292,7 @@ export async function executeTool(
     }
     case 'get_device_stats': {
       const deviceStats = await executeGetDeviceStats(params as Parameters<typeof executeGetDeviceStats>[0]);
-      return deviceStats.map((s) => ({
-        ...s,
-        temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
-        temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
-        temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
-        temp_stddev_f: s.temp_stddev !== null ? celsiusDeltaToFahrenheit(s.temp_stddev) : null,
-      }));
+      return deviceStats.map((s) => convertStatsToF(s));
     }
     case 'get_chart_data': {
       const chartData = await executeGetChartData(params as Parameters<typeof executeGetChartData>[0]);
@@ -336,20 +311,8 @@ export async function executeTool(
           ended_at: d.ended_at ? toLocalTime(d.ended_at) : null,
           created_at: toLocalTime(d.created_at),
         })),
-        deployment_stats: reportData.deployment_stats.map((s) => ({
-          ...s,
-          temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
-          temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
-          temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
-          temp_stddev_f: s.temp_stddev !== null ? celsiusDeltaToFahrenheit(s.temp_stddev) : null,
-        })),
-        overall_device_stats: reportData.overall_device_stats.map((s) => ({
-          ...s,
-          temp_avg_f: s.temp_avg !== null ? celsiusToFahrenheit(s.temp_avg) : null,
-          temp_min_f: s.temp_min !== null ? celsiusToFahrenheit(s.temp_min) : null,
-          temp_max_f: s.temp_max !== null ? celsiusToFahrenheit(s.temp_max) : null,
-          temp_stddev_f: s.temp_stddev !== null ? celsiusDeltaToFahrenheit(s.temp_stddev) : null,
-        })),
+        deployment_stats: reportData.deployment_stats.map((s) => convertStatsToF(s)),
+        overall_device_stats: reportData.overall_device_stats.map((s) => convertStatsToF(s)),
         data_range: {
           earliest: toLocalTime(reportData.data_range.earliest),
           latest: toLocalTime(reportData.data_range.latest),

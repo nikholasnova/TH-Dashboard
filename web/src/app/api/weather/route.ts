@@ -103,11 +103,9 @@ export function buildWeatherTargets(activeDeployments: ActiveDeployment[]) {
 // Protected by CRON_SECRET — only trusted callers should invoke this route.
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
-  const { searchParams } = new URL(request.url);
-  const querySecret = searchParams.get('secret');
 
   const expectedSecret = process.env.CRON_SECRET;
-  const providedSecret = authHeader?.replace('Bearer ', '') || querySecret;
+  const providedSecret = authHeader?.replace('Bearer ', '');
 
   if (!expectedSecret || providedSecret !== expectedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

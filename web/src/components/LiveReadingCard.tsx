@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Reading, Deployment, ChartSample, celsiusToFahrenheit } from '@/lib/supabase';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { STALE_THRESHOLD_MS } from '@/lib/constants';
+import { formatTime, formatDate, getTimeAgo } from '@/lib/format';
 
 interface LiveReadingCardProps {
   deviceId: string;
@@ -51,30 +52,6 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
   const isStale = readingTimestampMs !== null
     ? (referenceTimestampMs ?? readingTimestampMs) - readingTimestampMs > STALE_THRESHOLD_MS
     : true;
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
-
-  const getTimeAgo = (dateString: string) => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffDays > 0) return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
-    if (diffHours > 0) return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
-    if (diffMins > 0) return diffMins === 1 ? '1 min ago' : `${diffMins} mins ago`;
-    return 'just now';
-  };
 
   return (
     <div
