@@ -105,10 +105,16 @@ interface ReadingWithContext {
   location: string;
 }
 
+interface AnalysisFetchOptions {
+  useDeploymentBounds?: boolean;
+  maxRows?: number;
+}
+
 async function fetchReadingsForAnalysis(
   deploymentIds: number[],
   start: string,
-  end: string
+  end: string,
+  options: AnalysisFetchOptions = {}
 ): Promise<ReadingWithContext[]> {
   const allDeployments = await getDeployments();
   const deploymentsById = new Map<number, DeploymentWithCount>();
@@ -122,10 +128,13 @@ async function fetchReadingsForAnalysis(
     const dep = deploymentsById.get(depId);
     if (!dep) continue;
 
-    const readings = await getDeploymentReadings(depId, 5000, {
-      start,
-      end,
-      preferLatest: true,
+    const requestedStart = options.useDeploymentBounds ? dep.started_at : start;
+    const requestedEnd = options.useDeploymentBounds ? (dep.ended_at || end) : end;
+
+    const readings = await getDeploymentReadings(depId, options.maxRows, {
+      start: requestedStart,
+      end: requestedEnd,
+      preferLatest: Boolean(options.maxRows),
     });
 
     for (const r of readings) {
@@ -152,6 +161,8 @@ import numpy as np
 
 data = json.loads(readings_json)
 df = pd.DataFrame(data)
+if df.empty:
+    df = pd.DataFrame(columns=['created_at', 'temperature', 'humidity', 'deployment_id', 'deployment_name', 'location'])
 df['created_at'] = pd.to_datetime(df['created_at'])
 df['temperature_f'] = df['temperature'] * 9/5 + 32
 df = df.sort_values('created_at')
@@ -409,6 +420,14 @@ for (dep_id, name, location), group in df.groupby(
 
         regular = series.resample('15min').mean().interpolate(method='linear', limit=4)
         regular = regular.dropna()
+        if len(regular) == 0:
+            continue
+
+        last_ts = regular.index[-1]
+        if not (last_ts.hour == 23 and last_ts.minute == 45):
+            regular = regular[regular.index < last_ts.floor('D')]
+        if len(regular) == 0:
+            continue
 
         period = 96  # Daily cycle
         if len(regular) < period * 2:
@@ -426,12 +445,11 @@ for (dep_id, name, location), group in df.groupby(
             forecast_steps = FORECAST_HOURS * 4
             forecast = model.forecast(forecast_steps)
 
-            hist_cutoff = max(0, len(regular) - 7 * 96)
-            hist_step = max(1, (len(regular) - hist_cutoff) // 500)
-            hist_timestamps = [t.isoformat() for t in regular.index[hist_cutoff::hist_step]]
+            hist_step = max(1, len(regular) // 1200)
+            hist_timestamps = [t.isoformat() for t in regular.index[::hist_step]]
             hist_values = [
                 safe_float(v, 0.0)
-                for v in regular.values[hist_cutoff::hist_step].tolist()
+                for v in regular.values[::hist_step].tolist()
             ]
 
             fc_timestamps = [t.isoformat() for t in forecast.index]
@@ -470,27 +488,47 @@ export async function runAnalyses(
   params: AnalysisParams,
   onProgress?: (msg: string) => void
 ): Promise<AnalysisResults> {
-  onProgress?.('Fetching sensor data...');
-  const readings = await fetchReadingsForAnalysis(
-    params.deploymentIds,
-    params.start,
-    params.end
-  );
+  const includeForecasting = params.analyses.includes('forecasting');
+  const includeRangeAnalyses = params.analyses.some((a) => a !== 'forecasting');
+
+  let rangeReadings: ReadingWithContext[] = [];
+  if (includeRangeAnalyses) {
+    onProgress?.('Fetching sensor data...');
+    rangeReadings = await fetchReadingsForAnalysis(
+      params.deploymentIds,
+      params.start,
+      params.end,
+      { maxRows: 5000 }
+    );
+  }
+
+  let forecastReadings: ReadingWithContext[] = [];
+  if (includeForecasting) {
+    onProgress?.('Fetching full deployment history for forecasting...');
+    forecastReadings = await fetchReadingsForAnalysis(
+      params.deploymentIds,
+      params.start,
+      new Date().toISOString(),
+      { useDeploymentBounds: true }
+    );
+  }
+
   const deployments = await getDeployments();
   const selectedDeployments = deployments.filter((d) =>
     params.deploymentIds.includes(d.id)
   );
-
-  pyodide.globals.set('readings_json', JSON.stringify(readings));
-  pyodide.globals.set('deployments_json', JSON.stringify(selectedDeployments));
-
-  await pyodide.runPythonAsync(SETUP_SCRIPT);
 
   const results: AnalysisResults = {};
 
   for (const analysis of params.analyses) {
     onProgress?.(`Running ${analysis.replace(/_/g, ' ')}...`);
     try {
+      const readingsForAnalysis =
+        analysis === 'forecasting' ? forecastReadings : rangeReadings;
+      pyodide.globals.set('readings_json', JSON.stringify(readingsForAnalysis));
+      pyodide.globals.set('deployments_json', JSON.stringify(selectedDeployments));
+      await pyodide.runPythonAsync(SETUP_SCRIPT);
+
       const script = ANALYSIS_SCRIPTS[analysis];
       await pyodide.runPythonAsync(script);
       const resultJson: string = pyodide.globals.get('result_json');
@@ -514,6 +552,59 @@ export interface DailyForecast {
   temp_low_f: number;
 }
 
+interface RawForecastSeries {
+  timestamps: string[];
+  values: number[];
+}
+
+export function aggregateHourlyForecastToDaily(
+  raw: RawForecastSeries,
+  now = new Date()
+): DailyForecast[] {
+  if (
+    !raw ||
+    !Array.isArray(raw.timestamps) ||
+    !Array.isArray(raw.values) ||
+    raw.timestamps.length === 0 ||
+    raw.values.length === 0
+  ) {
+    return [];
+  }
+
+  const pointsByDay = new Map<string, number[]>();
+  const total = Math.min(raw.timestamps.length, raw.values.length);
+
+  for (let i = 0; i < total; i++) {
+    const ts = raw.timestamps[i];
+    const value = raw.values[i];
+    if (typeof ts !== 'string' || !Number.isFinite(value)) continue;
+    const parsed = new Date(ts);
+    if (Number.isNaN(parsed.getTime())) continue;
+
+    const dateStr = parsed.toISOString().slice(0, 10);
+    const values = pointsByDay.get(dateStr) || [];
+    values.push(value);
+    pointsByDay.set(dateStr, values);
+  }
+
+  const todayStr = now.toISOString().slice(0, 10);
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  return Array.from(pointsByDay.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .filter(([, values]) => values.length === 24)
+    .slice(0, 7)
+    .map(([dateStr, values]) => {
+      const dayDate = new Date(`${dateStr}T12:00:00.000Z`);
+      return {
+        date: dateStr,
+        day_name: dateStr === todayStr ? 'Today' : dayNames[dayDate.getUTCDay()],
+        temp_high_f: Math.max(...values),
+        temp_low_f: Math.min(...values),
+      };
+    });
+}
+
 const DASHBOARD_FORECAST_SCRIPT = `
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 import json, math
@@ -535,6 +626,10 @@ df['bucket_ts'] = pd.to_datetime(df['bucket_ts'])
 df = df.sort_values('bucket_ts').set_index('bucket_ts')
 
 series = df['temperature_f'].dropna()
+if len(series) > 0:
+    last_ts = series.index[-1]
+    if last_ts.hour != 23:
+        series = series[series.index < last_ts.floor('D')]
 
 period = 24  # 24h / 1h = 24 intervals per day
 forecast_steps = 7 * period  # 7 days
@@ -568,7 +663,12 @@ export async function runDashboardForecast(
   deviceId: string,
 ): Promise<DailyForecast[]> {
   const now = new Date();
-  const start = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString();
+  const deployments = await getDeployments({ deviceId });
+  if (deployments.length === 0) return [];
+  const start = deployments.reduce(
+    (min, dep) => (dep.started_at < min ? dep.started_at : min),
+    deployments[0].started_at
+  );
   const end = now.toISOString();
 
   const samples = await getChartSamples({
@@ -576,7 +676,6 @@ export async function runDashboardForecast(
     end,
     bucketSeconds: 3600, // 1-hour buckets for better data coverage
     device_id: deviceId,
-    maxRows: 5000, // 180 days × 24h = 4320 rows max
   });
 
   if (samples.length < 48) return []; // need at least 2 days (2 × 24)
@@ -591,35 +690,6 @@ export async function runDashboardForecast(
   await pyodide.runPythonAsync(DASHBOARD_FORECAST_SCRIPT);
 
   const resultJson: string = pyodide.globals.get('result_json');
-  const raw = JSON.parse(resultJson);
-
-  if (!raw || !raw.timestamps || raw.timestamps.length === 0) return [];
-
-  // Aggregate hourly forecast points into daily high/low
-  const dailyMap = new Map<string, { highs: number[]; lows: number[] }>();
-  const todayStr = now.toISOString().slice(0, 10);
-
-  for (let i = 0; i < raw.timestamps.length; i++) {
-    const dateStr = raw.timestamps[i].slice(0, 10);
-    if (!dailyMap.has(dateStr)) {
-      dailyMap.set(dateStr, { highs: [], lows: [] });
-    }
-    dailyMap.get(dateStr)!.highs.push(raw.values[i]);
-    dailyMap.get(dateStr)!.lows.push(raw.values[i]);
-  }
-
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const result: DailyForecast[] = [];
-
-  for (const [dateStr, { highs, lows }] of dailyMap) {
-    const dayDate = new Date(dateStr + 'T12:00:00');
-    result.push({
-      date: dateStr,
-      day_name: dateStr === todayStr ? 'Today' : dayNames[dayDate.getDay()],
-      temp_high_f: Math.max(...highs),
-      temp_low_f: Math.min(...lows),
-    });
-  }
-
-  return result.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 7);
+  const raw = JSON.parse(resultJson) as RawForecastSeries;
+  return aggregateHourlyForecastToDaily(raw, now);
 }

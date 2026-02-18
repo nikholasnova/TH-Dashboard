@@ -57,6 +57,7 @@ export function DeploymentModal({
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [formData, setFormData] = useState<FormData>({ name: '', location: '', notes: '', device_id: deviceId, zip_code: '' });
   const [editFormData, setEditFormData] = useState<EditFormData>({ name: '', location: '', notes: '', zip_code: '', started_at: '', ended_at: '' });
   const isCreateZipValid = isValidOptionalUsZipCode(formData.zip_code);
@@ -97,6 +98,8 @@ export function DeploymentModal({
     const timer = setTimeout(() => {
       void fetchDeployment();
       setIsEditing(false);
+      setShowDeleteConfirm(false);
+      setActionError(null);
       setFormData({ name: '', location: '', notes: '', device_id: deviceId, zip_code: '' });
     }, 0);
     return () => clearTimeout(timer);
@@ -104,9 +107,15 @@ export function DeploymentModal({
 
   const handleEndDeployment = async () => {
     if (!currentDeployment) return;
+    setActionError(null);
     setIsSaving(true);
-    await endDeployment(currentDeployment.id);
-    setCurrentDeployment(null);
+    const ended = await endDeployment(currentDeployment.id);
+    if (!ended) {
+      setActionError('Could not end deployment. Please try again.');
+      setIsSaving(false);
+      return;
+    }
+    setCurrentDeployment(isViewingSpecific ? ended : null);
     setIsEditing(false);
     onDeploymentChange();
     setIsSaving(false);
@@ -115,33 +124,44 @@ export function DeploymentModal({
   const handleStartDeployment = async () => {
     if (!formData.name.trim() || !formData.location.trim()) return;
     if (!isCreateZipValid) return;
+    setActionError(null);
     setIsSaving(true);
 
-    if (currentDeployment) {
-      await endDeployment(currentDeployment.id);
+    const targetDeviceId = formData.device_id;
+    const activeForTarget = await getActiveDeployment(targetDeviceId);
+    if (activeForTarget) {
+      const ended = await endDeployment(activeForTarget.id);
+      if (!ended) {
+        setActionError(`Could not end the active deployment for ${targetDeviceId}.`);
+        setIsSaving(false);
+        return;
+      }
     }
 
     const newDeployment = await createDeployment({
-      device_id: formData.device_id,
+      device_id: targetDeviceId,
       name: formData.name.trim(),
       location: formData.location.trim(),
       notes: formData.notes.trim() || undefined,
       zip_code: normalizeUsZipCode(formData.zip_code) || undefined,
     });
 
-    if (newDeployment) {
-      setCurrentDeployment(newDeployment);
-      setEditFormData({
-        name: newDeployment.name,
-        location: newDeployment.location,
-        notes: newDeployment.notes || '',
-        zip_code: newDeployment.zip_code || '',
-        started_at: newDeployment.started_at.slice(0, 16),
-        ended_at: newDeployment.ended_at?.slice(0, 16) || '',
-      });
-      setFormData({ name: '', location: '', notes: '', device_id: deviceId, zip_code: '' });
+    if (!newDeployment) {
+      setActionError('Could not start deployment. Please try again.');
+      setIsSaving(false);
+      return;
     }
 
+    setCurrentDeployment(newDeployment);
+    setEditFormData({
+      name: newDeployment.name,
+      location: newDeployment.location,
+      notes: newDeployment.notes || '',
+      zip_code: newDeployment.zip_code || '',
+      started_at: newDeployment.started_at.slice(0, 16),
+      ended_at: newDeployment.ended_at?.slice(0, 16) || '',
+    });
+    setFormData({ name: '', location: '', notes: '', device_id: deviceId, zip_code: '' });
     onDeploymentChange();
     setIsSaving(false);
   };
@@ -153,6 +173,7 @@ export function DeploymentModal({
     if (!editFormData.name.trim() || !editFormData.location.trim()) return;
     if (!editFormData.started_at || !isEditTimeValid) return;
     if (!isEditZipValid) return;
+    setActionError(null);
     setIsSaving(true);
 
     const updated = await updateDeployment(currentDeployment.id, {
@@ -164,19 +185,28 @@ export function DeploymentModal({
       ended_at: editFormData.ended_at ? new Date(editFormData.ended_at).toISOString() : null,
     });
 
-    if (updated) {
-      setCurrentDeployment(updated);
-      setIsEditing(false);
+    if (!updated) {
+      setActionError('Could not save deployment changes. Please try again.');
+      setIsSaving(false);
+      return;
     }
 
+    setCurrentDeployment(updated);
+    setIsEditing(false);
     onDeploymentChange();
     setIsSaving(false);
   };
 
   const handleDeleteDeployment = async () => {
     if (!currentDeployment) return;
+    setActionError(null);
     setIsSaving(true);
-    await deleteDeployment(currentDeployment.id);
+    const deleted = await deleteDeployment(currentDeployment.id);
+    if (!deleted) {
+      setActionError('Could not delete deployment. Please try again.');
+      setIsSaving(false);
+      return;
+    }
     setCurrentDeployment(null);
     setShowDeleteConfirm(false);
     onDeploymentChange();
@@ -232,6 +262,11 @@ export function DeploymentModal({
             <p className="text-sm text-[#ffb547]">
               <span className="font-semibold">Device offline.</span> You can still create a deployment, but no data will be collected until the device reconnects.
             </p>
+          </div>
+        )}
+        {actionError && (
+          <div className="mb-6 p-4 rounded-xl bg-[#e31a1a]/10 border border-[#e31a1a]/30">
+            <p className="text-sm text-[#e31a1a]">{actionError}</p>
           </div>
         )}
 
@@ -348,7 +383,10 @@ export function DeploymentModal({
                         {isSaving ? 'Saving...' : 'Save'}
                       </button>
                       <button
-                        onClick={() => setIsEditing(false)}
+                        onClick={() => {
+                          setActionError(null);
+                          setIsEditing(false);
+                        }}
                         disabled={isSaving}
                         className="px-4 py-2 text-sm font-medium text-[#a0aec0] hover:text-white transition-colors"
                       >
@@ -382,7 +420,10 @@ export function DeploymentModal({
                         </button>
                       )}
                       <button
-                        onClick={() => setIsEditing(true)}
+                        onClick={() => {
+                          setActionError(null);
+                          setIsEditing(true);
+                        }}
                         disabled={isSaving}
                         className="px-4 py-2 text-sm font-medium text-[#a0aec0] hover:text-white transition-colors"
                       >

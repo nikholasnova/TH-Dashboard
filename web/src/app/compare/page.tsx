@@ -6,7 +6,7 @@ import { DeviceStats, getDeviceStats, getDeployment } from '@/lib/supabase';
 import { computePercentError, getScopedCompareDeviceIds } from '@/lib/weatherCompare';
 import { formatValue, formatDelta, formatPercent, formatPercentDelta, safeC2F, safeDeltaC2F } from '@/lib/format';
 import { useSetChatPageContext } from '@/lib/chatContext';
-import { TIME_RANGES } from '@/lib/constants';
+import { DEPLOYMENT_ALL_TIME_HOURS, DEPLOYMENT_ALL_TIME_LABEL, TIME_RANGES } from '@/lib/constants';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { FilterToolbar } from '@/components/FilterToolbar';
 import { useTimeRange } from '@/hooks/useTimeRange';
@@ -26,9 +26,14 @@ export default function ComparePage() {
 
   const setPageContext = useSetChatPageContext();
   useEffect(() => {
+    const rangeLabel =
+      selectedRange === DEPLOYMENT_ALL_TIME_HOURS
+        ? DEPLOYMENT_ALL_TIME_LABEL
+        : (TIME_RANGES.find(r => r.hours === selectedRange)?.label || `${selectedRange}h`);
+
     setPageContext({
       page: 'compare',
-      timeRange: TIME_RANGES.find(r => r.hours === selectedRange)?.label || `${selectedRange}h`,
+      timeRange: rangeLabel,
       deviceFilter: deviceFilter || undefined,
       deploymentId: deploymentFilter ? parseInt(deploymentFilter, 10) : undefined,
     });
@@ -36,7 +41,7 @@ export default function ComparePage() {
   }, [setPageContext, selectedRange, deviceFilter, deploymentFilter]);
 
   const fetchData = useCallback(async () => {
-    if (isCustom && !isCustomValid && !deploymentFilter) return;
+    if (isCustom && !isCustomValid) return;
     setIsLoading(true);
 
     try {

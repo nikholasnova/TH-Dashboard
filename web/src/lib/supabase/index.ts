@@ -29,5 +29,4 @@ export {
   getDeploymentStats,
   getDeploymentReadings,
   getDistinctLocations,
-} from './queries';
-
+} from './queries/index';

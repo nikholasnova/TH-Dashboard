@@ -374,10 +374,18 @@ BEGIN
     RAISE EXCEPTION 'Deployment % not found', p_deployment_id;
   END IF;
 
-  DELETE FROM public.readings
-    WHERE device_id = v_device_id
-      AND created_at >= v_started_at
-      AND (v_ended_at IS NULL OR created_at <= v_ended_at);
+  DELETE FROM public.readings r
+    WHERE r.device_id = v_device_id
+      AND r.created_at >= v_started_at
+      AND (v_ended_at IS NULL OR r.created_at <= v_ended_at)
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.deployments d2
+        WHERE d2.id <> p_deployment_id
+          AND d2.device_id = v_device_id
+          AND r.created_at >= d2.started_at
+          AND (d2.ended_at IS NULL OR r.created_at <= d2.ended_at)
+      );
 
   DELETE FROM public.deployments WHERE id = p_deployment_id;
 END;
@@ -407,6 +415,38 @@ BEGIN
       CREATE UNIQUE INDEX idx_deployments_one_active_per_device
         ON deployments (device_id)
         WHERE ended_at IS NULL;
+    END IF;
+  END IF;
+END $$;
+
+-- Guardrail: no overlapping deployment windows per device when data allows it.
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'deployments_no_overlap_per_device'
+      AND conrelid = 'public.deployments'::regclass
+  ) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM deployments d1
+      JOIN deployments d2
+        ON d1.id < d2.id
+       AND d1.device_id = d2.device_id
+       AND tstzrange(d1.started_at, COALESCE(d1.ended_at, 'infinity'::timestamptz), '[)')
+           && tstzrange(d2.started_at, COALESCE(d2.ended_at, 'infinity'::timestamptz), '[)')
+    ) THEN
+      RAISE NOTICE 'Skipping deployments_no_overlap_per_device: overlapping deployment windows exist';
+    ELSE
+      ALTER TABLE deployments
+        ADD CONSTRAINT deployments_no_overlap_per_device
+        EXCLUDE USING gist (
+          device_id WITH =,
+          tstzrange(started_at, COALESCE(ended_at, 'infinity'::timestamptz), '[)') WITH &&
+        );
     END IF;
   END IF;
 END $$;

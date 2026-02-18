@@ -1,14 +1,31 @@
-import { TIME_RANGES } from '@/lib/constants';
+import {
+  DEPLOYMENT_ALL_TIME_HOURS,
+  DEPLOYMENT_ALL_TIME_LABEL,
+  TIME_RANGES,
+} from '@/lib/constants';
 
 interface TimeRangeSelectorProps {
   selectedRange: number;
   onRangeChange: (hours: number) => void;
+  showDeploymentAllTime?: boolean;
 }
 
-export function TimeRangeSelector({ selectedRange, onRangeChange }: TimeRangeSelectorProps) {
+export function TimeRangeSelector({
+  selectedRange,
+  onRangeChange,
+  showDeploymentAllTime = false,
+}: TimeRangeSelectorProps) {
+  const ranges = showDeploymentAllTime
+    ? [
+      ...TIME_RANGES.slice(0, -1),
+      { label: DEPLOYMENT_ALL_TIME_LABEL, hours: DEPLOYMENT_ALL_TIME_HOURS },
+      TIME_RANGES[TIME_RANGES.length - 1],
+    ]
+    : TIME_RANGES;
+
   return (
     <div className="glass-card p-2 flex gap-1">
-      {TIME_RANGES.map((range) => (
+      {ranges.map((range) => (
         <button
           key={range.hours}
           onClick={() => onRangeChange(range.hours)}
@@ -24,4 +41,3 @@ export function TimeRangeSelector({ selectedRange, onRangeChange }: TimeRangeSel
     </div>
   );
 }
-

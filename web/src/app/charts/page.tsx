@@ -11,7 +11,7 @@ import {
   celsiusToFahrenheit,
 } from '@/lib/supabase';
 import { useSetChatPageContext } from '@/lib/chatContext';
-import { TIME_RANGES } from '@/lib/constants';
+import { DEPLOYMENT_ALL_TIME_HOURS, DEPLOYMENT_ALL_TIME_LABEL, TIME_RANGES } from '@/lib/constants';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { FilterToolbar } from '@/components/FilterToolbar';
 import { useTimeRange } from '@/hooks/useTimeRange';
@@ -42,9 +42,14 @@ export default function ChartsPage() {
 
   const setPageContext = useSetChatPageContext();
   useEffect(() => {
+    const rangeLabel =
+      selectedRange === DEPLOYMENT_ALL_TIME_HOURS
+        ? DEPLOYMENT_ALL_TIME_LABEL
+        : (TIME_RANGES.find(r => r.hours === selectedRange)?.label || `${selectedRange}h`);
+
     setPageContext({
       page: 'charts',
-      timeRange: TIME_RANGES.find(r => r.hours === selectedRange)?.label || `${selectedRange}h`,
+      timeRange: rangeLabel,
       deviceFilter: deviceFilter || undefined,
       deploymentId: deploymentFilter ? parseInt(deploymentFilter, 10) : undefined,
       customStart: selectedRange === -1 ? customStart : undefined,
@@ -59,15 +64,15 @@ export default function ChartsPage() {
   }, [selectedRange, customStart, customEnd, deviceFilter, deploymentFilter]);
 
   const pickBucketSeconds = (rangeMs: number) => {
-    const minutes = rangeMs / 60000;
-    if (minutes <= 360) return 360;
-    if (minutes <= 1440) return 900;
-    if (minutes <= 10080) return 1800;
-    return 3600;
+    const rangeSeconds = rangeMs / 1000;
+    const targetPoints = 1200;
+    const idealBucketSeconds = rangeSeconds / targetPoints;
+    const bucketOptions = [300, 600, 900, 1800, 3600, 7200, 10800, 14400, 21600, 43200, 86400];
+    return bucketOptions.find((bucket) => bucket >= idealBucketSeconds) || bucketOptions[bucketOptions.length - 1];
   };
 
   const fetchData = useCallback(async () => {
-    if (isCustom && !isCustomValid && !deploymentFilter) return;
+    if (isCustom && !isCustomValid) return;
     setIsLoading(true);
     try {
       const { start, end, scopedDeviceId } = await getRangeBounds();
@@ -83,7 +88,7 @@ export default function ChartsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [deploymentFilter, getRangeBounds, isCustom, isCustomValid]);
+  }, [getRangeBounds, isCustom, isCustomValid]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -93,7 +98,7 @@ export default function ChartsPage() {
   }, [fetchData]);
 
   const exportCSV = async () => {
-    if (isCustom && !isCustomValid && !deploymentFilter) return;
+    if (isCustom && !isCustomValid) return;
     setIsExporting(true);
     setExportError(null);
 
@@ -333,7 +338,7 @@ export default function ChartsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button onClick={exportCSV} disabled={isExporting || (isCustom && !isCustomValid && !deploymentFilter)}
+            <button onClick={exportCSV} disabled={isExporting || (isCustom && !isCustomValid)}
               className="btn-glass px-5 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
               {isExporting ? 'Exporting...' : 'Export CSV'}
             </button>

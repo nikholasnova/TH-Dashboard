@@ -22,8 +22,9 @@ export function FilterToolbar({
       <TimeRangeSelector
         selectedRange={timeRange.selectedRange}
         onRangeChange={timeRange.setSelectedRange}
+        showDeploymentAllTime={Boolean(timeRange.deploymentFilter)}
       />
-      {showCustomDates && timeRange.isCustom && !timeRange.deploymentFilter && (
+      {showCustomDates && timeRange.isCustom && (
         <CustomDateRange
           start={timeRange.customStart}
           end={timeRange.customEnd}
@@ -43,4 +44,3 @@ export function FilterToolbar({
     </div>
   );
 }
-

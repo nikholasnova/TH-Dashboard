@@ -446,19 +446,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { count, error } = await supabase
-    .from('readings')
-    .select('*', { count: 'exact', head: true });
-
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-  }
-
   try {
     const monitoring = await runMonitoring(supabase);
     return NextResponse.json({
       ok: true,
-      readings: count,
       monitoring,
       timestamp: new Date().toISOString(),
     });
@@ -469,7 +460,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         ok: false,
-        readings: count,
         error: `Monitoring failed: ${message}`,
         timestamp: new Date().toISOString(),
       },

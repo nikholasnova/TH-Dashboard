@@ -232,32 +232,58 @@ export async function getDeploymentReadings(
   const startIso = new Date(clampedStartMs).toISOString();
   const endIso = new Date(clampedEndMs).toISOString();
 
-  let query = supabase
-    .from('readings')
-    .select('*')
-    .eq('device_id', deployment.device_id)
-    .gte('created_at', startIso)
-    .lte('created_at', endIso)
-    .order('created_at', { ascending: !shouldFetchLatestWindow });
-
   if (limit) {
-    query = query.limit(limit);
+    const { data, error } = await supabase
+      .from('readings')
+      .select('*')
+      .eq('device_id', deployment.device_id)
+      .gte('created_at', startIso)
+      .lte('created_at', endIso)
+      .order('created_at', { ascending: !shouldFetchLatestWindow })
+      .order('id', { ascending: !shouldFetchLatestWindow })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching deployment readings:', error);
+      return [];
+    }
+
+    const rows = data || [];
+    if (!shouldFetchLatestWindow) return rows;
+
+    return [...rows].sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
   }
 
-  const { data, error } = await query;
+  const pageSize = 1000;
+  const rows: Reading[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    const { data, error } = await supabase
+      .from('readings')
+      .select('*')
+      .eq('device_id', deployment.device_id)
+      .gte('created_at', startIso)
+      .lte('created_at', endIso)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
 
-  if (error) {
-    console.error('Error fetching deployment readings:', error);
-    return [];
+    if (error) {
+      console.error('Error fetching deployment readings:', error);
+      return [];
+    }
+
+    const page = data || [];
+    rows.push(...page);
+    if (page.length < pageSize) {
+      break;
+    }
   }
 
-  const rows = data || [];
-  if (!shouldFetchLatestWindow) return rows;
-
-  return [...rows].sort(
-    (a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
+  return rows;
 }
 
 export async function getDistinctLocations(): Promise<string[]> {
