@@ -1,6 +1,6 @@
 # Arduino Sensor Node
 
-Firmware for the DHT20 temperature/humidity sensor node. Reads every 15 seconds, averages over 3-minute windows, and POSTs the average to Supabase.
+Firmware for the DHT20 temperature/humidity sensor node. Reads every 15 seconds, averages over 3-minute windows, and POSTs the average to Supabase. On upload failure, the buffer is retained and retried with exponential backoff.
 
 ## Hardware
 
@@ -68,8 +68,10 @@ Edit `secrets.h`:
 Set device ID in `sensor_node.ino`:
 
 ```cpp
-#define DEVICE_ID "node1"  // or "node2"
+#define DEVICE_ID "node1"  // any unique ID: node1, node2, patio_sensor, etc.
 ```
+
+The `DEVICE_ID` must match a device registered in the web dashboard (Dashboard > Manage Devices), or auto-registration must be enabled. IDs should be lowercase alphanumeric with hyphens/underscores, 1-32 characters.
 
 Upload: **Tools > Board > Arduino UNO R4 WiFi** > Select port > Upload
 
@@ -85,8 +87,10 @@ Upload: **Tools > Board > Arduino UNO R4 WiFi** > Select port > Upload
 
 1. Connects to WiFi, initializes DHT20 and LCD
 2. Every 15 seconds: reads sensor, updates LCD, accumulates values
-3. Every 3 minutes: averages accumulated readings, POSTs to Supabase, resets accumulators
-4. LCD always shows the latest individual reading in Fahrenheit
+3. Every 3 minutes: averages accumulated readings, POSTs to Supabase
+4. On successful upload: resets accumulators, restarts timer
+5. On failed upload: retains buffer, retries with exponential backoff (30s, 60s, 120s... capped at `SEND_INTERVAL_MS`). No data is lost during transient network issues.
+6. LCD always shows the latest individual reading in Fahrenheit
 
 Temperature is stored in Celsius in the database and converted to Fahrenheit in the web UI.
 
@@ -116,6 +120,7 @@ Temperature is stored in Celsius in the database and converted to Fahrenheit in 
 ```
 
 - Timing: one averaged upload every `SEND_INTERVAL_MS` (default 3 minutes)
+- Retry: on failure, buffer is retained and retried with exponential backoff
 
 ## Data Format
 
@@ -139,7 +144,9 @@ Temperature is stored in Celsius in the database and converted to Fahrenheit in 
 
 **LCD blank or garbled** — Adjust contrast pot. Verify all pin connections match the defines in code.
 
-**Data not in Supabase** — Check serial monitor (115200 baud) for POST errors. Verify URL, anon key, and that `readings` table exists with anon INSERT policy.
+**Data not in Supabase** — Check serial monitor (115200 baud) for POST errors. Verify URL, anon key, and that `readings` table exists with anon INSERT policy. Also confirm the device is registered in the web dashboard.
+
+**"Send failed - retaining buffer"** — Upload failed but data is kept. The node will retry with backoff. Check WiFi and Supabase connectivity.
 
 ## Serial Output
 
@@ -153,5 +160,11 @@ Reading #1 | Temp: 22.5C (72.5F), Humidity: 45.2%
 Reading #2 | Temp: 22.6C (72.7F), Humidity: 45.1%
 ...
 >> Sending average of 12 readings | Avg Temp: 22.55C, Avg Humidity: 45.15%
->> Average data sent to Supabase OK
+>> Sent OK
+```
+
+On failure:
+```
+>> Sending average of 12 readings | Avg Temp: 22.55C, Avg Humidity: 45.15%
+>> Send failed - retaining buffer
 ```

@@ -1,20 +1,17 @@
 # IoT Temp/Humidity Dashboard
 
-A full-stack IoT platform for collecting temperature and humidity from Arduino sensor nodes, comparing readings against local weather references, and analyzing the data through charts, statistics, and AI. Built as an educational project.
+A full-stack IoT platform for collecting temperature and humidity from Arduino sensor nodes, comparing readings against local weather references, and analyzing the data through charts, statistics, and AI. Built as an educational project for an intro engineering class.
 
-Two Arduino Uno R4 WiFi nodes with DHT20 sensors post readings to Supabase every 3 minutes. A Vercel cron fetches weather every 30 minutes from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, deployment management, in-browser Python analysis via Pyodide, and an AI chat powered by Gemini.
+Arduino Uno R4 WiFi nodes with DHT20 sensors post averaged readings to Supabase every 3 minutes. The system supports any number of sensor nodes — devices are registered and managed through the web dashboard, so adding a new node is just flashing a sketch and clicking "Add Device." A Vercel cron fetches weather every 30 minutes from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, deployment management, in-browser Python analysis via Pyodide, and an AI chat powered by Gemini.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-  subgraph edge["1) Edge Sensor Layer"]
-    dht1["DHT20 #1"]
-    dht2["DHT20 #2"]
-    n1["Arduino node1<br/>15s reads, 3m averages"]
-    n2["Arduino node2<br/>15s reads, 3m averages"]
-    dht1 -->|"I2C (0x38)"| n1
-    dht2 -->|"I2C (0x38)"| n2
+  subgraph edge["1) Edge Sensor Layer (N nodes)"]
+    dht["DHT20 sensors (I2C)"]
+    nodes["Arduino Uno R4 WiFi<br/>15s reads, 3m averages<br/>Retry with backoff on failure"]
+    dht -->|"I2C (0x38)"| nodes
   end
 
   subgraph ingest["2) Ingestion + Automation (Vercel)"]
@@ -28,7 +25,7 @@ flowchart TB
   end
 
   subgraph data["3) Data Platform"]
-    db[("Supabase Postgres<br/>readings / deployments / RPC")]
+    db[("Supabase Postgres<br/>readings / deployments / devices / RPC")]
   end
 
   subgraph app["4) App + Analysis Layer"]
@@ -36,8 +33,7 @@ flowchart TB
     chat["POST /api/chat<br/>Gemini tool calls"]
   end
 
-  n1 -->|"HTTPS POST /rest/v1/readings"| db
-  n2 -->|"HTTPS POST /rest/v1/readings"| db
+  nodes -->|"HTTPS POST /rest/v1/readings"| db
   keepalive -->|"Health checks + alert state"| db
   weatherRoute -->|"Insert weather_* rows<br/>source=weather"| db
   ui <-->|"Authenticated SELECT + RPC"| db
@@ -49,9 +45,9 @@ flowchart TB
 
 | Route | Purpose |
 |-------|---------|
-| `/` | Live readings, device status, deployment context, 24h quick stats, 7-day forecast |
+| `/` | Live readings per device, deployment context, 24h stats, 7-day forecast, device management |
 | `/charts` | Historical trends with time range selector + CSV export |
-| `/compare` | Side-by-side stats, weather reference, `% Error` per node |
+| `/compare` | Side-by-side stats per device, weather reference, `% Error` |
 | `/deployments` | Manage placement windows and ZIP codes |
 | `/analysis` | In-browser Python stats and forecasting (Pyodide) |
 | `/api/chat` | AI chat backend (floating chat shell available on every page) |
@@ -78,8 +74,7 @@ flowchart TB
 ## Hardware
 
 <!-- Add your own photos below -->
-<!-- ![Node 1](docs/images/node1-circuit.jpg) -->
-<!-- ![Node 2](docs/images/node2-circuit.jpg) -->
+<!-- ![Node photo](docs/images/node1-circuit.jpg) -->
 <!-- ![Deployment](docs/images/measurement-setting.jpg) -->
 
 ## License

@@ -10,7 +10,7 @@
 ## 1) Supabase
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Run `supabase/schema.sql` in SQL Editor
+2. Run `supabase/schema.sql` in SQL Editor (creates all tables, RPC functions, and seed data)
 3. Copy from **Settings > API**: Project URL, `anon` key, `service_role` key
 
 ## 2) Auth User
@@ -37,11 +37,13 @@ Open `http://localhost:3000`, sign in with your Supabase Auth user.
 cd arduino/sensor_node
 cp secrets.example.h secrets.h
 # Fill WiFi + Supabase credentials
-# Set DEVICE_ID to node1 or node2
+# Set DEVICE_ID to a unique name (e.g., node1, node2, patio_sensor)
 # Upload with Arduino IDE
 ```
 
-Two nodes: `DEVICE_ID = node1` and `DEVICE_ID = node2`.
+Each node needs a unique `DEVICE_ID`. The schema seeds `node1` and `node2` by default. To add more nodes, either:
+- Register the device in the web dashboard (Dashboard > Manage Devices > Add Device) before powering it on, or
+- Enable auto-registration in `app_settings` and the device will be created when its first reading arrives.
 
 ## 5) Vercel Deploy
 
@@ -66,7 +68,7 @@ Two nodes: `DEVICE_ID = node1` and `DEVICE_ID = node2`.
 | `RESEND_API_KEY` | Secret | Alert emails |
 | `ALERT_EMAIL_TO` | Config | Comma-separated recipients |
 | `ALERT_EMAIL_FROM` | Config | Optional sender address |
-| `MONITORED_DEVICE_IDS` | Config | Default: `node1,node2` |
+| `MONITORED_DEVICE_IDS` | Config | Optional override. If unset, keepalive monitors all active devices with `monitor_enabled = true` in the `devices` table. |
 | `ALERT_STALE_MINUTES` | Config | Default: `10` |
 | `ENABLE_RECOVERY_ALERTS` | Config | `true`/`false` |
 | `ALERT_DASHBOARD_URL` | Config | Optional link in alert emails |
@@ -89,7 +91,7 @@ Weather response includes: `inserted_count`, `skipped_existing_count`, `invalid_
 |---------|-----|
 | Can't log in | Verify Supabase Auth user exists and is confirmed. Try lowercase email. |
 | Arduino won't connect | Check SSID/password in `secrets.h`. Use 2.4GHz network. |
-| No data in dashboard | Confirm rows in `readings`, env vars set, authenticated session. |
+| No data in dashboard | Confirm rows in `readings`, env vars set, authenticated session. Check that the device is registered and active in Manage Devices. |
 | Charts/Compare empty | Re-run `schema.sql`. Check RPC `EXECUTE` grants for `authenticated`. |
 | Analysis stuck loading | Check console for CDN errors. First load takes 10-30s. |
 | AI chat not responding | Confirm `GOOGLE_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, auth session. |
@@ -97,4 +99,5 @@ Weather response includes: `inserted_count`, `skipped_existing_count`, `invalid_
 | Weather/% Error shows `—` | Deployment needs valid ZIP. Confirm `WEATHER_API_KEY`. Trigger `/api/weather` manually. |
 | `device_alert_state` errors | Re-run latest `schema.sql`. |
 | No alert emails | Set `RESEND_API_KEY` + `ALERT_EMAIL_TO`. Custom sender needs domain verification. |
-| Unwanted device alerts | Set `MONITORED_DEVICE_IDS` to only active nodes (e.g., `node1`). |
+| Unwanted device alerts | Toggle monitoring off for that device in Manage Devices, or set `MONITORED_DEVICE_IDS` env var to only the nodes you want. |
+| New node not showing up | Register it in Manage Devices first, or enable `device_auto_register` in `app_settings`. |

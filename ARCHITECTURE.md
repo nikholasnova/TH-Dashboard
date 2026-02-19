@@ -4,21 +4,23 @@ Full data path from sensor read to dashboard consumption.
 
 ## 1) Scope
 
-- Hardware: two Arduino Uno R4 WiFi nodes with DHT20 sensors (I2C) and 16x2 LCDs.
-- Cloud: Supabase Postgres (`readings`, `deployments`, `device_alert_state`, RPC functions) + WeatherAPI.com for every-30-min weather reference.
-- App: Next.js with authenticated dashboard, charts, comparisons, deployment management, AI chat, in-browser Python analysis, and cron-driven weather ingestion.
+- Hardware: N Arduino Uno R4 WiFi nodes with DHT20 sensors (I2C) and 16x2 LCDs. The number of nodes is not hardcoded — new devices are registered through the web dashboard or auto-registered on first reading.
+- Cloud: Supabase Postgres (`readings`, `deployments`, `devices`, `app_settings`, `device_alert_state`, RPC functions) + WeatherAPI.com for every-30-min weather reference.
+- App: Next.js with authenticated dashboard, charts, comparisons, deployment management, device management, AI chat, in-browser Python analysis, and cron-driven weather ingestion.
 
 ## 2) Component Topology
 
 ```text
-[DHT20 #1] --I2C--> [Arduino node1] --HTTPS POST--> [Supabase Postgres]
-[DHT20 #2] --I2C--> [Arduino node2] --HTTPS POST--> [Supabase Postgres]
+[DHT20] --I2C--> [Arduino nodeX] --HTTPS POST--> [Supabase Postgres]
+  (repeat for each physical node)
 
 [Vercel Cron (every 30 min)] --> [GET /api/weather] --> [WeatherAPI.com]
                                            \----> [Supabase Postgres]
 
 [Next.js app] <--authenticated queries/RPC--> [Supabase Postgres]
 ```
+
+Nodes are dynamically registered in the `devices` table. The dashboard, keepalive, and weather routes all read from this table to determine which devices exist and which are active.
 
 ## 3) Sensor Node Pipeline
 
@@ -46,6 +48,8 @@ Full data path from sensor read to dashboard consumption.
 ```
 
 - `created_at` set server-side by Supabase.
+- On success: accumulators reset, timer restarts.
+- On failure: buffer is retained and the node retries with exponential backoff (30s, 60s, 120s... capped at `SEND_INTERVAL_MS`). No data is lost during transient network issues.
 
 ## 4) Persistence Layer (Supabase)
 
@@ -61,6 +65,18 @@ Full data path from sensor read to dashboard consumption.
 **`deployments`**
 - Placement window metadata: `name`, `location`, `zip_code`, `started_at`, `ended_at`
 - Optional unique-active constraint per `device_id` where `ended_at IS NULL`
+- Overlap exclusion constraint prevents conflicting time windows per device
+
+**`devices`**
+- Device registry: `id` (primary key), `display_name`, `color`, `is_active`, `monitor_enabled`, `sort_order`
+- Managed through the Device Manager UI on the dashboard
+- `is_active` controls visibility in the dashboard; `monitor_enabled` controls keepalive alerting
+- Auto-registration trigger creates a `devices` row when a new `device_id` appears in `readings` (gated behind `app_settings.device_auto_register = 'true'`)
+- Seeded with `node1` and `node2` on first schema run; backfills from existing readings and deployments
+
+**`app_settings`**
+- Key-value feature flags (e.g., `device_auto_register`)
+- Authenticated users can read; updates require authenticated session
 
 **`device_alert_state`**
 - Per-device monitor state: `status`, `last_seen_at`, `last_alert_sent_at`, `last_recovery_sent_at`
@@ -72,8 +88,10 @@ RLS enabled on all tables.
 
 | Table | `anon` | `authenticated` | `service_role` |
 |-------|--------|-----------------|----------------|
-| `readings` | INSERT | SELECT, DELETE | — |
+| `readings` | INSERT | SELECT | DELETE |
 | `deployments` | — | Full CRUD | — |
+| `devices` | — | Full CRUD | — |
+| `app_settings` | — | SELECT, UPDATE | — |
 | `device_alert_state` | — | SELECT | Upsert (keepalive) |
 
 `/api/weather` uses service_role + `CRON_SECRET`.
@@ -86,20 +104,23 @@ RLS enabled on all tables.
 | `get_chart_samples(start, end, bucket_min, device_id?)` | Time-bucketed averages for charts |
 | `get_deployment_stats(deployment_ids[])` | Deployment-scoped aggregates via time window |
 | `get_deployment_readings(deployment_id, limit?)` | Raw readings within a deployment window |
+| `get_deployments_with_counts(device_id?, active_only?)` | Deployments with reading counts |
+| `get_dashboard_live(device_ids[], sparkline_start, bucket_min?)` | Batched latest readings + sparkline per N devices |
+| `delete_deployment_cascade(deployment_id)` | Cascade-delete deployment and its readings |
 
 Weather data lives in `readings`, so all RPCs work with weather device IDs (e.g., `weather_node1`).
 
 ## 5) Web Application
 
-All pages require Supabase Auth session (`AuthGate`).
+All pages require Supabase Auth session (`AuthGate`). The root layout wraps the app in `AuthProvider` > `DevicesProvider` > `ChatPageContextProvider`, making the device list and chat context available everywhere.
 
 ### 5.1 Dashboard (`/`)
 
-- Polls every 30s per device (`node1`, `node2`).
-- Fetches latest reading + active deployment.
-- Renders live cards with deployment context, weather comparison, and 6h sparklines.
+- Polls every 30s using `get_dashboard_live` RPC (batched query for all active devices).
+- Renders live cards per device with deployment context, weather comparison, and 6h sparklines.
 - `DashboardStats`: 24h aggregates (avg temp, high/low, reading count, sensor accuracy vs weather).
 - `DashboardForecast`: 7-day Holt-Winters forecast per device (runs via Pyodide client-side).
+- Device Manager modal: add/edit/deactivate devices, toggle monitoring, assign colors.
 - Floating `ChatShell` available on all pages (mounted in root layout).
 
 ### 5.2 Charts (`/charts`)
@@ -110,14 +131,15 @@ All pages require Supabase Auth session (`AuthGate`).
 
 ### 5.3 Compare (`/compare`)
 
-- Fetches `get_device_stats` for sensor + weather pairs (`node1`/`weather_node1`, `node2`/`weather_node2`).
+- Dynamically fetches `get_device_stats` for all active sensor + weather device pairs.
 - Displays Weather row and `% Error` row per metric.
-- `% Error` = node vs its local weather counterpart (not node vs node).
+- `% Error` = each sensor node vs its local weather counterpart (not node vs node).
 - Celsius converted to Fahrenheit for display.
 
 ### 5.4 Deployments (`/deployments`)
 
 - CRUD for deployment metadata with device/location/status filters.
+- Device filter populated from the `devices` table.
 - Optional ZIP code (`12345` or `12345-6789`) for weather lookups.
 - Deletion removes associated readings in the deployment time window.
 
@@ -144,6 +166,7 @@ All pages require Supabase Auth session (`AuthGate`).
 ### 5.7 Keepalive (`GET /api/keepalive`)
 
 - `CRON_SECRET`-protected, runs every 10 min.
+- Reads monitored devices from the `devices` table (`is_active = true` and `monitor_enabled = true`). Falls back to `MONITORED_DEVICE_IDS` env var if set.
 - Classifies each device: `ok`, `missing`, `stale`, `anomaly`.
 - Sends one alert per state transition via Resend (no repeat spam).
 - Optional recovery alert on return to `ok`.
@@ -160,8 +183,8 @@ All pages require Supabase Auth session (`AuthGate`).
 ## 6) Data Semantics
 
 - Storage: Celsius. Display: Fahrenheit.
-- Sensor device IDs: `node1`, `node2`.
-- Weather device IDs: `weather_node1`, `weather_node2`.
+- Sensor device IDs: any valid ID registered in the `devices` table (e.g., `node1`, `node2`, `patio_sensor`).
+- Weather device IDs: `weather_<sensor_device_id>` (e.g., `weather_node1`).
 - `source = sensor` = Arduino. `source = weather` = WeatherAPI.
 - Sensor readings associate to deployments via `device_id + timestamp` window.
 - Weather rows store `deployment_id` and `zip_code` for traceability.
@@ -174,6 +197,7 @@ All pages require Supabase Auth session (`AuthGate`).
 | Sensor upload | 3 min (averaged) |
 | Weather fetch | Hourly (per unique ZIP) |
 | Dashboard poll | 30s |
+| Keepalive | 10 min |
 | Chart bucketing | Postgres RPC, adaptive |
 
 ## 8) Failure Modes
@@ -182,7 +206,7 @@ All pages require Supabase Auth session (`AuthGate`).
 |---------|----------|
 | WiFi disconnect | Firmware reconnects |
 | Bad sensor read | Skipped, window continues |
-| Upload failure | Window lost, next cycle starts fresh |
+| Upload failure | Buffer retained, retry with exponential backoff (30s, 60s, 120s... capped at send interval) |
 | Supabase/RPC error | Logged, empty-state fallback |
 | Missing `WEATHER_API_KEY` | Non-throwing `ok: false` response |
 | WeatherAPI per-ZIP error | Logged, remaining ZIPs continue |
@@ -204,6 +228,7 @@ All pages require Supabase Auth session (`AuthGate`).
 | Firmware | `arduino/sensor_node/sensor_node.ino` |
 | Schema | `supabase/schema.sql` |
 | Supabase client | `web/src/lib/supabase/` (types, client, server, queries) |
+| Device management | `web/src/components/DeviceManager.tsx`, `web/src/contexts/DevicesContext.tsx`, `web/src/lib/supabase/queries/devices.ts` |
 | Pages | `web/src/app/{page,charts,compare,deployments,analysis}/page.tsx` |
 | AI | `web/src/app/api/chat/route.ts`, `web/src/lib/aiTools.ts`, `web/src/components/ChatShell.tsx`, `web/src/lib/chatContext.tsx` |
 | Keepalive | `web/src/app/api/keepalive/route.ts` |
