@@ -79,7 +79,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
     setIsSaving(true);
     setError(null);
     try {
-      await updateDevice(id, { is_active: true });
+      await updateDevice(id, { is_active: true, monitor_enabled: true });
       await refresh();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to reactivate device.';
@@ -93,25 +93,11 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
     setIsSaving(true);
     setError(null);
     try {
-      await updateDevice(id, { is_active: false });
+      await updateDevice(id, { is_active: false, monitor_enabled: false });
       await refresh();
       setConfirmDeactivate(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to deactivate device.';
-      setError(msg);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleToggleMonitor = async (id: string, currentValue: boolean) => {
-    setIsSaving(true);
-    setError(null);
-    try {
-      await updateDevice(id, { monitor_enabled: !currentValue });
-      await refresh();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to toggle monitoring.';
       setError(msg);
     } finally {
       setIsSaving(false);
@@ -243,29 +229,20 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                     <p className="text-white font-medium truncate">{device.display_name}</p>
                     <p className="text-xs text-[#a0aec0]">{device.id}</p>
                   </div>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-                      device.is_active
-                        ? 'bg-[#01b574]/20 text-[#01b574]'
-                        : 'bg-white/10 text-[#a0aec0]'
-                    }`}
-                  >
-                    {device.is_active ? 'Active' : 'Inactive'}
-                  </span>
                   <button
-                    onClick={() => handleToggleMonitor(device.id, device.monitor_enabled)}
+                    onClick={() => handleToggleActive(device.id, device.is_active)}
                     disabled={isSaving}
                     className="flex-shrink-0"
-                    title={device.monitor_enabled ? 'Monitoring on' : 'Monitoring off'}
+                    title={device.is_active ? 'Deactivate' : 'Activate'}
                   >
                     <div
                       className={`w-9 h-5 rounded-full relative transition-colors ${
-                        device.monitor_enabled ? 'bg-[#01b574]' : 'bg-white/20'
+                        device.is_active ? 'bg-[#01b574]' : 'bg-white/20'
                       }`}
                     >
                       <div
                         className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                          device.monitor_enabled ? 'translate-x-4' : 'translate-x-0.5'
+                          device.is_active ? 'translate-x-4' : 'translate-x-0.5'
                         }`}
                       />
                     </div>
@@ -279,26 +256,6 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                     </svg>
-                  </button>
-                  <button
-                    onClick={() => handleToggleActive(device.id, device.is_active)}
-                    disabled={isSaving}
-                    className={`text-sm font-medium transition-colors flex-shrink-0 ${
-                      device.is_active
-                        ? 'text-[#e31a1a] hover:text-[#ff4444]'
-                        : 'text-[#01b574] hover:text-[#02d48a]'
-                    }`}
-                    title={device.is_active ? 'Deactivate' : 'Reactivate'}
-                  >
-                    {device.is_active ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    )}
                   </button>
                 </div>
               )}
