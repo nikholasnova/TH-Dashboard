@@ -557,6 +557,9 @@ interface RawForecastSeries {
   values: number[];
 }
 
+const DASHBOARD_FORECAST_LOOKBACK_DAYS = 10;
+const DASHBOARD_FORECAST_MAX_ROWS = (DASHBOARD_FORECAST_LOOKBACK_DAYS + 2) * 24;
+
 export function aggregateHourlyForecastToDaily(
   raw: RawForecastSeries,
   now = new Date()
@@ -638,15 +641,42 @@ result_json = '[]'
 
 if len(series) >= period * 2:
     try:
-        model = ExponentialSmoothing(
-            series,
-            seasonal_periods=period,
-            trend='add',
-            seasonal='add',
-            initialization_method='estimated',
-        ).fit(optimized=True)
+        series_q05 = safe_float(series.quantile(0.05), safe_float(series.min(), 0.0))
+        series_q95 = safe_float(series.quantile(0.95), safe_float(series.max(), 0.0))
+        if series_q95 < series_q05:
+            series_q05 = safe_float(series.min(), 0.0)
+            series_q95 = safe_float(series.max(), 0.0)
+
+        soft_margin = 12.0
+        lower_bound = series_q05 - soft_margin
+        upper_bound = series_q95 + soft_margin
+        if upper_bound - lower_bound < 8.0:
+            midpoint = (upper_bound + lower_bound) / 2.0
+            lower_bound = midpoint - 4.0
+            upper_bound = midpoint + 4.0
+
+        try:
+            model = ExponentialSmoothing(
+                series,
+                seasonal_periods=period,
+                trend='add',
+                damped_trend=True,
+                seasonal='add',
+                initialization_method='estimated',
+            ).fit(optimized=True)
+        except Exception:
+            model = ExponentialSmoothing(
+                series,
+                seasonal_periods=period,
+                trend=None,
+                seasonal='add',
+                initialization_method='estimated',
+            ).fit(optimized=True)
 
         forecast = model.forecast(forecast_steps)
+        center = (lower_bound + upper_bound) / 2.0
+        half_span = max((upper_bound - lower_bound) / 2.0, 1.0)
+        forecast = center + half_span * np.tanh((forecast - center) / half_span)
         fc_timestamps = [t.isoformat() for t in forecast.index]
         fc_values = [safe_float(v, 0.0) for v in forecast.values.tolist()]
 
@@ -665,10 +695,19 @@ export async function runDashboardForecast(
   const now = new Date();
   const deployments = await getDeployments({ deviceId });
   if (deployments.length === 0) return [];
-  const start = deployments.reduce(
-    (min, dep) => (dep.started_at < min ? dep.started_at : min),
-    deployments[0].started_at
+  const earliestDeploymentStartMs = deployments.reduce((min, dep) => {
+    const ts = new Date(dep.started_at).getTime();
+    return Number.isFinite(ts) ? Math.min(min, ts) : min;
+  }, Number.POSITIVE_INFINITY);
+  const lookbackStartMs =
+    now.getTime() - DASHBOARD_FORECAST_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+  const effectiveStartMs = Math.max(
+    Number.isFinite(earliestDeploymentStartMs)
+      ? earliestDeploymentStartMs
+      : lookbackStartMs,
+    lookbackStartMs
   );
+  const start = new Date(effectiveStartMs).toISOString();
   const end = now.toISOString();
 
   const samples = await getChartSamples({
@@ -676,6 +715,7 @@ export async function runDashboardForecast(
     end,
     bucketSeconds: 3600, // 1-hour buckets for better data coverage
     device_id: deviceId,
+    maxRows: DASHBOARD_FORECAST_MAX_ROWS,
   });
 
   if (samples.length < 48) return []; // need at least 2 days (2 × 24)

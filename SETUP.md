@@ -75,10 +75,10 @@ Two nodes: `DEVICE_ID = node1` and `DEVICE_ID = node2`.
 
 ```bash
 # Keepalive
-curl "https://<domain>/api/keepalive?secret=<CRON_SECRET>"
+curl -H "Authorization: Bearer <CRON_SECRET>" "https://<domain>/api/keepalive"
 
 # Weather
-curl "https://<domain>/api/weather?secret=<CRON_SECRET>"
+curl -H "Authorization: Bearer <CRON_SECRET>" "https://<domain>/api/weather"
 ```
 
 Weather response includes: `inserted_count`, `skipped_existing_count`, `invalid_zip_count`, `errors`.
@@ -93,7 +93,7 @@ Weather response includes: `inserted_count`, `skipped_existing_count`, `invalid_
 | Charts/Compare empty | Re-run `schema.sql`. Check RPC `EXECUTE` grants for `authenticated`. |
 | Analysis stuck loading | Check console for CDN errors. First load takes 10-30s. |
 | AI chat not responding | Confirm `GOOGLE_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, auth session. |
-| Cron route returns 401 | Verify `CRON_SECRET`. Include bearer token or `?secret=` param. |
+| Cron route returns 401 | Verify `CRON_SECRET`. Include `Authorization: Bearer <CRON_SECRET>`. |
 | Weather/% Error shows `—` | Deployment needs valid ZIP. Confirm `WEATHER_API_KEY`. Trigger `/api/weather` manually. |
 | `device_alert_state` errors | Re-run latest `schema.sql`. |
 | No alert emails | Set `RESEND_API_KEY` + `ALERT_EMAIL_TO`. Custom sender needs domain verification. |
