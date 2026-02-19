@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
+import { DevicesProvider } from "@/contexts/DevicesContext";
 import { ChatShell } from "@/components/ChatShell";
 import { ChatPageContextProvider } from "@/lib/chatContext";
 
@@ -27,10 +28,12 @@ export default function RootLayout({
         className={`${jetbrainsMono.variable} antialiased`}
       >
         <AuthProvider>
-          <ChatPageContextProvider>
-            {children}
-            <ChatShell />
-          </ChatPageContextProvider>
+          <DevicesProvider>
+            <ChatPageContextProvider>
+              {children}
+              <ChatShell />
+            </ChatPageContextProvider>
+          </DevicesProvider>
         </AuthProvider>
       </body>
     </html>

@@ -7,7 +7,7 @@ vi.mock('../supabase', () => ({
   celsiusToFahrenheit: (celsius: number) => (celsius * 9) / 5 + 32,
 }));
 
-import { aggregateHourlyForecastToDaily, runAnalyses } from '../analysisRunner';
+import { runAnalyses } from '../analysisRunner';
 import { getDeployments, getDeploymentReadings } from '../supabase';
 
 function makePyodideStub() {
@@ -28,40 +28,6 @@ function makePyodideStub() {
     }),
   };
 }
-
-describe('aggregateHourlyForecastToDaily', () => {
-  it('skips partial days and returns 7 full forecast days', () => {
-    const timestamps: string[] = [];
-    const values: number[] = [];
-
-    for (let hour = 15; hour <= 23; hour++) {
-      timestamps.push(`2026-02-10T${String(hour).padStart(2, '0')}:00:00.000Z`);
-      values.push(hour);
-    }
-
-    for (let day = 11; day <= 17; day++) {
-      for (let hour = 0; hour <= 23; hour++) {
-        timestamps.push(`2026-02-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:00:00.000Z`);
-        values.push(hour);
-      }
-    }
-
-    for (let hour = 0; hour <= 5; hour++) {
-      timestamps.push(`2026-02-18T${String(hour).padStart(2, '0')}:00:00.000Z`);
-      values.push(hour);
-    }
-
-    const days = aggregateHourlyForecastToDaily(
-      { timestamps, values },
-      new Date('2026-02-10T16:00:00.000Z')
-    );
-
-    expect(days).toHaveLength(7);
-    expect(days[0].date).toBe('2026-02-11');
-    expect(days[6].date).toBe('2026-02-17');
-    expect(days.every((d) => d.temp_low_f === 0 && d.temp_high_f === 23)).toBe(true);
-  });
-});
 
 describe('runAnalyses forecasting data scope', () => {
   beforeEach(() => {

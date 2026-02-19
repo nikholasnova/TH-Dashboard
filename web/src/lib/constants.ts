@@ -9,10 +9,5 @@ export const TIME_RANGES = [
 export const DEPLOYMENT_ALL_TIME_HOURS = -2;
 export const DEPLOYMENT_ALL_TIME_LABEL = 'All Time';
 
-export const DEVICES = [
-  { id: 'node1', name: 'Node 1', color: '#0075ff' },
-  { id: 'node2', name: 'Node 2', color: '#01b574' },
-] as const;
-
 export const REFRESH_INTERVAL = 30000;
 export const STALE_THRESHOLD_MS = 5 * 60 * 1000;

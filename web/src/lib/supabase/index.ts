@@ -8,6 +8,7 @@ export type {
   Deployment,
   DeploymentWithCount,
   DeploymentStats,
+  Device,
 } from './types';
 
 export {
@@ -29,4 +30,10 @@ export {
   getDeploymentStats,
   getDeploymentReadings,
   getDistinctLocations,
+  getDevices,
+  createDevice,
+  updateDevice,
+  deactivateDevice,
+  getDashboardLive,
 } from './queries/index';
+export type { DashboardLiveData } from './queries/index';

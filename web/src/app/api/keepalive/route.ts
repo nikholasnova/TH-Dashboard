@@ -66,6 +66,31 @@ export function parseDeviceList(): string[] {
   return parsed.length > 0 ? parsed : DEFAULT_DEVICES;
 }
 
+async function getMonitoredDevices(supabase: ServiceRoleClient): Promise<string[]> {
+  const envList = process.env.MONITORED_DEVICE_IDS;
+  if (envList) {
+    const parsed = envList.split(',').map(s => s.trim()).filter(Boolean);
+    if (parsed.length > 0) return parsed;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('devices')
+      .select('id')
+      .eq('monitor_enabled', true)
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true });
+
+    if (!error && data) {
+      return data.map(d => d.id);
+    }
+  } catch (e) {
+    console.error('Failed to fetch devices for monitoring:', e);
+  }
+
+  return DEFAULT_DEVICES;
+}
+
 export function parseNumberEnv(name: string, fallback: number): number {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -78,7 +103,7 @@ export function minutesSince(isoDate: string | null, nowMs: number): number | nu
   if (!isoDate) return null;
   const parsed = new Date(isoDate).getTime();
   if (!Number.isFinite(parsed)) return null;
-  return Math.max(0, (nowMs - parsed) / 60000);
+  return (nowMs - parsed) / 60000;
 }
 
 async function getLatestReading(
@@ -115,6 +140,13 @@ export function classifyDevice(latest: LatestReading | null, staleMinutes: numbe
   }
 
   const ageMinutes = minutesSince(latest.created_at, nowMs);
+  if (ageMinutes !== null && ageMinutes < 0) {
+    return {
+      status: 'stale' as const,
+      ageMinutes,
+      reason: `Latest reading has a future timestamp (${latest.created_at}). Treating as stale.`,
+    };
+  }
   if (ageMinutes !== null && ageMinutes > staleMinutes) {
     return {
       status: 'stale',
@@ -287,7 +319,10 @@ function buildRecoveryAlertMessage(params: {
 }
 
 async function runMonitoring(supabase: ServiceRoleClient) {
-  const monitoredDevices = parseDeviceList();
+  const monitoredDevices = await getMonitoredDevices(supabase);
+  if (monitoredDevices.length === 0) {
+    return { status: 'ok', monitoredDevices: [], message: 'No devices to monitor', results: [] };
+  }
   const staleMinutes = parseNumberEnv('ALERT_STALE_MINUTES', DEFAULT_STALE_MINUTES);
   const recoveryEnabled = process.env.ENABLE_RECOVERY_ALERTS !== 'false';
   const now = new Date();

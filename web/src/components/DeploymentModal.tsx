@@ -11,6 +11,7 @@ import {
   deleteDeployment,
 } from '@/lib/supabase';
 import { isValidOptionalUsZipCode, normalizeUsZipCode } from '@/lib/weatherZip';
+import { useDevices } from '@/contexts/DevicesContext';
 
 interface DeploymentModalProps {
   deviceId: string;
@@ -40,6 +41,12 @@ interface EditFormData {
   ended_at: string;
 }
 
+function utcToDatetimeLocal(utcIso: string): string {
+  const d = new Date(utcIso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export function DeploymentModal({
   deviceId,
   deviceName,
@@ -50,6 +57,7 @@ export function DeploymentModal({
   onClose,
   onDeploymentChange,
 }: DeploymentModalProps) {
+  const { devices } = useDevices();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isDeviceConnected = isDeviceConnectedProp ?? Boolean(reading);
   const isViewingSpecific = !!existingDeployment;
@@ -72,8 +80,8 @@ export function DeploymentModal({
         location: existingDeployment.location,
         notes: existingDeployment.notes || '',
         zip_code: existingDeployment.zip_code || '',
-        started_at: existingDeployment.started_at.slice(0, 16),
-        ended_at: existingDeployment.ended_at?.slice(0, 16) || '',
+        started_at: utcToDatetimeLocal(existingDeployment.started_at),
+        ended_at: existingDeployment.ended_at ? utcToDatetimeLocal(existingDeployment.ended_at) : '',
       });
       setIsLoading(false);
       return;
@@ -86,8 +94,8 @@ export function DeploymentModal({
         location: deployment.location,
         notes: deployment.notes || '',
         zip_code: deployment.zip_code || '',
-        started_at: deployment.started_at.slice(0, 16),
-        ended_at: deployment.ended_at?.slice(0, 16) || '',
+        started_at: utcToDatetimeLocal(deployment.started_at),
+        ended_at: deployment.ended_at ? utcToDatetimeLocal(deployment.ended_at) : '',
       });
     }
     setIsLoading(false);
@@ -122,7 +130,7 @@ export function DeploymentModal({
   };
 
   const handleStartDeployment = async () => {
-    if (!formData.name.trim() || !formData.location.trim()) return;
+    if (!formData.device_id || !formData.name.trim() || !formData.location.trim()) return;
     if (!isCreateZipValid) return;
     setActionError(null);
     setIsSaving(true);
@@ -158,8 +166,8 @@ export function DeploymentModal({
       location: newDeployment.location,
       notes: newDeployment.notes || '',
       zip_code: newDeployment.zip_code || '',
-      started_at: newDeployment.started_at.slice(0, 16),
-      ended_at: newDeployment.ended_at?.slice(0, 16) || '',
+      started_at: utcToDatetimeLocal(newDeployment.started_at),
+      ended_at: newDeployment.ended_at ? utcToDatetimeLocal(newDeployment.ended_at) : '',
     });
     setFormData({ name: '', location: '', notes: '', device_id: deviceId, zip_code: '' });
     onDeploymentChange();
@@ -238,13 +246,20 @@ export function DeploymentModal({
     return 'just now';
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative glass-card p-8 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="relative glass-card w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-8 overflow-y-auto scrollbar-thin">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-bold text-white">Manage Deployment</h2>
@@ -488,8 +503,9 @@ export function DeploymentModal({
                     onChange={(e) => setFormData({ ...formData, device_id: e.target.value })}
                     className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/20 text-white focus:outline-none focus:border-white/40 transition-colors"
                   >
-                    <option value="node1">Node 1</option>
-                    <option value="node2">Node 2</option>
+                    {devices.map((d) => (
+                      <option key={d.id} value={d.id}>{d.display_name}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -539,7 +555,7 @@ export function DeploymentModal({
                 </div>
                 <button
                   onClick={handleStartDeployment}
-                  disabled={isSaving || !formData.name.trim() || !formData.location.trim() || !isCreateZipValid}
+                  disabled={isSaving || !formData.device_id || !formData.name.trim() || !formData.location.trim() || !isCreateZipValid}
                   className="btn-glass w-full px-6 py-3 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSaving ? 'Starting...' : currentDeployment ? 'End Current & Start New' : 'Start Deployment'}
@@ -549,6 +565,7 @@ export function DeploymentModal({
             )}
           </>
         )}
+        </div>
       </div>
     </div>
   );

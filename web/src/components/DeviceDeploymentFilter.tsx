@@ -1,4 +1,4 @@
-import { DEVICES } from '@/lib/constants';
+import { useDevices } from '@/contexts/DevicesContext';
 import { DeploymentWithCount } from '@/lib/supabase';
 
 interface DeviceDeploymentFilterProps {
@@ -16,6 +16,7 @@ export function DeviceDeploymentFilter({
   onDeviceChange,
   onDeploymentChange,
 }: DeviceDeploymentFilterProps) {
+  const { devices } = useDevices();
   const filteredDeployments = deviceFilter
     ? deployments.filter((d) => d.device_id === deviceFilter)
     : deployments;
@@ -29,9 +30,9 @@ export function DeviceDeploymentFilter({
         className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[100px]"
       >
         <option value="">All Devices</option>
-        {DEVICES.map((d) => (
+        {devices.map((d) => (
           <option key={d.id} value={d.id}>
-            {d.name}
+            {d.display_name}
           </option>
         ))}
       </select>

@@ -3,12 +3,21 @@
 import { useEffect, useState, useCallback } from 'react';
 import { LiveReadingCard } from '@/components/LiveReadingCard';
 import { DeploymentModal } from '@/components/DeploymentModal';
-import { Reading, Deployment, ChartSample, getLatestReading, getActiveDeployment, getChartSamples } from '@/lib/supabase';
+import { DeviceManager } from '@/components/DeviceManager';
+import { Reading, Deployment, ChartSample, getActiveDeployment, getDashboardLive } from '@/lib/supabase';
 import { DashboardStats } from '@/components/DashboardStats';
 import { DashboardForecast } from '@/components/DashboardForecast';
 import { useSetChatPageContext } from '@/lib/chatContext';
-import { DEVICES, REFRESH_INTERVAL, STALE_THRESHOLD_MS } from '@/lib/constants';
+import { REFRESH_INTERVAL, STALE_THRESHOLD_MS } from '@/lib/constants';
+import { useDevices } from '@/contexts/DevicesContext';
 import { PageLayout } from '@/components/PageLayout';
+
+function getGridClasses(count: number): string {
+  if (count <= 1) return 'grid-cols-1 max-w-2xl mx-auto';
+  if (count === 2) return 'grid-cols-1 md:grid-cols-2';
+  if (count === 3) return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+  return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
+}
 
 interface DeviceData {
   reading: Reading | null;
@@ -20,12 +29,14 @@ interface DeviceData {
 const emptyDevice: DeviceData = { reading: null, deployment: null, weather: null, sparkline: [] };
 
 export default function Dashboard() {
+  const { devices } = useDevices();
   const [deviceData, setDeviceData] = useState<Record<string, DeviceData>>(() =>
-    Object.fromEntries(DEVICES.map(d => [d.id, emptyDevice]))
+    Object.fromEntries(devices.map(d => [d.id, emptyDevice]))
   );
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedDevice, setSelectedDevice] = useState<{ id: string; name: string } | null>(null);
+  const [showDeviceManager, setShowDeviceManager] = useState(false);
 
   const setPageContext = useSetChatPageContext();
   useEffect(() => {
@@ -35,35 +46,30 @@ export default function Dashboard() {
 
   const fetchLiveData = useCallback(async () => {
     const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-    const now = new Date().toISOString();
-
-    const updates: Record<string, Partial<DeviceData>> = {};
-
-    await Promise.all(
-      DEVICES.flatMap((device) => [
-        getLatestReading(device.id).then(r => { updates[device.id] = { ...updates[device.id], reading: r }; }),
-        getLatestReading(`weather_${device.id}`).then(r => { updates[device.id] = { ...updates[device.id], weather: r }; }),
-        getChartSamples({ start: sixHoursAgo, end: now, bucketSeconds: 900, device_id: device.id })
-          .then(s => { updates[device.id] = { ...updates[device.id], sparkline: s }; }),
-      ])
-    );
+    const ids = devices.map(d => d.id);
+    const live = await getDashboardLive(ids, sixHoursAgo, 15);
 
     setDeviceData(prev => {
       const next = { ...prev };
-      for (const id of Object.keys(updates)) {
-        next[id] = { ...next[id], ...updates[id] };
+      for (const device of devices) {
+        next[device.id] = {
+          reading: live.sensor[device.id] ?? null,
+          weather: live.weather[device.id] ?? null,
+          sparkline: live.sparklines[device.id] ?? [],
+          deployment: prev[device.id]?.deployment ?? null,
+        };
       }
       return next;
     });
     setLastRefresh(new Date());
     setIsLoading(false);
-  }, []);
+  }, [devices]);
 
   const fetchDeployments = useCallback(async () => {
     const updates: Record<string, Deployment | null> = {};
 
     await Promise.all(
-      DEVICES.map(async (device) => {
+      devices.map(async (device) => {
         updates[device.id] = await getActiveDeployment(device.id);
       })
     );
@@ -75,7 +81,7 @@ export default function Dashboard() {
       }
       return next;
     });
-  }, []);
+  }, [devices]);
 
   useEffect(() => {
     const initialTimer = setTimeout(() => {
@@ -103,16 +109,28 @@ export default function Dashboard() {
 
   return (
     <PageLayout title="Dashboard" subtitle="Real-time temperature & humidity monitoring">
-      <div className="grid lg:grid-cols-2 gap-8">
-        {DEVICES.map((device) => (
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={() => setShowDeviceManager(true)}
+          className="btn-glass px-3 py-1.5 text-xs text-[#a0aec0] hover:text-white transition-colors flex items-center gap-1.5"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Manage Nodes
+        </button>
+      </div>
+      <div className={`grid ${getGridClasses(devices.length)} gap-8`}>
+        {devices.map((device) => (
           <LiveReadingCard
             key={device.id}
             deviceId={device.id}
-            deviceName={device.name}
+            deviceName={device.display_name}
             reading={deviceData[device.id]?.reading}
             activeDeployment={deviceData[device.id]?.deployment}
             isLoading={isLoading}
-            onClick={() => setSelectedDevice(device)}
+            onClick={() => setSelectedDevice({ id: device.id, name: device.display_name })}
             onRefresh={fetchLiveData}
             lastRefresh={lastRefresh}
             weatherReading={deviceData[device.id]?.weather}
@@ -136,6 +154,7 @@ export default function Dashboard() {
           onDeploymentChange={handleDeploymentChange}
         />
       )}
+      <DeviceManager isOpen={showDeviceManager} onClose={() => setShowDeviceManager(false)} />
     </PageLayout>
   );
 }

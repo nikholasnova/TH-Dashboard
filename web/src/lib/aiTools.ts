@@ -12,6 +12,12 @@ import { normalizeUsZipCode } from './weatherZip';
 
 const TIMEZONE = 'America/Phoenix';
 
+function safeInt(value: unknown, fallback: number, min: number, max: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(Math.round(n), min), max);
+}
+
 function convertStatsToF<T extends { temp_avg: number | null; temp_min: number | null; temp_max: number | null; temp_stddev: number | null }>(
   stats: T
 ): T & { temp_avg_f: number | null; temp_min_f: number | null; temp_max_f: number | null; temp_stddev_f: number | null } {
@@ -126,7 +132,7 @@ export async function executeGetReadings(params: {
     query = query.lte('created_at', deployment.ended_at);
   }
 
-  const limit = Math.min(params.limit || 100, 2000);
+  const limit = safeInt(params.limit, 100, 1, 2000);
   query = query.limit(limit);
 
   const { data, error } = await query;
@@ -169,7 +175,7 @@ export async function executeGetChartData(params: {
   const { data, error } = await supabase.rpc('get_chart_samples', {
     p_start: params.start,
     p_end: params.end,
-    p_bucket_minutes: Math.max(1, Math.round(params.bucket_minutes)),
+    p_bucket_minutes: safeInt(params.bucket_minutes, 60, 1, 1440),
     p_device_id: params.device_id || null,
   });
 
@@ -248,7 +254,7 @@ export async function executeGetWeather(params: {
     query = query.eq('device_id', params.device_id);
   }
 
-  const limit = Math.min(params.limit || 1, 100);
+  const limit = safeInt(params.limit, 1, 1, 100);
   query = query.limit(limit);
 
   const { data, error } = await query;

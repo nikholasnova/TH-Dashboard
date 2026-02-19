@@ -179,7 +179,7 @@ export async function GET(request: NextRequest) {
       try {
         const encodedZip = encodeURIComponent(zipCode);
         const url = `https://api.weatherapi.com/v1/current.json?key=${weatherApiKey}&q=${encodedZip}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
 
         if (!res.ok) {
           const body = await res.text();

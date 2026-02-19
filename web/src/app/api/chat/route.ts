@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, SchemaType, FunctionDeclaration } from '@google/generative-ai';
 import { executeTool } from '@/lib/aiTools';
 import { getServerUser } from '@/lib/serverAuth';
+import { getServerClient } from '@/lib/supabase/server';
 
 const SYSTEM_PROMPT = `You are an AI assistant for an IoT temperature and humidity monitoring system.
 You help users understand their sensor data across different deployments and locations.
@@ -28,7 +29,7 @@ HOW TO ANSWER COMMON QUESTIONS:
 - "What's the temperature in [location]?": Use get_deployments with the location filter, then get_readings with limit=1 for the latest value, or get_deployment_stats for an overview.
 - "What's the weather in [zip code]?" / "Temperature in 85142?": Use get_weather with the zip code. This returns the latest stored weather data for that zip code — separate from sensor readings. If the user gives a location name instead of a zip, use get_deployments to find the zip_code first, then use get_weather.
 - "Analyze all my data" / "Give me a full analysis": Use get_device_stats with a broad time range for overall stats, then get_chart_data with appropriate buckets to identify trends. Combine with get_deployments for context on locations.
-- "How accurate are my sensors?" / "Compare sensors to official weather" / "Margin of error": Call get_device_stats with start 7 days ago and end now, with NO device_id filter. This returns stats for ALL devices — sensors (node1, node2) AND official weather references (weather_node1, weather_node2). Compare each sensor to its weather counterpart: node1↔weather_node1, node2↔weather_node2. Calculate the difference (delta) and percent error for temperature and humidity. Frame results as sensor accuracy validation.
+- "How accurate are my sensors?" / "Compare sensors to official weather" / "Margin of error": Call get_device_stats with start 7 days ago and end now, with NO device_id filter. This returns stats for ALL devices — registered sensor nodes AND their official weather counterparts (weather_<device_id>). Compare each sensor to its weather counterpart. Calculate the difference (delta) and percent error for temperature and humidity. Frame results as sensor accuracy validation.
 - "Show me trends" / "How has temperature changed?": Use get_chart_data with appropriate bucket sizes (15-60 min for a day, 1440 min for weeks/months).
 - If a user references a room, location, or place name, search deployments by location OR name to find matching deployments. Filters use partial matching, so "Queen Creek" will find "Queen Creek, AZ" and "patio" will find "Nik's Patio".
 
@@ -74,17 +75,18 @@ GUIDELINES:
 - This is a school data-gathering tool, so be helpful with analysis, observations, and insights
 
 SENSOR CONTEXT:
-- The physical sensors (node1, node2) are deployed OUTDOORS, measuring the same outdoor conditions as official weather stations.
+- The physical sensors are deployed OUTDOORS, measuring the same outdoor conditions as official weather stations.
 - There is NO indoor/outdoor distinction here. Both sensors and weather reference data measure outdoor conditions at the same locations.
 - The purpose of the project is to gather outdoor environmental data and validate sensor accuracy by comparing against an official reference (WeatherAPI.com).
-- When comparing sensor vs. weather data, frame it as "sensor accuracy" or "margin of error" — e.g. "node1 averaged 2.1°F higher than official weather (3.2% error)".
+- When comparing sensor vs. weather data, frame it as "sensor accuracy" or "margin of error" — e.g. "sensor averaged 2.1°F higher than official weather (3.2% error)".
+- See REGISTERED DEVICES (appended below) for the current list of sensor and weather device IDs.
 
 WEATHER DATA:
-- Official reference weather data is fetched periodically from WeatherAPI.com and stored in the database with device_id 'weather_node1', 'weather_node2', etc.
+- Official reference weather data is fetched periodically from WeatherAPI.com and stored in the database with device_id 'weather_<sensor_id>' (e.g. weather_node1 for node1).
 - Weather device_ids contain the official WeatherAPI conditions for the same zip code/location as the corresponding sensor deployment.
 - Use get_weather to retrieve the latest stored weather reading for a specific zip code or weather device ID.
 - Use get_device_stats to compare a sensor's readings against its weather counterpart over a time range.
-  Example: "How accurate is node1?" → get_device_stats for both 'node1' and 'weather_node1', then calculate delta and % error.
+  Example: "How accurate is <device>?" → get_device_stats for both the sensor and its weather counterpart (weather_<device_id>), then calculate delta and % error.
 - Stored weather data is NOT deployment-scoped, so get_readings won't return weather. Use get_weather, get_device_stats, or get_chart_data instead.
 - When a user asks "what's the weather in [zip code]?", use get_weather — do NOT confuse this with sensor readings.
 
@@ -96,7 +98,7 @@ const getDeploymentsDecl: FunctionDeclaration = {
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
-      device_id: { type: SchemaType.STRING, description: 'Filter by device (node1 or node2)' },
+      device_id: { type: SchemaType.STRING, description: 'Filter by device ID (see REGISTERED DEVICES)' },
       location: { type: SchemaType.STRING, description: 'Filter by location (partial match, e.g. "Queen Creek" matches "Queen Creek, AZ")' },
       name: { type: SchemaType.STRING, description: 'Filter by deployment name (partial match, e.g. "patio" matches "Nik\'s Patio")' },
       zip_code: { type: SchemaType.STRING, description: 'Filter by zip code (exact match, e.g. "85142")' },
@@ -142,7 +144,7 @@ const getDeviceStatsDecl: FunctionDeclaration = {
     properties: {
       start: { type: SchemaType.STRING, description: 'Start of time range (ISO 8601 datetime, e.g. "2025-01-01T00:00:00Z"). Use a very early date for all-time stats.' },
       end: { type: SchemaType.STRING, description: 'End of time range (ISO 8601 datetime). Use current time for up-to-now stats.' },
-      device_id: { type: SchemaType.STRING, description: 'Filter by device (node1, node2, weather_node1, weather_node2). Omit for all devices.' },
+      device_id: { type: SchemaType.STRING, description: 'Filter by device ID — sensor or weather counterpart (see REGISTERED DEVICES). Omit for all devices.' },
     },
     required: ['start', 'end'],
   },
@@ -157,7 +159,7 @@ const getChartDataDecl: FunctionDeclaration = {
       start: { type: SchemaType.STRING, description: 'Start of time range (ISO 8601 datetime)' },
       end: { type: SchemaType.STRING, description: 'End of time range (ISO 8601 datetime)' },
       bucket_minutes: { type: SchemaType.NUMBER, description: 'Size of each time bucket in minutes (e.g. 15 for 15-min averages, 60 for hourly, 1440 for daily)' },
-      device_id: { type: SchemaType.STRING, description: 'Filter by device (node1, node2, weather_node1, weather_node2). Omit for all devices.' },
+      device_id: { type: SchemaType.STRING, description: 'Filter by device ID — sensor or weather counterpart (see REGISTERED DEVICES). Omit for all devices.' },
     },
     required: ['start', 'end', 'bucket_minutes'],
   },
@@ -179,7 +181,7 @@ const getWeatherDecl: FunctionDeclaration = {
     type: SchemaType.OBJECT,
     properties: {
       zip_code: { type: SchemaType.STRING, description: 'Filter by US zip code (e.g. "85142")' },
-      device_id: { type: SchemaType.STRING, description: 'Filter by weather device ID (e.g. "weather_node1")' },
+      device_id: { type: SchemaType.STRING, description: 'Filter by weather device ID (e.g. "weather_<sensor_id>")' },
       limit: { type: SchemaType.NUMBER, description: 'Number of recent weather readings to return (default 1, max 100)' },
     },
   },
@@ -295,6 +297,24 @@ export async function POST(req: Request) {
       if (typeof pageContext.deploymentId === 'number') contextNote += `, viewing deployment #${pageContext.deploymentId}`;
       contextNote += '. Use this context to provide more relevant answers when appropriate.';
       systemPrompt += contextNote;
+    }
+
+    try {
+      const serverClient = getServerClient();
+      const { data: deviceRows } = await serverClient
+        .from('devices')
+        .select('id, display_name')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+
+      const registeredDevices = deviceRows || [];
+      if (registeredDevices.length > 0) {
+        const sensorList = registeredDevices.map(d => `${d.id} (${d.display_name})`).join(', ');
+        const weatherList = registeredDevices.map(d => `weather_${d.id}`).join(', ');
+        systemPrompt += `\n\nREGISTERED DEVICES: Sensors: ${sensorList}. Weather counterparts: ${weatherList}.`;
+      }
+    } catch (e) {
+      console.error('Failed to fetch devices for chat context:', e);
     }
 
     const model = genAI.getGenerativeModel({

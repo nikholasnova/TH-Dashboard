@@ -47,6 +47,17 @@ export interface DeploymentWithCount extends Deployment {
   reading_count: number;
 }
 
+export interface Device {
+  id: string;
+  display_name: string;
+  color: string;
+  is_active: boolean;
+  monitor_enabled: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DeploymentStats {
   deployment_id: number;
   deployment_name?: string;

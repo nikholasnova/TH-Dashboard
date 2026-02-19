@@ -542,73 +542,19 @@ export async function runAnalyses(
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard 7-day forecast (standalone, not deployment-scoped)
+// Dashboard 24-hour hourly forecast (standalone, not deployment-scoped)
 // ---------------------------------------------------------------------------
 
-export interface DailyForecast {
-  date: string;        // YYYY-MM-DD
-  day_name: string;    // "Today", "Mon", "Tue", etc.
-  temp_high_f: number;
-  temp_low_f: number;
-}
-
-interface RawForecastSeries {
-  timestamps: string[];
-  values: number[];
+export interface HourlyForecast {
+  hour_label: string;  // "Now", "1 PM", "2 PM", etc.
+  temp_f: number;
+  iso: string;         // ISO timestamp for key
 }
 
 const DASHBOARD_FORECAST_LOOKBACK_DAYS = 10;
 const DASHBOARD_FORECAST_MAX_ROWS = (DASHBOARD_FORECAST_LOOKBACK_DAYS + 2) * 24;
 
-export function aggregateHourlyForecastToDaily(
-  raw: RawForecastSeries,
-  now = new Date()
-): DailyForecast[] {
-  if (
-    !raw ||
-    !Array.isArray(raw.timestamps) ||
-    !Array.isArray(raw.values) ||
-    raw.timestamps.length === 0 ||
-    raw.values.length === 0
-  ) {
-    return [];
-  }
-
-  const pointsByDay = new Map<string, number[]>();
-  const total = Math.min(raw.timestamps.length, raw.values.length);
-
-  for (let i = 0; i < total; i++) {
-    const ts = raw.timestamps[i];
-    const value = raw.values[i];
-    if (typeof ts !== 'string' || !Number.isFinite(value)) continue;
-    const parsed = new Date(ts);
-    if (Number.isNaN(parsed.getTime())) continue;
-
-    const dateStr = parsed.toISOString().slice(0, 10);
-    const values = pointsByDay.get(dateStr) || [];
-    values.push(value);
-    pointsByDay.set(dateStr, values);
-  }
-
-  const todayStr = now.toISOString().slice(0, 10);
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-  return Array.from(pointsByDay.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .filter(([, values]) => values.length === 24)
-    .slice(0, 7)
-    .map(([dateStr, values]) => {
-      const dayDate = new Date(`${dateStr}T12:00:00.000Z`);
-      return {
-        date: dateStr,
-        day_name: dateStr === todayStr ? 'Today' : dayNames[dayDate.getUTCDay()],
-        temp_high_f: Math.max(...values),
-        temp_low_f: Math.min(...values),
-      };
-    });
-}
-
-const DASHBOARD_FORECAST_SCRIPT = `
+const HOURLY_FORECAST_SCRIPT = `
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 import json, math
 import pandas as pd
@@ -625,17 +571,15 @@ def safe_float(value, fallback=0.0):
 
 data = json.loads(chart_samples_json)
 df = pd.DataFrame(data)
-df['bucket_ts'] = pd.to_datetime(df['bucket_ts'])
+df['bucket_ts'] = pd.to_datetime(df['bucket_ts'], utc=True)
 df = df.sort_values('bucket_ts').set_index('bucket_ts')
 
-series = df['temperature_f'].dropna()
-if len(series) > 0:
-    last_ts = series.index[-1]
-    if last_ts.hour != 23:
-        series = series[series.index < last_ts.floor('D')]
+# Resample to regular 1-hour intervals, interpolate small gaps
+series = df['temperature_f'].resample('1h').mean().interpolate(method='linear', limit=3)
+series = series.dropna()
 
-period = 24  # 24h / 1h = 24 intervals per day
-forecast_steps = 7 * period  # 7 days
+period = 24
+forecast_steps = 24
 
 result_json = '[]'
 
@@ -647,13 +591,13 @@ if len(series) >= period * 2:
             series_q05 = safe_float(series.min(), 0.0)
             series_q95 = safe_float(series.max(), 0.0)
 
-        soft_margin = 12.0
-        lower_bound = series_q05 - soft_margin
-        upper_bound = series_q95 + soft_margin
-        if upper_bound - lower_bound < 8.0:
+        margin = 15.0
+        lower_bound = series_q05 - margin
+        upper_bound = series_q95 + margin
+        if upper_bound - lower_bound < 10.0:
             midpoint = (upper_bound + lower_bound) / 2.0
-            lower_bound = midpoint - 4.0
-            upper_bound = midpoint + 4.0
+            lower_bound = midpoint - 5.0
+            upper_bound = midpoint + 5.0
 
         try:
             model = ExponentialSmoothing(
@@ -674,24 +618,28 @@ if len(series) >= period * 2:
             ).fit(optimized=True)
 
         forecast = model.forecast(forecast_steps)
-        center = (lower_bound + upper_bound) / 2.0
-        half_span = max((upper_bound - lower_bound) / 2.0, 1.0)
-        forecast = center + half_span * np.tanh((forecast - center) / half_span)
-        fc_timestamps = [t.isoformat() for t in forecast.index]
-        fc_values = [safe_float(v, 0.0) for v in forecast.values.tolist()]
+        forecast = np.clip(forecast, lower_bound, upper_bound)
 
-        result_json = json.dumps({
-            'timestamps': fc_timestamps,
-            'values': fc_values,
-        })
+        fc_isos = [t.isoformat() for t in forecast.index]
+        fc_values = [round(safe_float(v, 0.0), 1) for v in forecast.values.tolist()]
+
+        result_json = json.dumps([
+            {'iso': iso, 'temp_f': val}
+            for iso, val in zip(fc_isos, fc_values)
+        ], allow_nan=False)
     except Exception:
         result_json = '[]'
 `;
 
-export async function runDashboardForecast(
+const hourFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: 'numeric',
+  hour12: true,
+});
+
+export async function runHourlyForecast(
   pyodide: PyodideInterface,
   deviceId: string,
-): Promise<DailyForecast[]> {
+): Promise<HourlyForecast[]> {
   const now = new Date();
   const deployments = await getDeployments({ deviceId });
   if (deployments.length === 0) return [];
@@ -713,23 +661,28 @@ export async function runDashboardForecast(
   const samples = await getChartSamples({
     start,
     end,
-    bucketSeconds: 3600, // 1-hour buckets for better data coverage
+    bucketSeconds: 3600,
     device_id: deviceId,
     maxRows: DASHBOARD_FORECAST_MAX_ROWS,
   });
 
-  if (samples.length < 48) return []; // need at least 2 days (2 × 24)
+  if (samples.length < 48) return [];
 
-  // Convert temps to Fahrenheit before sending to Python
   const samplesWithF = samples.map((s) => ({
     bucket_ts: s.bucket_ts,
     temperature_f: celsiusToFahrenheit(s.temperature_avg),
   }));
 
   pyodide.globals.set('chart_samples_json', JSON.stringify(samplesWithF));
-  await pyodide.runPythonAsync(DASHBOARD_FORECAST_SCRIPT);
+  await pyodide.runPythonAsync(HOURLY_FORECAST_SCRIPT);
 
   const resultJson: string = pyodide.globals.get('result_json');
-  const raw = JSON.parse(resultJson) as RawForecastSeries;
-  return aggregateHourlyForecastToDaily(raw, now);
+  const rawPoints = JSON.parse(resultJson) as { iso: string; temp_f: number }[];
+  if (!Array.isArray(rawPoints) || rawPoints.length === 0) return [];
+
+  return rawPoints.map((pt, i) => ({
+    iso: pt.iso,
+    temp_f: pt.temp_f,
+    hour_label: i === 0 ? 'Now' : hourFormatter.format(new Date(pt.iso)),
+  }));
 }

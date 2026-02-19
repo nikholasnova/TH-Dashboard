@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { DeviceStats, getDeviceStats, getDeployment } from '@/lib/supabase';
 import { computePercentError, getScopedCompareDeviceIds } from '@/lib/weatherCompare';
-import { formatValue, formatDelta, formatPercent, formatPercentDelta, safeC2F, safeDeltaC2F } from '@/lib/format';
+import { formatValue, formatPercent, safeC2F, safeDeltaC2F } from '@/lib/format';
+import { useDevices } from '@/contexts/DevicesContext';
 import { useSetChatPageContext } from '@/lib/chatContext';
 import { DEPLOYMENT_ALL_TIME_HOURS, DEPLOYMENT_ALL_TIME_LABEL, TIME_RANGES } from '@/lib/constants';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -12,10 +13,35 @@ import { FilterToolbar } from '@/components/FilterToolbar';
 import { useTimeRange } from '@/hooks/useTimeRange';
 import { useDeployments } from '@/hooks/useDeployments';
 
+function formatDelta(values: (number | null | undefined)[], decimals = 1): string {
+  const valid = values.filter((v): v is number => v != null);
+  if (valid.length < 2) return '—';
+  if (valid.length === 2) {
+    const diff = valid[0] - valid[1];
+    const sign = diff >= 0 ? '+' : '';
+    return `${sign}${diff.toFixed(decimals)}`;
+  }
+  const spread = Math.max(...valid) - Math.min(...valid);
+  return `±${(spread / 2).toFixed(decimals)}`;
+}
+
+function formatDeltaPercent(values: (number | null | undefined)[]): string {
+  const valid = values.filter((v): v is number => v != null);
+  if (valid.length < 2) return '—';
+  if (valid.length === 2) {
+    const diff = valid[0] - valid[1];
+    const sign = diff >= 0 ? '+' : '';
+    return `${sign}${diff.toFixed(1)}%`;
+  }
+  const spread = Math.max(...valid) - Math.min(...valid);
+  return `±${(spread / 2).toFixed(1)}%`;
+}
+
 export default function ComparePage() {
   const [stats, setStats] = useState<DeviceStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const { devices } = useDevices();
   const timeRange = useTimeRange();
   const { deployments } = useDeployments(timeRange.deviceFilter);
   const {
@@ -87,33 +113,35 @@ export default function ComparePage() {
   const activeDeployment = deploymentFilter ? deployments.find(d => d.id.toString() === deploymentFilter) : null;
 
   const statsByDevice = useMemo(() => {
-    const map: Record<string, DeviceStats | null> = { node1: null, node2: null, weather_node1: null, weather_node2: null };
+    const map: Record<string, DeviceStats | null> = {};
+    for (const device of devices) {
+      map[device.id] = null;
+      map[`weather_${device.id}`] = null;
+    }
     for (const row of stats) {
       if (row.device_id in map) map[row.device_id] = row;
     }
     return map;
-  }, [stats]);
+  }, [stats, devices]);
 
-
-  const node1 = statsByDevice.node1;
-  const node2 = statsByDevice.node2;
-  const weatherNode1 = statsByDevice.weather_node1;
-  const weatherNode2 = statsByDevice.weather_node2;
-
-  const node1TempAvgF = safeC2F(node1?.temp_avg);
-  const node2TempAvgF = safeC2F(node2?.temp_avg);
-  const node1TempMinF = safeC2F(node1?.temp_min);
-  const node2TempMinF = safeC2F(node2?.temp_min);
-  const node1TempMaxF = safeC2F(node1?.temp_max);
-  const node2TempMaxF = safeC2F(node2?.temp_max);
-  const node1TempStdF = safeDeltaC2F(node1?.temp_stddev);
-  const node2TempStdF = safeDeltaC2F(node2?.temp_stddev);
-  const weatherNode1TempAvgF = safeC2F(weatherNode1?.temp_avg);
-  const weatherNode2TempAvgF = safeC2F(weatherNode2?.temp_avg);
-  const node1TempErrorPct = computePercentError(node1TempAvgF, weatherNode1TempAvgF);
-  const node2TempErrorPct = computePercentError(node2TempAvgF, weatherNode2TempAvgF);
-  const node1HumidityErrorPct = computePercentError(node1?.humidity_avg, weatherNode1?.humidity_avg);
-  const node2HumidityErrorPct = computePercentError(node2?.humidity_avg, weatherNode2?.humidity_avg);
+  const deviceColumns = useMemo(() => devices.map(device => {
+    const sensor = statsByDevice[device.id];
+    const weather = statsByDevice[`weather_${device.id}`];
+    const tempAvgF = safeC2F(sensor?.temp_avg);
+    const weatherTempAvgF = safeC2F(weather?.temp_avg);
+    return {
+      device,
+      sensor,
+      weather,
+      tempAvgF,
+      tempMinF: safeC2F(sensor?.temp_min),
+      tempMaxF: safeC2F(sensor?.temp_max),
+      tempStdF: safeDeltaC2F(sensor?.temp_stddev),
+      weatherTempAvgF,
+      tempErrorPct: computePercentError(tempAvgF, weatherTempAvgF),
+      humidityErrorPct: computePercentError(sensor?.humidity_avg, weather?.humidity_avg),
+    };
+  }), [devices, statsByDevice]);
 
   return (
     <PageLayout title="Compare" subtitle="Side-by-side sensor statistics">
@@ -148,47 +176,70 @@ export default function ComparePage() {
                 <thead>
                   <tr className="border-b border-white/10">
                     <th className="text-left py-4 text-[#a0aec0] font-semibold">Metric</th>
-                    <th className="text-right py-4 text-[#0075ff] font-semibold">Node 1</th>
-                    <th className="text-right py-4 text-[#01b574] font-semibold">Node 2</th>
-                    <th className="text-right py-4 text-[#a0aec0] font-semibold">Delta</th>
+                    {deviceColumns.map(col => (
+                      <th key={col.device.id} className="text-right py-4 font-semibold" style={{ color: col.device.color }}>
+                        {col.device.display_name}
+                      </th>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <th className="text-right py-4 text-[#a0aec0] font-semibold">Delta</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b border-white/5">
                     <td className="py-4 text-[#a0aec0]">Average</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node1TempAvgF)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node2TempAvgF)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(node1TempAvgF, node2TempAvgF)}</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.tempAvgF)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.tempAvgF))}</td>
+                    )}
                   </tr>
                   <tr className="border-b border-white/5">
                     <td className="py-4 text-[#a0aec0]">Minimum</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node1TempMinF)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node2TempMinF)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(node1TempMinF, node2TempMinF)}</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.tempMinF)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.tempMinF))}</td>
+                    )}
                   </tr>
                   <tr className="border-b border-white/5">
                     <td className="py-4 text-[#a0aec0]">Maximum</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node1TempMaxF)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node2TempMaxF)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(node1TempMaxF, node2TempMaxF)}</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.tempMaxF)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.tempMaxF))}</td>
+                    )}
                   </tr>
                   <tr>
                     <td className="py-4 text-[#a0aec0]">Std Dev</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node1TempStdF, 2)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node2TempStdF, 2)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">—</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.tempStdF, 2)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">—</td>
+                    )}
                   </tr>
                   <tr className="border-t border-white/10 border-b border-white/5">
                     <td className="py-4 text-[#a0aec0]">Weather</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(weatherNode1TempAvgF)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(weatherNode2TempAvgF)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(weatherNode1TempAvgF, weatherNode2TempAvgF)}</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.weatherTempAvgF)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.weatherTempAvgF))}</td>
+                    )}
                   </tr>
                   <tr>
                     <td className="py-4 text-[#a0aec0]">% Error</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatPercent(node1TempErrorPct)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatPercent(node2TempErrorPct)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">{formatPercentDelta(node1TempErrorPct, node2TempErrorPct)}</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatPercent(col.tempErrorPct)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDeltaPercent(deviceColumns.map(c => c.tempErrorPct))}</td>
+                    )}
                   </tr>
                 </tbody>
               </table>
@@ -202,47 +253,70 @@ export default function ComparePage() {
                 <thead>
                   <tr className="border-b border-white/10">
                     <th className="text-left py-4 text-[#a0aec0] font-semibold">Metric</th>
-                    <th className="text-right py-4 text-[#0075ff] font-semibold">Node 1</th>
-                    <th className="text-right py-4 text-[#01b574] font-semibold">Node 2</th>
-                    <th className="text-right py-4 text-[#a0aec0] font-semibold">Delta</th>
+                    {deviceColumns.map(col => (
+                      <th key={col.device.id} className="text-right py-4 font-semibold" style={{ color: col.device.color }}>
+                        {col.device.display_name}
+                      </th>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <th className="text-right py-4 text-[#a0aec0] font-semibold">Delta</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b border-white/5">
                     <td className="py-4 text-[#a0aec0]">Average</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node1?.humidity_avg)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node2?.humidity_avg)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(node1?.humidity_avg, node2?.humidity_avg)}</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.sensor?.humidity_avg)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_avg))}</td>
+                    )}
                   </tr>
                   <tr className="border-b border-white/5">
                     <td className="py-4 text-[#a0aec0]">Minimum</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node1?.humidity_min)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node2?.humidity_min)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(node1?.humidity_min, node2?.humidity_min)}</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.sensor?.humidity_min)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_min))}</td>
+                    )}
                   </tr>
                   <tr className="border-b border-white/5">
                     <td className="py-4 text-[#a0aec0]">Maximum</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node1?.humidity_max)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node2?.humidity_max)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(node1?.humidity_max, node2?.humidity_max)}</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.sensor?.humidity_max)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_max))}</td>
+                    )}
                   </tr>
                   <tr>
                     <td className="py-4 text-[#a0aec0]">Std Dev</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node1?.humidity_stddev, 2)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(node2?.humidity_stddev, 2)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">—</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.sensor?.humidity_stddev, 2)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">—</td>
+                    )}
                   </tr>
                   <tr className="border-t border-white/10 border-b border-white/5">
                     <td className="py-4 text-[#a0aec0]">Weather</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(weatherNode1?.humidity_avg)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatValue(weatherNode2?.humidity_avg)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(weatherNode1?.humidity_avg, weatherNode2?.humidity_avg)}</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.weather?.humidity_avg)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.weather?.humidity_avg))}</td>
+                    )}
                   </tr>
                   <tr>
                     <td className="py-4 text-[#a0aec0]">% Error</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatPercent(node1HumidityErrorPct)}</td>
-                    <td className="py-4 text-right font-semibold text-white">{formatPercent(node2HumidityErrorPct)}</td>
-                    <td className="py-4 text-right text-[#a0aec0]/60">{formatPercentDelta(node1HumidityErrorPct, node2HumidityErrorPct)}</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatPercent(col.humidityErrorPct)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDeltaPercent(deviceColumns.map(c => c.humidityErrorPct))}</td>
+                    )}
                   </tr>
                 </tbody>
               </table>

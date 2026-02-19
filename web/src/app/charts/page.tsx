@@ -16,6 +16,7 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { FilterToolbar } from '@/components/FilterToolbar';
 import { useTimeRange } from '@/hooks/useTimeRange';
 import { useDeployments } from '@/hooks/useDeployments';
+import { useDevices } from '@/contexts/DevicesContext';
 
 const ResponsiveLine = dynamic(
   () => import('@nivo/line').then((m) => m.ResponsiveLine),
@@ -24,6 +25,14 @@ const ResponsiveLine = dynamic(
 
 type MetricType = 'temperature' | 'humidity' | 'both';
 
+function lightenColor(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const lighten = (v: number) => Math.min(255, v + 60);
+  return `#${lighten(r).toString(16).padStart(2, '0')}${lighten(g).toString(16).padStart(2, '0')}${lighten(b).toString(16).padStart(2, '0')}`;
+}
+
 export default function ChartsPage() {
   const [samples, setSamples] = useState<ChartSample[]>([]);
   const [metric, setMetric] = useState<MetricType>('temperature');
@@ -31,6 +40,7 @@ export default function ChartsPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
+  const { devices } = useDevices();
   const timeRange = useTimeRange();
   const { deployments } = useDeployments(timeRange.deviceFilter);
   const {
@@ -64,6 +74,8 @@ export default function ChartsPage() {
   }, [selectedRange, customStart, customEnd, deviceFilter, deploymentFilter]);
 
   const pickBucketSeconds = (rangeMs: number) => {
+    const rangeHours = rangeMs / 3_600_000;
+    if (rangeHours >= 24) return 1800;
     const rangeSeconds = rangeMs / 1000;
     const targetPoints = 1200;
     const idealBucketSeconds = rangeSeconds / targetPoints;
@@ -118,10 +130,17 @@ export default function ChartsPage() {
       return;
     }
 
+    const csvSafe = (value: string): string => {
+      if (/[,"\n\r]/.test(value) || /^[=+\-@\t\r]/.test(value)) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+
     const headers = ['timestamp', 'device_id', 'temperature_f', 'temperature_c', 'humidity'];
     const rows = rawReadings.map((r) => [
-      r.created_at,
-      r.device_id,
+      csvSafe(r.created_at),
+      csvSafe(r.device_id),
       celsiusToFahrenheit(r.temperature).toFixed(2),
       r.temperature.toFixed(2),
       r.humidity.toFixed(2),
@@ -187,128 +206,48 @@ export default function ChartsPage() {
   };
 
   const buildChartData = () => {
+    const activeDevices = deviceFilter
+      ? devices.filter(d => d.id === deviceFilter)
+      : devices;
+
     if (metric === 'both') {
-      if (deviceFilter) {
-        const deviceLabel = deviceFilter === 'node1' ? 'Node 1' : 'Node 2';
+      return activeDevices.flatMap(device => {
+        const deviceSamples = validSamples.filter(r => r.device_id === device.id);
         return [
           {
-            id: `${deviceLabel} Temp`,
-            color: '#0075ff',
-            data: compactPoints(validSamples.map((r) => {
+            id: `${device.id}:temp`,
+            label: `${device.display_name} Temp`,
+            color: device.color,
+            data: compactPoints(deviceSamples.map(r => {
               const tempF = celsiusToFahrenheit(r.temperature_avg);
-              return makePoint(r.bucket_ts, tempF, {
-                rawValue: tempF,
-                unit: '°F',
-              });
+              return makePoint(r.bucket_ts, tempF, { rawValue: tempF, unit: '°F' });
             })),
           },
           {
-            id: `${deviceLabel} Humidity`,
-            color: '#01b574',
-            data: compactPoints(validSamples.map((r) =>
-              makePoint(r.bucket_ts, normalizeHumidity(r.humidity_avg), {
-                rawValue: r.humidity_avg,
-                unit: '%',
-              })
+            id: `${device.id}:humidity`,
+            label: `${device.display_name} Humidity`,
+            color: lightenColor(device.color),
+            data: compactPoints(deviceSamples.map(r =>
+              makePoint(r.bucket_ts, normalizeHumidity(r.humidity_avg), { rawValue: r.humidity_avg, unit: '%' })
             )),
           },
         ];
-      } else {
-        return [
-          {
-            id: 'Node 1 Temp',
-            color: '#0075ff',
-            data: compactPoints(validSamples
-              .filter((r) => r.device_id === 'node1')
-              .map((r) => {
-                const tempF = celsiusToFahrenheit(r.temperature_avg);
-                return makePoint(r.bucket_ts, tempF, {
-                  rawValue: tempF,
-                  unit: '°F',
-                });
-              })),
-          },
-          {
-            id: 'Node 1 Humidity',
-            color: '#21d4fd',
-            data: compactPoints(validSamples
-              .filter((r) => r.device_id === 'node1')
-              .map((r) =>
-                makePoint(r.bucket_ts, normalizeHumidity(r.humidity_avg), {
-                  rawValue: r.humidity_avg,
-                  unit: '%',
-                })
-              )),
-          },
-          {
-            id: 'Node 2 Temp',
-            color: '#01b574',
-            data: compactPoints(validSamples
-              .filter((r) => r.device_id === 'node2')
-              .map((r) => {
-                const tempF = celsiusToFahrenheit(r.temperature_avg);
-                return makePoint(r.bucket_ts, tempF, {
-                  rawValue: tempF,
-                  unit: '°F',
-                });
-              })),
-          },
-          {
-            id: 'Node 2 Humidity',
-            color: '#05cd99',
-            data: compactPoints(validSamples
-              .filter((r) => r.device_id === 'node2')
-              .map((r) =>
-                makePoint(r.bucket_ts, normalizeHumidity(r.humidity_avg), {
-                  rawValue: r.humidity_avg,
-                  unit: '%',
-                })
-              )),
-          },
-        ];
-      }
+      });
     }
 
-    if (deviceFilter) {
-      return [{
-        id: deviceFilter === 'node1' ? 'Node 1' : 'Node 2',
-        color: deviceFilter === 'node1' ? '#0075ff' : '#01b574',
-        data: compactPoints(validSamples.map((r) =>
-          makePoint(
+    return activeDevices.map(device => ({
+      id: device.id,
+      label: device.display_name,
+      color: device.color,
+      data: compactPoints(
+        validSamples
+          .filter(r => r.device_id === device.id)
+          .map(r => makePoint(
             r.bucket_ts,
             metric === 'temperature' ? celsiusToFahrenheit(r.temperature_avg) : r.humidity_avg
-          )
-        )),
-      }];
-    }
-    return [
-      {
-        id: 'Node 1',
-        color: '#0075ff',
-        data: compactPoints(validSamples
-          .filter((r) => r.device_id === 'node1')
-          .map((r) =>
-            makePoint(
-              r.bucket_ts,
-              metric === 'temperature' ? celsiusToFahrenheit(r.temperature_avg) : r.humidity_avg
-            )
-          )
-        ),
-      },
-      {
-        id: 'Node 2',
-        color: '#01b574',
-        data: compactPoints(validSamples
-          .filter((r) => r.device_id === 'node2')
-          .map((r) =>
-            makePoint(
-              r.bucket_ts,
-              metric === 'temperature' ? celsiusToFahrenheit(r.temperature_avg) : r.humidity_avg
-            )
-          )
-        ),
-      },
-    ];
+          ))
+      ),
+    }));
   };
 
   const chartData = buildChartData().filter((series) => series.data.length > 0);
@@ -392,15 +331,8 @@ export default function ChartsPage() {
                   },
                 } : undefined}
                 colors={({ id }) => {
-                  const colorMap: Record<string, string> = {
-                    'Node 1': '#0075ff',
-                    'Node 2': '#01b574',
-                    'Node 1 Temp': '#0075ff',
-                    'Node 1 Humidity': '#21d4fd',
-                    'Node 2 Temp': '#01b574',
-                    'Node 2 Humidity': '#05cd99',
-                  };
-                  return colorMap[id as string] || '#0075ff';
+                  const series = chartData.find(s => s.id === id);
+                  return series?.color || '#0075ff';
                 }}
                 lineWidth={3}
                 pointSize={6}
@@ -423,7 +355,7 @@ export default function ChartsPage() {
                       return (
                         <div key={point.id} className="flex items-center gap-2 text-sm">
                           <span className="w-3 h-3 rounded-full" style={{ backgroundColor: point.seriesColor }} />
-                          <span className="font-semibold text-white">{point.seriesId}:</span>
+                          <span className="font-semibold text-white">{chartData.find(s => s.id === point.seriesId)?.label ?? point.seriesId}:</span>
                           <span className="text-[#a0aec0]">
                             {typeof value === 'number' ? value.toFixed(1) : String(value)}{unit}
                           </span>
@@ -440,7 +372,8 @@ export default function ChartsPage() {
                   itemHeight: 20,
                   symbolSize: 12,
                   symbolShape: 'circle',
-                  itemTextColor: '#a0aec0'
+                  itemTextColor: '#a0aec0',
+                  data: chartData.map(s => ({ id: s.id, label: s.label ?? s.id, color: s.color })),
                 }]}
                 theme={{
                   axis: { ticks: { text: { fill: '#a0aec0', fontSize: 12 } }, legend: { text: { fill: '#a0aec0', fontSize: 13, fontWeight: 600 } } },

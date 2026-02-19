@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { DeviceStats, getDeviceStats, celsiusToFahrenheit } from '@/lib/supabase';
 import { safeC2F } from '@/lib/format';
+import { useDevices } from '@/contexts/DevicesContext';
 
 export function DashboardStats() {
+  const { devices } = useDevices();
   const [stats, setStats] = useState<DeviceStats[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,29 +32,25 @@ export function DashboardStats() {
     );
   }
 
-  const node1 = stats.find((s) => s.device_id === 'node1');
-  const node2 = stats.find((s) => s.device_id === 'node2');
-  const weatherNode1 = stats.find((s) => s.device_id === 'weather_node1');
-  const weatherNode2 = stats.find((s) => s.device_id === 'weather_node2');
-
-  const allSensorStats = [node1, node2].filter(Boolean) as DeviceStats[];
-  const allHighs = allSensorStats.map((s) => s.temp_max).filter((v): v is number => v !== null);
-  const allLows = allSensorStats.map((s) => s.temp_min).filter((v): v is number => v !== null);
+  const sensorStats = devices
+    .map(d => stats.find(s => s.device_id === d.id))
+    .filter((s): s is DeviceStats => s != null);
+  const allHighs = sensorStats.map((s) => s.temp_max).filter((v): v is number => v !== null);
+  const allLows = sensorStats.map((s) => s.temp_min).filter((v): v is number => v !== null);
   const highF = allHighs.length > 0 ? celsiusToFahrenheit(Math.max(...allHighs)) : null;
   const lowF = allLows.length > 0 ? celsiusToFahrenheit(Math.min(...allLows)) : null;
 
-  const totalReadings = allSensorStats.reduce((sum, s) => sum + (s.reading_count || 0), 0);
+  const totalReadings = sensorStats.reduce((sum, s) => sum + (s.reading_count || 0), 0);
 
   const deltas: number[] = [];
-  const n1F = safeC2F(node1?.temp_avg);
-  const w1F = safeC2F(weatherNode1?.temp_avg);
-  const n2F = safeC2F(node2?.temp_avg);
-  const w2F = safeC2F(weatherNode2?.temp_avg);
-  if (n1F != null && w1F != null) deltas.push(Math.abs(n1F - w1F));
-  if (n2F != null && w2F != null) deltas.push(Math.abs(n2F - w2F));
+  for (const device of devices) {
+    const sF = safeC2F(stats.find(s => s.device_id === device.id)?.temp_avg);
+    const wF = safeC2F(stats.find(s => s.device_id === `weather_${device.id}`)?.temp_avg);
+    if (sF != null && wF != null) deltas.push(Math.abs(sF - wF));
+  }
   const avgAccuracy = deltas.length > 0 ? deltas.reduce((a, b) => a + b, 0) / deltas.length : null;
 
-  if (allSensorStats.length === 0) return null;
+  if (sensorStats.length === 0) return null;
 
   return (
     <div className="glass-card p-4 sm:p-6 mt-8">
@@ -61,16 +59,14 @@ export function DashboardStats() {
         <div className="lg:px-6 first:lg:pl-0 last:lg:pr-0">
           <p className="text-xs text-[#a0aec0] mb-1">Avg Temperature</p>
           <div className="space-y-0.5">
-            {node1?.temp_avg !== null && node1 && (
-              <p className="text-lg text-white font-medium">
-                N1: {celsiusToFahrenheit(node1.temp_avg!).toFixed(1)}°F
-              </p>
-            )}
-            {node2?.temp_avg !== null && node2 && (
-              <p className="text-lg text-white font-medium">
-                N2: {celsiusToFahrenheit(node2.temp_avg!).toFixed(1)}°F
-              </p>
-            )}
+            {sensorStats.map(s => {
+              const dev = devices.find(d => d.id === s.device_id);
+              return s.temp_avg != null ? (
+                <p key={s.device_id} className="text-lg text-white font-medium">
+                  {dev?.display_name ?? s.device_id}: {celsiusToFahrenheit(s.temp_avg).toFixed(1)}°F
+                </p>
+              ) : null;
+            })}
           </div>
         </div>
 

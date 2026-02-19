@@ -10,10 +10,12 @@ import {
 } from '@/lib/supabase';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
+import { useDevices } from '@/contexts/DevicesContext';
 
 type StatusFilter = 'all' | 'active' | 'ended';
 
 export default function DeploymentsPage() {
+  const { devices } = useDevices();
   const [deployments, setDeployments] = useState<DeploymentWithCount[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -76,8 +78,9 @@ export default function DeploymentsPage() {
               className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[100px]"
             >
               <option value="">All Devices</option>
-              <option value="node1">Node 1</option>
-              <option value="node2">Node 2</option>
+              {devices.map((d) => (
+                <option key={d.id} value={d.id}>{d.display_name}</option>
+              ))}
             </select>
 
             <select
@@ -161,7 +164,7 @@ export default function DeploymentsPage() {
       {selectedDeployment && (
         <DeploymentModal
           deviceId={selectedDeployment.device_id}
-          deviceName={selectedDeployment.device_id === 'node1' ? 'Node 1' : 'Node 2'}
+          deviceName={devices.find((d) => d.id === selectedDeployment.device_id)?.display_name || selectedDeployment.device_id}
           existingDeployment={selectedDeployment}
           isOpen={!!selectedDeployment}
           onClose={() => setSelectedDeployment(null)}
@@ -171,8 +174,8 @@ export default function DeploymentsPage() {
 
       {showNewModal && (
         <DeploymentModal
-          deviceId="node1"
-          deviceName="Node 1"
+          deviceId={devices[0]?.id || ''}
+          deviceName={devices[0]?.display_name || 'Device'}
           isOpen={showNewModal}
           onClose={() => setShowNewModal(false)}
           onDeploymentChange={fetchData}

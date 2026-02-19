@@ -6,7 +6,9 @@ export {
   getAllReadingsRange,
   getChartSamples,
   getDeviceStats,
+  getDashboardLive,
 } from './readings';
+export type { DashboardLiveData } from './readings';
 export {
   getDeployments,
   getDeployment,
@@ -19,3 +21,9 @@ export {
   getDeploymentReadings,
   getDistinctLocations,
 } from './deployments';
+export {
+  getDevices,
+  createDevice,
+  updateDevice,
+  deactivateDevice,
+} from './devices';

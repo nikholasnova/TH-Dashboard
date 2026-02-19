@@ -40,6 +40,7 @@ bool sensorOk = false;
 float tempSum = 0;
 float humiditySum = 0;
 int readingCount = 0;
+int consecutiveFailures = 0;
 
 void setup() {
   Serial.begin(115200);
@@ -114,8 +115,6 @@ void loop() {
   }
 
   if (now - lastSendTime >= SEND_INTERVAL_MS && readingCount > 0) {
-    lastSendTime = now;
-
     float avgTempC = tempSum / readingCount;
     float avgHumidity = humiditySum / readingCount;
 
@@ -128,11 +127,20 @@ void loop() {
     Serial.println("%");
 
     bool sent = sendToSupabase(avgTempC, avgHumidity);
-    Serial.println(sent ? ">> Sent OK" : ">> Send failed");
+    Serial.println(sent ? ">> Sent OK" : ">> Send failed - retaining buffer");
 
-    tempSum = 0;
-    humiditySum = 0;
-    readingCount = 0;
+    if (sent) {
+      tempSum = 0;
+      humiditySum = 0;
+      readingCount = 0;
+      lastSendTime = now;
+      consecutiveFailures = 0;
+    } else {
+      consecutiveFailures++;
+      // Back off: retry after 30s, 60s, 120s... capped at SEND_INTERVAL
+      unsigned long backoff = min((unsigned long)30000 * consecutiveFailures, SEND_INTERVAL_MS);
+      lastSendTime = now - SEND_INTERVAL_MS + backoff;
+    }
   }
 }
 

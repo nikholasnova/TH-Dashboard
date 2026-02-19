@@ -450,3 +450,200 @@ BEGIN
     END IF;
   END IF;
 END $$;
+
+-- =========================================================================
+-- Device registry: each physical sensor node.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS devices (
+  id TEXT PRIMARY KEY
+    CHECK (id ~ '^[a-z0-9_-]{1,32}$'),
+  display_name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#a0aec0'
+    CHECK (color ~ '^#[0-9a-fA-F]{6}$'),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  monitor_enabled BOOLEAN NOT NULL DEFAULT true,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE OR REPLACE FUNCTION update_devices_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_devices_updated_at ON devices;
+CREATE TRIGGER trg_devices_updated_at
+  BEFORE UPDATE ON devices
+  FOR EACH ROW EXECUTE FUNCTION update_devices_updated_at();
+
+CREATE INDEX IF NOT EXISTS idx_devices_active_sort ON devices (is_active, sort_order);
+CREATE INDEX IF NOT EXISTS idx_devices_monitor ON devices (monitor_enabled, is_active);
+
+ALTER TABLE devices ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow authenticated all on devices" ON devices;
+CREATE POLICY "Allow authenticated all on devices" ON devices
+  FOR ALL
+  TO authenticated
+  USING (auth.uid() IS NOT NULL)
+  WITH CHECK (auth.uid() IS NOT NULL);
+
+-- Seed known defaults
+INSERT INTO devices (id, display_name, color, sort_order) VALUES
+  ('node1', 'Node 1', '#0075ff', 1),
+  ('node2', 'Node 2', '#01b574', 2)
+ON CONFLICT (id) DO NOTHING;
+
+-- Backfill from existing readings so older data isn't orphaned
+INSERT INTO devices (id, display_name, color, sort_order)
+SELECT DISTINCT r.device_id, 'Sensor ' || r.device_id, '#a0aec0', 99
+FROM readings r
+WHERE r.source = 'sensor'
+  AND NOT EXISTS (SELECT 1 FROM devices d WHERE d.id = r.device_id)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO devices (id, display_name, color, sort_order)
+SELECT DISTINCT d.device_id, 'Sensor ' || d.device_id, '#a0aec0', 99
+FROM deployments d
+WHERE NOT EXISTS (SELECT 1 FROM devices dv WHERE dv.id = d.device_id)
+  AND d.device_id NOT LIKE 'weather_%'
+ON CONFLICT (id) DO NOTHING;
+
+-- =========================================================================
+-- App settings: feature flags stored in DB.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow authenticated select app_settings" ON app_settings;
+CREATE POLICY "Allow authenticated select app_settings" ON app_settings
+  FOR SELECT
+  TO authenticated
+  USING (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "Allow authenticated update app_settings" ON app_settings;
+CREATE POLICY "Allow authenticated update app_settings" ON app_settings
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() IS NOT NULL)
+  WITH CHECK (auth.uid() IS NOT NULL);
+
+INSERT INTO app_settings (key, value) VALUES
+  ('device_auto_register', 'false')
+ON CONFLICT (key) DO NOTHING;
+
+-- =========================================================================
+-- Auto-registration trigger: new sensor device_ids get a devices row.
+-- Gated behind app_settings.device_auto_register = 'true'.
+-- =========================================================================
+CREATE OR REPLACE FUNCTION auto_register_device()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM app_settings
+    WHERE key = 'device_auto_register' AND value = 'true'
+  ) THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.source = 'sensor'
+     AND NEW.device_id NOT LIKE 'weather_%'
+     AND NEW.device_id ~ '^[a-z0-9_-]{1,32}$'
+  THEN
+    INSERT INTO devices (id, display_name, color, is_active, monitor_enabled, sort_order)
+    VALUES (NEW.device_id, 'Sensor ' || NEW.device_id, '#a0aec0', true, false, 99)
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_auto_register_device ON readings;
+CREATE TRIGGER trg_auto_register_device
+  AFTER INSERT ON readings
+  FOR EACH ROW EXECUTE FUNCTION auto_register_device();
+
+-- =========================================================================
+-- Batched dashboard live RPC: returns latest readings + sparkline for N devices in one call.
+-- =========================================================================
+CREATE OR REPLACE FUNCTION get_dashboard_live(
+  p_device_ids TEXT[],
+  p_sparkline_start TIMESTAMPTZ,
+  p_sparkline_bucket_minutes INT DEFAULT 15
+)
+RETURNS TABLE (
+  row_type TEXT,
+  device_id TEXT,
+  id BIGINT,
+  temperature REAL,
+  humidity REAL,
+  created_at TIMESTAMPTZ,
+  source TEXT,
+  bucket_ts TIMESTAMPTZ,
+  temperature_avg DOUBLE PRECISION,
+  humidity_avg DOUBLE PRECISION,
+  reading_count BIGINT
+)
+LANGUAGE SQL STABLE
+SET search_path = public
+AS $$
+  -- latest sensor reading per device
+  SELECT * FROM (
+    SELECT DISTINCT ON (r.device_id)
+      'sensor'::TEXT AS row_type,
+      r.device_id, r.id, r.temperature, r.humidity, r.created_at, r.source,
+      NULL::TIMESTAMPTZ, NULL::DOUBLE PRECISION, NULL::DOUBLE PRECISION, NULL::BIGINT
+    FROM readings r
+    WHERE r.device_id = ANY(p_device_ids)
+      AND r.source = 'sensor'
+    ORDER BY r.device_id, r.created_at DESC
+  ) sensor_latest
+
+  UNION ALL
+
+  -- latest weather reading per device
+  SELECT * FROM (
+    SELECT DISTINCT ON (r.device_id)
+      'weather'::TEXT AS row_type,
+      r.device_id, r.id, r.temperature, r.humidity, r.created_at, r.source,
+      NULL::TIMESTAMPTZ, NULL::DOUBLE PRECISION, NULL::DOUBLE PRECISION, NULL::BIGINT
+    FROM readings r
+    WHERE r.device_id = ANY(
+      SELECT 'weather_' || unnest(p_device_ids)
+    )
+      AND r.source = 'weather'
+    ORDER BY r.device_id, r.created_at DESC
+  ) weather_latest
+
+  UNION ALL
+
+  -- sparkline buckets
+  SELECT * FROM (
+    SELECT
+      'sparkline'::TEXT AS row_type,
+      r.device_id, NULL::BIGINT, NULL::REAL, NULL::REAL, NULL::TIMESTAMPTZ, NULL::TEXT,
+      TO_TIMESTAMP(
+        FLOOR(EXTRACT(EPOCH FROM r.created_at) / (p_sparkline_bucket_minutes * 60))
+        * (p_sparkline_bucket_minutes * 60)
+      ) AS bucket_ts,
+      AVG(r.temperature)::DOUBLE PRECISION,
+      AVG(r.humidity)::DOUBLE PRECISION,
+      COUNT(*)
+    FROM readings r
+    WHERE r.device_id = ANY(p_device_ids)
+      AND r.source = 'sensor'
+      AND r.created_at >= p_sparkline_start
+    GROUP BY r.device_id, bucket_ts
+    ORDER BY bucket_ts ASC
+  ) sparkline_data;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.get_dashboard_live(TEXT[], TIMESTAMPTZ, INT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_dashboard_live(TEXT[], TIMESTAMPTZ, INT) TO authenticated, service_role;

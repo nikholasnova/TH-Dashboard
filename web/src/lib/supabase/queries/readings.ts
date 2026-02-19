@@ -1,6 +1,73 @@
 import { supabase } from '../client';
 import type { Reading, ChartSample, DeviceStats } from '../types';
 
+export interface DashboardLiveData {
+  sensor: Record<string, Reading | null>;
+  weather: Record<string, Reading | null>;
+  sparklines: Record<string, ChartSample[]>;
+}
+
+export async function getDashboardLive(
+  deviceIds: string[],
+  sparklineStart: string,
+  sparklineBucketMinutes = 15
+): Promise<DashboardLiveData> {
+  const empty: DashboardLiveData = { sensor: {}, weather: {}, sparklines: {} };
+  if (!supabase || deviceIds.length === 0) return empty;
+
+  const { data, error } = await supabase.rpc('get_dashboard_live', {
+    p_device_ids: deviceIds,
+    p_sparkline_start: sparklineStart,
+    p_sparkline_bucket_minutes: sparklineBucketMinutes,
+  });
+
+  if (error) {
+    console.error('Error fetching dashboard live:', error);
+    return empty;
+  }
+
+  const result: DashboardLiveData = { sensor: {}, weather: {}, sparklines: {} };
+  for (const id of deviceIds) {
+    result.sensor[id] = null;
+    result.weather[id] = null;
+    result.sparklines[id] = [];
+  }
+
+  for (const row of data || []) {
+    if (row.row_type === 'sensor') {
+      result.sensor[row.device_id] = {
+        id: row.id,
+        device_id: row.device_id,
+        temperature: row.temperature,
+        humidity: row.humidity,
+        created_at: row.created_at,
+        source: row.source as 'sensor',
+      };
+    } else if (row.row_type === 'weather') {
+      const sensorId = row.device_id.replace(/^weather_/, '');
+      result.weather[sensorId] = {
+        id: row.id,
+        device_id: row.device_id,
+        temperature: row.temperature,
+        humidity: row.humidity,
+        created_at: row.created_at,
+        source: row.source as 'weather',
+      };
+    } else if (row.row_type === 'sparkline') {
+      if (!result.sparklines[row.device_id]) result.sparklines[row.device_id] = [];
+      result.sparklines[row.device_id].push({
+        bucket_ts: row.bucket_ts,
+        device_id: row.device_id,
+        temperature_avg: row.temperature_avg,
+        humidity_avg: row.humidity_avg,
+        reading_count: row.reading_count,
+      });
+    }
+  }
+
+  return result;
+}
+
 export async function getLatestReading(
   deviceId: string
 ): Promise<Reading | null> {
