@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { getPyodide, type LoadingStatus } from '@/lib/pyodide';
 import { runHourlyForecast, type HourlyForecast } from '@/lib/analysisRunner';
 import { useDevices } from '@/contexts/DevicesContext';
@@ -11,13 +11,37 @@ type ForecastState =
   | { status: 'no-data' }
   | { status: 'error'; message: string };
 
-const COLUMN_W = 56;
+const SCROLL_COL_W = 56;
+const FLUID_MIN_W = 32;
 const CHART_H = 64;
 const PAD_Y = 8;
 const SVG_H = CHART_H + PAD_Y * 2;
 const DOT_R = 3;
 
+function useContainerWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return { ref, width };
+}
+
 function HourlyStrip({ points }: { points: HourlyForecast[] }) {
+  const { ref, width: containerWidth } = useContainerWidth();
+  const dynamicColW = containerWidth > 0 ? containerWidth / points.length : 0;
+  const useFluid = dynamicColW >= FLUID_MIN_W;
+  const columnW = useFluid ? dynamicColW : SCROLL_COL_W;
+  const stripWidth = useFluid ? containerWidth : points.length * SCROLL_COL_W;
+
   const temps = points.map((p) => p.temp_f);
   const min = Math.min(...temps);
   const max = Math.max(...temps);
@@ -27,20 +51,19 @@ function HourlyStrip({ points }: { points: HourlyForecast[] }) {
     return PAD_Y + CHART_H - ((temp - min) / range) * CHART_H;
   }
 
-  const svgWidth = points.length * COLUMN_W;
   const polyPoints = points
-    .map((p, i) => `${i * COLUMN_W + COLUMN_W / 2},${yFor(p.temp_f)}`)
+    .map((p, i) => `${i * columnW + columnW / 2},${yFor(p.temp_f)}`)
     .join(' ');
 
   return (
-    <div className="overflow-x-auto -mx-4 sm:-mx-6 px-4 sm:px-6 scrollbar-thin">
-      <div style={{ width: svgWidth, minWidth: '100%' }} className="relative">
+    <div ref={ref} className="overflow-x-auto -mx-4 sm:-mx-6 px-4 sm:px-6 scrollbar-thin">
+      <div style={{ width: stripWidth, minWidth: '100%' }} className="relative">
         {/* SVG curve + dots */}
         <svg
-          width={svgWidth}
+          width={stripWidth}
           height={SVG_H}
           className="block"
-          viewBox={`0 0 ${svgWidth} ${SVG_H}`}
+          viewBox={`0 0 ${stripWidth} ${SVG_H}`}
           preserveAspectRatio="none"
         >
           <polyline
@@ -60,7 +83,7 @@ function HourlyStrip({ points }: { points: HourlyForecast[] }) {
           {points.map((p, i) => (
             <circle
               key={p.iso}
-              cx={i * COLUMN_W + COLUMN_W / 2}
+              cx={i * columnW + columnW / 2}
               cy={yFor(p.temp_f)}
               r={DOT_R}
               fill="white"
@@ -69,12 +92,12 @@ function HourlyStrip({ points }: { points: HourlyForecast[] }) {
         </svg>
 
         {/* Temp labels row */}
-        <div className="flex" style={{ width: svgWidth }}>
+        <div className="flex" style={{ width: stripWidth }}>
           {points.map((p) => (
             <div
               key={p.iso}
               className="text-center text-xs font-medium text-white pt-2"
-              style={{ width: COLUMN_W, flexShrink: 0 }}
+              style={{ width: columnW, flexShrink: 0 }}
             >
               {Math.round(p.temp_f)}°
             </div>
@@ -82,12 +105,12 @@ function HourlyStrip({ points }: { points: HourlyForecast[] }) {
         </div>
 
         {/* Time labels row */}
-        <div className="flex" style={{ width: svgWidth }}>
+        <div className="flex" style={{ width: stripWidth }}>
           {points.map((p) => (
             <div
               key={p.iso}
               className="text-center text-[10px] text-[#a0aec0] pt-1"
-              style={{ width: COLUMN_W, flexShrink: 0 }}
+              style={{ width: columnW, flexShrink: 0 }}
             >
               {p.hour_label}
             </div>
@@ -103,7 +126,7 @@ function SkeletonStrip() {
     <div className="overflow-hidden">
       <div className="flex gap-0">
         {Array.from({ length: 12 }).map((_, i) => (
-          <div key={i} className="flex flex-col items-center gap-2 py-2" style={{ width: COLUMN_W, flexShrink: 0 }}>
+          <div key={i} className="flex flex-col items-center gap-2 py-2" style={{ width: SCROLL_COL_W, flexShrink: 0 }}>
             <div className="w-6 h-6 bg-white/5 rounded-full skeleton" />
             <div className="w-8 h-3 bg-white/5 rounded skeleton" />
             <div className="w-8 h-3 bg-white/5 rounded skeleton" />

@@ -281,14 +281,17 @@ CREATE INDEX IF NOT EXISTS idx_readings_deployment_id
 CREATE INDEX IF NOT EXISTS idx_readings_zip_time
   ON readings (zip_code, created_at DESC);
 
--- Enforce one weather row per weather-device per hour when possible.
+-- Enforce one weather row per weather-device per 15-minute bucket when possible.
+-- Drop the old hourly index if it exists, then create the 15-minute one.
+DROP INDEX IF EXISTS idx_readings_weather_device_hour;
+
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1
     FROM pg_indexes
     WHERE schemaname = 'public'
-      AND indexname = 'idx_readings_weather_device_hour'
+      AND indexname = 'idx_readings_weather_device_quarter_hour'
   ) THEN
     IF NOT EXISTS (
       SELECT 1
@@ -297,18 +300,24 @@ BEGIN
         AND table_name = 'readings'
         AND column_name = 'source'
     ) THEN
-      RAISE NOTICE 'Skipping idx_readings_weather_device_hour: readings.source column missing';
+      RAISE NOTICE 'Skipping idx_readings_weather_device_quarter_hour: readings.source column missing';
     ELSIF EXISTS (
       SELECT 1
       FROM readings r
       WHERE r.source = 'weather'
-      GROUP BY r.device_id, date_trunc('hour', (r.created_at AT TIME ZONE 'UTC'))
+      GROUP BY r.device_id,
+               date_trunc('hour', (r.created_at AT TIME ZONE 'UTC')),
+               (EXTRACT(MINUTE FROM (r.created_at AT TIME ZONE 'UTC'))::int / 15)
       HAVING COUNT(*) > 1
     ) THEN
-      RAISE NOTICE 'Skipping idx_readings_weather_device_hour: duplicate historical weather rows detected';
+      RAISE NOTICE 'Skipping idx_readings_weather_device_quarter_hour: duplicate weather rows detected';
     ELSE
-      CREATE UNIQUE INDEX idx_readings_weather_device_hour
-        ON readings (device_id, date_trunc('hour', (created_at AT TIME ZONE 'UTC')))
+      CREATE UNIQUE INDEX idx_readings_weather_device_quarter_hour
+        ON readings (
+          device_id,
+          date_trunc('hour', (created_at AT TIME ZONE 'UTC')),
+          (EXTRACT(MINUTE FROM (created_at AT TIME ZONE 'UTC'))::int / 15)
+        )
         WHERE source = 'weather';
     END IF;
   END IF;
@@ -618,7 +627,6 @@ AS $$
     WHERE r.device_id = ANY(
       SELECT 'weather_' || unnest(p_device_ids)
     )
-      AND r.source = 'weather'
     ORDER BY r.device_id, r.created_at DESC
   ) weather_latest
 

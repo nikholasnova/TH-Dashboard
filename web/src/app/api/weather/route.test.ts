@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { buildWeatherTargets, GET, getUtcHourBucketRange } from './route';
+import { buildWeatherTargets, GET, getUtcBucketRange } from './route';
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(),
@@ -104,7 +104,7 @@ describe('/api/weather route', () => {
     expect(createClient).not.toHaveBeenCalled();
   });
 
-  it('dedupes active deployments per device and skips existing hourly weather rows', async () => {
+  it('dedupes active deployments per device and skips existing weather rows in same 15-min bucket', async () => {
     const supabaseMock = makeMockSupabase({
       deployments: {
         data: [
@@ -179,19 +179,35 @@ describe('/api/weather route', () => {
 });
 
 describe('weather route helpers', () => {
-  it('builds UTC hour bucket boundaries (first half)', () => {
-    const { startIso, endIso } = getUtcHourBucketRange(
-      new Date('2026-02-06T16:13:20.000Z')
+  it('builds 15-minute bucket boundaries (first quarter)', () => {
+    const { startIso, endIso } = getUtcBucketRange(
+      new Date('2026-02-06T16:07:20.000Z')
     );
     expect(startIso).toBe('2026-02-06T16:00:00.000Z');
-    expect(endIso).toBe('2026-02-06T17:00:00.000Z');
+    expect(endIso).toBe('2026-02-06T16:15:00.000Z');
   });
 
-  it('builds UTC hour bucket boundaries (second half)', () => {
-    const { startIso, endIso } = getUtcHourBucketRange(
+  it('builds 15-minute bucket boundaries (second quarter)', () => {
+    const { startIso, endIso } = getUtcBucketRange(
+      new Date('2026-02-06T16:22:00.000Z')
+    );
+    expect(startIso).toBe('2026-02-06T16:15:00.000Z');
+    expect(endIso).toBe('2026-02-06T16:30:00.000Z');
+  });
+
+  it('builds 15-minute bucket boundaries (third quarter)', () => {
+    const { startIso, endIso } = getUtcBucketRange(
       new Date('2026-02-06T16:43:20.000Z')
     );
-    expect(startIso).toBe('2026-02-06T16:00:00.000Z');
+    expect(startIso).toBe('2026-02-06T16:30:00.000Z');
+    expect(endIso).toBe('2026-02-06T16:45:00.000Z');
+  });
+
+  it('builds 15-minute bucket boundaries (fourth quarter)', () => {
+    const { startIso, endIso } = getUtcBucketRange(
+      new Date('2026-02-06T16:52:00.000Z')
+    );
+    expect(startIso).toBe('2026-02-06T16:45:00.000Z');
     expect(endIso).toBe('2026-02-06T17:00:00.000Z');
   });
 

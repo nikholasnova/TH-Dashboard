@@ -5,7 +5,7 @@ Full data path from sensor read to dashboard consumption.
 ## 1) Scope
 
 - Hardware: N Arduino Uno R4 WiFi nodes with DHT20 sensors (I2C) and 16x2 LCDs. The number of nodes is not hardcoded — new devices are registered through the web dashboard or auto-registered on first reading.
-- Cloud: Supabase Postgres (`readings`, `deployments`, `devices`, `app_settings`, `device_alert_state`, RPC functions) + WeatherAPI.com for every-30-min weather reference.
+- Cloud: Supabase Postgres (`readings`, `deployments`, `devices`, `app_settings`, `device_alert_state`, RPC functions) + WeatherAPI.com for every-15-min weather reference.
 - App: Next.js with authenticated dashboard, charts, comparisons, deployment management, device management, AI chat, in-browser Python analysis, and cron-driven weather ingestion.
 
 ## 2) Component Topology
@@ -14,7 +14,7 @@ Full data path from sensor read to dashboard consumption.
 [DHT20] --I2C--> [Arduino nodeX] --HTTPS POST--> [Supabase Postgres]
   (repeat for each physical node)
 
-[Vercel Cron (every 30 min)] --> [GET /api/weather] --> [WeatherAPI.com]
+[Vercel Cron (every 15 min)] --> [GET /api/weather] --> [WeatherAPI.com]
                                            \----> [Supabase Postgres]
 
 [Next.js app] <--authenticated queries/RPC--> [Supabase Postgres]
@@ -60,7 +60,7 @@ Nodes are dynamically registered in the `devices` table. The dashboard, keepaliv
 - `source` constrained to `sensor` (default) or `weather`
 - Weather inserts use `device_id = weather_<sensor_device_id>`
 - Index on `(device_id, created_at DESC)`
-- Soft dedup on half-hour buckets in route code; DB unique index on `(device_id, hour(created_at UTC))` as fallback for `source = weather`
+- Soft dedup on 15-minute buckets in route code; DB unique index on `(device_id, quarter_hour(created_at UTC))` as fallback for `source = weather`
 
 **`deployments`**
 - Placement window metadata: `name`, `location`, `zip_code`, `started_at`, `ended_at`
@@ -173,11 +173,11 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 
 ### 5.8 Weather Ingestion (`GET /api/weather`)
 
-- Every-30-min cron (`0,30 * * * *`), `CRON_SECRET`-protected.
+- Every-15-min cron (`0,15,30,45 * * * *`), `CRON_SECRET`-protected.
 - Reads active deployments with non-null `zip_code`.
 - Normalizes/validates ZIPs, deduplicates API calls by ZIP.
 - Writes one weather row per tracked device with `source = weather`, `deployment_id`, `zip_code`, `observed_at`.
-- Idempotent per device per UTC hour.
+- Idempotent per device per 15-minute UTC bucket.
 - Returns: `fetched_count`, `inserted_count`, `skipped_existing_count`, `invalid_zip_count`, errors.
 
 ## 6) Data Semantics
@@ -195,7 +195,7 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 |-----------|---------|
 | Sensor read | 15s |
 | Sensor upload | 3 min (averaged) |
-| Weather fetch | Hourly (per unique ZIP) |
+| Weather fetch | Every 15 min (per unique ZIP) |
 | Dashboard poll | 30s |
 | Keepalive | 10 min |
 | Chart bucketing | Postgres RPC, adaptive |

@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { DeviceStats, getDeviceStats, celsiusToFahrenheit } from '@/lib/supabase';
-import { safeC2F } from '@/lib/format';
+import { safeC2F, formatPercent } from '@/lib/format';
+import { computePercentError } from '@/lib/weatherCompare';
+import { REFRESH_INTERVAL } from '@/lib/constants';
 import { useDevices } from '@/contexts/DevicesContext';
 
 export function DashboardStats() {
@@ -11,14 +13,16 @@ export function DashboardStats() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetch() {
+    async function fetchStats() {
       const now = new Date().toISOString();
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const data = await getDeviceStats({ start: twentyFourHoursAgo, end: now });
       setStats(data);
       setLoading(false);
     }
-    void fetch();
+    void fetchStats();
+    const interval = setInterval(() => void fetchStats(), REFRESH_INTERVAL);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
@@ -42,13 +46,14 @@ export function DashboardStats() {
 
   const totalReadings = sensorStats.reduce((sum, s) => sum + (s.reading_count || 0), 0);
 
-  const deltas: number[] = [];
+  const pctErrors: number[] = [];
   for (const device of devices) {
     const sF = safeC2F(stats.find(s => s.device_id === device.id)?.temp_avg);
     const wF = safeC2F(stats.find(s => s.device_id === `weather_${device.id}`)?.temp_avg);
-    if (sF != null && wF != null) deltas.push(Math.abs(sF - wF));
+    const pct = computePercentError(sF, wF);
+    if (pct != null) pctErrors.push(pct);
   }
-  const avgAccuracy = deltas.length > 0 ? deltas.reduce((a, b) => a + b, 0) / deltas.length : null;
+  const avgPctError = pctErrors.length > 0 ? pctErrors.reduce((a, b) => a + b, 0) / pctErrors.length : null;
 
   if (sensorStats.length === 0) return null;
 
@@ -92,9 +97,9 @@ export function DashboardStats() {
 
         <div className="lg:px-6 last:lg:pr-0">
           <p className="text-xs text-[#a0aec0] mb-1">Sensor Accuracy</p>
-          {avgAccuracy !== null ? (
-            <p className="text-lg font-medium" style={{ color: avgAccuracy < 3 ? '#01b574' : avgAccuracy < 5 ? '#ffb547' : '#e31a1a' }}>
-              ±{avgAccuracy.toFixed(1)}°F
+          {avgPctError !== null ? (
+            <p className="text-lg font-medium" style={{ color: avgPctError < 3 ? '#01b574' : avgPctError < 5 ? '#ffb547' : '#e31a1a' }}>
+              {formatPercent(avgPctError)} Error
             </p>
           ) : (
             <p className="text-sm text-[#a0aec0]">No weather data</p>

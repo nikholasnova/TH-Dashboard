@@ -2,7 +2,7 @@
 
 A full-stack IoT platform for collecting temperature and humidity from Arduino sensor nodes, comparing readings against local weather references, and analyzing the data through charts, statistics, and AI. Built as an educational project for an intro engineering class.
 
-Arduino Uno R4 WiFi nodes with DHT20 sensors post averaged readings to Supabase every 3 minutes. The system supports any number of sensor nodes — devices are registered and managed through the web dashboard, so adding a new node is just flashing a sketch and clicking "Add Device." A Vercel cron fetches weather every 30 minutes from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, deployment management, in-browser Python analysis via Pyodide, and an AI chat powered by Gemini.
+Arduino Uno R4 WiFi nodes with DHT20 sensors post averaged readings to Supabase every 3 minutes. The system supports any number of sensor nodes — devices are registered and managed through the web dashboard, so adding a new node is just flashing a sketch and clicking "Add Device." A Vercel cron fetches weather every 15 minutes from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, deployment management, in-browser Python analysis via Pyodide, and an AI chat powered by Gemini.
 
 ## Architecture
 
@@ -15,7 +15,7 @@ flowchart TB
   end
 
   subgraph ingest["2) Ingestion + Automation (Vercel)"]
-    cron["Vercel Cron<br/>*/10 keepalive, 0,30 * * * * weather"]
+    cron["Vercel Cron<br/>*/10 keepalive, */15 weather"]
     keepalive["GET /api/keepalive"]
     weatherRoute["GET /api/weather"]
     wx["WeatherAPI.com<br/>Current conditions by ZIP"]

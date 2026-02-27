@@ -38,10 +38,11 @@ function getServiceRoleClient() {
   return { client: createClient(url, serviceKey), error: null } as const;
 }
 
-export function getUtcHourBucketRange(now = new Date()) {
+export function getUtcBucketRange(now = new Date()) {
   const start = new Date(now);
-  start.setUTCMinutes(0, 0, 0);
-  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  const minute = start.getUTCMinutes();
+  start.setUTCMinutes(minute - (minute % 15), 0, 0);
+  const end = new Date(start.getTime() + 15 * 60 * 1000);
   return {
     startIso: start.toISOString(),
     endIso: end.toISOString(),
@@ -171,8 +172,8 @@ export async function GET(request: NextRequest) {
     let insertedCount = 0;
     let skippedExistingCount = 0;
     const errors: string[] = [];
-    const { startIso: hourStartIso, endIso: hourEndIso } =
-      getUtcHourBucketRange();
+    const { startIso: bucketStartIso, endIso: bucketEndIso } =
+      getUtcBucketRange();
 
     // Fetch weather for each unique zip code
     for (const [zipCode, targets] of targetsByZip) {
@@ -209,8 +210,8 @@ export async function GET(request: NextRequest) {
             .select('id', { count: 'exact', head: true })
             .eq('device_id', weatherDeviceId)
             .eq('source', 'weather')
-            .gte('created_at', hourStartIso)
-            .lt('created_at', hourEndIso);
+            .gte('created_at', bucketStartIso)
+            .lt('created_at', bucketEndIso);
 
           if (existingError) {
             errors.push(

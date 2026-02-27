@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Reading, Deployment, ChartSample, celsiusToFahrenheit } from '@/lib/supabase';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { STALE_THRESHOLD_MS } from '@/lib/constants';
-import { formatTime, formatDate, getTimeAgo } from '@/lib/format';
+import { formatTime, formatDate, getTimeAgo, formatPercent } from '@/lib/format';
+import { computePercentError } from '@/lib/weatherCompare';
 
 interface LiveReadingCardProps {
   deviceId: string;
@@ -44,6 +45,8 @@ function Sparkline({ data }: { data: ChartSample[] }) {
   );
 }
 
+const WEATHER_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours
+
 export function LiveReadingCard({ deviceId, deviceName, reading, activeDeployment, isLoading, onClick, onRefresh, lastRefresh, weatherReading, sparklineData }: LiveReadingCardProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -52,6 +55,11 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
   const isStale = readingTimestampMs !== null
     ? (referenceTimestampMs ?? readingTimestampMs) - readingTimestampMs > STALE_THRESHOLD_MS
     : true;
+  const weatherTimestampMs = weatherReading ? new Date(weatherReading.created_at).getTime() : null;
+  const freshWeather = weatherReading && weatherTimestampMs && referenceTimestampMs
+    && (referenceTimestampMs - weatherTimestampMs) < WEATHER_STALE_MS
+    ? weatherReading
+    : null;
 
   return (
     <div
@@ -123,16 +131,15 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
               <p className="text-xs sm:text-sm text-[#a0aec0] mt-1 sm:mt-2">
                 {reading.temperature.toFixed(1)}°C
               </p>
-              {weatherReading && (() => {
+              {freshWeather && (() => {
                 const sensorF = celsiusToFahrenheit(reading.temperature);
-                const weatherF = celsiusToFahrenheit(weatherReading.temperature);
-                const delta = sensorF - weatherF;
-                const absDelta = Math.abs(delta);
-                const deltaColor = absDelta < 3 ? '#01b574' : absDelta < 5 ? '#ffb547' : '#e31a1a';
+                const weatherF = celsiusToFahrenheit(freshWeather.temperature);
+                const pct = computePercentError(sensorF, weatherF);
+                const pctColor = pct != null ? (pct < 3 ? '#01b574' : pct < 5 ? '#ffb547' : '#e31a1a') : '#a0aec0';
                 return (
                   <p className="text-xs mt-2 text-[#a0aec0]">
                     vs Official: {weatherF.toFixed(1)}°F{' '}
-                    <span style={{ color: deltaColor }}>({delta >= 0 ? '+' : ''}{delta.toFixed(1)}°F)</span>
+                    <span style={{ color: pctColor }}>({pct != null ? `${formatPercent(pct)} Error` : '—'})</span>
                   </p>
                 );
               })()}
@@ -143,14 +150,13 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
                 {reading.humidity.toFixed(1)}
                 <span className="text-base sm:text-xl text-[#a0aec0] font-normal ml-1">%</span>
               </p>
-              {weatherReading && (() => {
-                const delta = reading.humidity - weatherReading.humidity;
-                const absDelta = Math.abs(delta);
-                const deltaColor = absDelta < 5 ? '#01b574' : absDelta < 10 ? '#ffb547' : '#e31a1a';
+              {freshWeather && (() => {
+                const pct = computePercentError(reading.humidity, freshWeather.humidity);
+                const pctColor = pct != null ? (pct < 3 ? '#01b574' : pct < 5 ? '#ffb547' : '#e31a1a') : '#a0aec0';
                 return (
                   <p className="text-xs mt-2 text-[#a0aec0]">
-                    vs Official: {weatherReading.humidity.toFixed(1)}%{' '}
-                    <span style={{ color: deltaColor }}>({delta >= 0 ? '+' : ''}{delta.toFixed(1)}%)</span>
+                    vs Official: {freshWeather.humidity.toFixed(1)}%{' '}
+                    <span style={{ color: pctColor }}>({pct != null ? `${formatPercent(pct)} Error` : '—'})</span>
                   </p>
                 );
               })()}
