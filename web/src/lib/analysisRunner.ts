@@ -642,6 +642,7 @@ export async function runHourlyForecast(
 ): Promise<HourlyForecast[]> {
   const now = new Date();
   const activeDeployment = await getActiveDeployment(deviceId);
+  console.log('[Forecast] activeDeployment:', activeDeployment ? { id: activeDeployment.id, started_at: activeDeployment.started_at, ended_at: activeDeployment.ended_at } : null);
   if (!activeDeployment) return [];
   const deploymentStartMs = new Date(activeDeployment.started_at).getTime();
   const lookbackStartMs =
@@ -651,6 +652,7 @@ export async function runHourlyForecast(
     : lookbackStartMs;
   const start = new Date(effectiveStartMs).toISOString();
   const end = now.toISOString();
+  console.log('[Forecast] query window:', { start, end, deviceId });
 
   const samples = await getChartSamples({
     start,
@@ -659,6 +661,7 @@ export async function runHourlyForecast(
     device_id: deviceId,
     maxRows: DASHBOARD_FORECAST_MAX_ROWS,
   });
+  console.log('[Forecast] samples returned:', samples.length);
 
   if (samples.length < 48) return [];
 
