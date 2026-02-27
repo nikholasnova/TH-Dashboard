@@ -150,6 +150,7 @@ AS $$
   FROM public.readings r
   WHERE r.created_at BETWEEN p_start AND p_end
     AND (p_device_id IS NULL OR r.device_id = p_device_id)
+    AND r.source = 'sensor'
   GROUP BY r.device_id, bucket_ts
   ORDER BY bucket_ts ASC;
 $$;

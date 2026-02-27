@@ -1,5 +1,5 @@
 import type { PyodideInterface } from './pyodide';
-import { getDeployments, getDeploymentReadings, getChartSamples, celsiusToFahrenheit } from './supabase';
+import { getActiveDeployment, getDeployments, getDeploymentReadings, getChartSamples, celsiusToFahrenheit } from './supabase';
 import type { DeploymentWithCount } from './supabase';
 
 export type AnalysisType =
@@ -627,8 +627,8 @@ if len(series) >= period * 2:
             {'iso': iso, 'temp_f': val}
             for iso, val in zip(fc_isos, fc_values)
         ], allow_nan=False)
-    except Exception:
-        result_json = '[]'
+    except Exception as e:
+        result_json = json.dumps({"error": str(e)})
 `;
 
 const hourFormatter = new Intl.DateTimeFormat(undefined, {
@@ -641,20 +641,14 @@ export async function runHourlyForecast(
   deviceId: string,
 ): Promise<HourlyForecast[]> {
   const now = new Date();
-  const deployments = await getDeployments({ deviceId });
-  if (deployments.length === 0) return [];
-  const earliestDeploymentStartMs = deployments.reduce((min, dep) => {
-    const ts = new Date(dep.started_at).getTime();
-    return Number.isFinite(ts) ? Math.min(min, ts) : min;
-  }, Number.POSITIVE_INFINITY);
+  const activeDeployment = await getActiveDeployment(deviceId);
+  if (!activeDeployment) return [];
+  const deploymentStartMs = new Date(activeDeployment.started_at).getTime();
   const lookbackStartMs =
     now.getTime() - DASHBOARD_FORECAST_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
-  const effectiveStartMs = Math.max(
-    Number.isFinite(earliestDeploymentStartMs)
-      ? earliestDeploymentStartMs
-      : lookbackStartMs,
-    lookbackStartMs
-  );
+  const effectiveStartMs = Number.isFinite(deploymentStartMs)
+    ? Math.max(deploymentStartMs, lookbackStartMs)
+    : lookbackStartMs;
   const start = new Date(effectiveStartMs).toISOString();
   const end = now.toISOString();
 
@@ -677,7 +671,11 @@ export async function runHourlyForecast(
   await pyodide.runPythonAsync(HOURLY_FORECAST_SCRIPT);
 
   const resultJson: string = pyodide.globals.get('result_json');
-  const rawPoints = JSON.parse(resultJson) as { iso: string; temp_f: number }[];
+  const parsed = JSON.parse(resultJson);
+  if (parsed && typeof parsed === 'object' && 'error' in parsed) {
+    throw new Error(`Forecast model failed: ${parsed.error}`);
+  }
+  const rawPoints = parsed as { iso: string; temp_f: number }[];
   if (!Array.isArray(rawPoints) || rawPoints.length === 0) return [];
 
   return rawPoints.map((pt, i) => ({
