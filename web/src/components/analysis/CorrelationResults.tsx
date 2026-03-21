@@ -43,7 +43,7 @@ const PADDING = 0;
 function ScatterPlot({ scatterData, slope, intercept }: ScatterPlotProps) {
   if (scatterData.length === 0) {
     return (
-      <div className="text-sm text-[#a0aec0] text-center py-8">
+      <div className="text-sm text-[var(--foreground-muted)] text-center py-8">
         No data to plot.
       </div>
     );
@@ -77,7 +77,7 @@ function ScatterPlot({ scatterData, slope, intercept }: ScatterPlotProps) {
   return (
     <div>
       <div
-        className="relative bg-white/5 border border-white/10 rounded-lg overflow-hidden"
+        className="relative bg-[var(--hover-bg)] border border-[var(--divider)] rounded-lg overflow-hidden"
         style={{ height: PLOT_HEIGHT }}
       >
         {scatterData.map((d, i) => (
@@ -87,7 +87,7 @@ function ScatterPlot({ scatterData, slope, intercept }: ScatterPlotProps) {
             style={{
               width: 5,
               height: 5,
-              backgroundColor: '#0075ff',
+              backgroundColor: 'var(--chart-line)',
               opacity: 0.7,
               left: `${toPixelX(d.x)}%`,
               top: `${toPixelY(d.y)}%`,
@@ -108,7 +108,7 @@ function ScatterPlot({ scatterData, slope, intercept }: ScatterPlotProps) {
             y1={lineY1}
             x2={lineX2}
             y2={lineY2}
-            stroke="#ff6b6b"
+            stroke="var(--error)"
             strokeWidth="2"
             strokeDasharray="6 3"
             opacity={0.8}
@@ -117,22 +117,22 @@ function ScatterPlot({ scatterData, slope, intercept }: ScatterPlotProps) {
       </div>
 
       <div className="flex justify-between mt-1">
-        <span className="text-[10px] text-[#a0aec0]">
+        <span className="text-[10px] text-[var(--foreground-muted)]">
           {xMin.toFixed(1)}&deg;F
         </span>
-        <span className="text-[10px] text-[#a0aec0]">
+        <span className="text-[10px] text-[var(--foreground-muted)]">
           Temperature (&deg;F)
         </span>
-        <span className="text-[10px] text-[#a0aec0]">
+        <span className="text-[10px] text-[var(--foreground-muted)]">
           {xMax.toFixed(1)}&deg;F
         </span>
       </div>
 
       <div className="flex justify-between mt-0.5">
-        <span className="text-[10px] text-[#a0aec0]">
+        <span className="text-[10px] text-[var(--foreground-muted)]">
           Y: Humidity (%)
         </span>
-        <span className="text-[10px] text-[#a0aec0]">
+        <span className="text-[10px] text-[var(--foreground-muted)]">
           {yMin.toFixed(1)}% &ndash; {yMax.toFixed(1)}%
         </span>
       </div>
@@ -148,10 +148,10 @@ interface StatRowProps {
 
 function StatRow({ label, value, valueClassName }: StatRowProps) {
   return (
-    <tr className="border-b border-white/5 last:border-b-0">
-      <td className="py-1.5 pr-4 text-sm text-[#a0aec0]">{label}</td>
+    <tr className="border-b border-[var(--divider)] last:border-b-0">
+      <td className="py-1.5 pr-4 text-sm text-[var(--foreground-muted)]">{label}</td>
       <td
-        className={`py-1.5 text-sm text-right font-mono ${valueClassName ?? 'text-white'}`}
+        className={`py-1.5 text-sm text-right font-mono ${valueClassName ?? 'text-[var(--foreground)]'}`}
       >
         {value}
       </td>
@@ -172,15 +172,15 @@ function CorrelationCard({ result }: CorrelationCardProps) {
   return (
     <div className="glass-card p-4 sm:p-6">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-white">
+        <h3 className="text-lg font-semibold text-[var(--foreground)]">
           {result.deployment_name}
         </h3>
-        <p className="text-sm text-[#a0aec0]">{result.location}</p>
+        <p className="text-sm text-[var(--foreground-muted)]">{result.location}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
-          <p className="text-xs text-[#a0aec0] mb-2">
+          <p className="text-xs text-[var(--foreground-muted)] mb-2">
             Temperature vs Humidity
           </p>
           <ScatterPlot
@@ -191,7 +191,7 @@ function CorrelationCard({ result }: CorrelationCardProps) {
         </div>
 
         <div>
-          <p className="text-xs text-[#a0aec0] mb-2">
+          <p className="text-xs text-[var(--foreground-muted)] mb-2">
             Correlation Statistics
           </p>
           <table className="w-full mb-4">
@@ -223,14 +223,14 @@ function CorrelationCard({ result }: CorrelationCardProps) {
             </tbody>
           </table>
 
-          <div className="mt-3 p-3 rounded-lg bg-white/5 border border-white/10">
-            <p className="text-sm text-white font-medium">{strength}</p>
+          <div className="mt-3 p-3 rounded-lg bg-[var(--hover-bg)] border border-[var(--divider)]">
+            <p className="text-sm text-[var(--foreground)] font-medium">{strength}</p>
             {significant ? (
               <p className="text-xs mt-1 text-green-400">
                 (statistically significant)
               </p>
             ) : (
-              <p className="text-xs mt-1 text-[#a0aec0]">
+              <p className="text-xs mt-1 text-[var(--foreground-muted)]">
                 (not statistically significant)
               </p>
             )}
@@ -244,7 +244,7 @@ function CorrelationCard({ result }: CorrelationCardProps) {
 export function CorrelationResults({ results }: CorrelationResultsProps) {
   if (!results || results.length === 0) {
     return (
-      <div className="text-sm text-[#a0aec0] text-center py-8">
+      <div className="text-sm text-[var(--foreground-muted)] text-center py-8">
         No correlation results to display.
       </div>
     );

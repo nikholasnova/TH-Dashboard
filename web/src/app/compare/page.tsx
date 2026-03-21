@@ -148,97 +148,97 @@ export default function ComparePage() {
         <FilterToolbar timeRange={timeRange} deployments={deployments} />
 
         {deploymentFilter && activeDeployment && (
-          <div className="mb-6 px-4 py-2 rounded-lg bg-[#0075ff]/20 border border-[#0075ff]/30 inline-flex items-center gap-2">
-            <span className="text-sm text-white">
+          <div className="mb-6 px-4 py-2 rounded-lg bg-[var(--active-bg)] border border-[var(--divider)] inline-flex items-center gap-2">
+            <span className="text-sm text-[var(--foreground)]">
               Showing: {activeDeployment.name} ({activeDeployment.location})
             </span>
-            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[#a0aec0] hover:text-white">✕</button>
+            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]">✕</button>
           </div>
         )}
 
         {isLoading ? (
           <>
             <div className="glass-card card-stats p-8 mb-8">
-              <h2 className="text-2xl font-bold text-white mb-6">Temperature (°F)</h2>
+              <h2 className="text-2xl font-bold text-[var(--foreground)] mb-6">Temperature (°F)</h2>
               <LoadingSpinner message="Loading stats..." />
             </div>
             <div className="glass-card card-stats p-8">
-              <h2 className="text-2xl font-bold text-white mb-6">Humidity (%)</h2>
+              <h2 className="text-2xl font-bold text-[var(--foreground)] mb-6">Humidity (%)</h2>
               <LoadingSpinner message="Loading stats..." />
             </div>
           </>
         ) : (
           <div className="fade-in">
             <div className="glass-card card-stats p-4 sm:p-8 mb-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Temperature (°F)</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] mb-4 sm:mb-6">Temperature (°F)</h2>
               <div className="overflow-x-auto">
               <table className="w-full text-base sm:text-lg min-w-[400px]">
                 <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left py-4 text-[#a0aec0] font-semibold">Metric</th>
+                  <tr className="border-b border-[var(--divider)]">
+                    <th className="text-left py-4 text-[var(--foreground-muted)] font-semibold">Metric</th>
                     {deviceColumns.map(col => (
                       <th key={col.device.id} className="text-right py-4 font-semibold" style={{ color: col.device.color }}>
                         {col.device.display_name}
                       </th>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <th className="text-right py-4 text-[#a0aec0] font-semibold">Delta</th>
+                      <th className="text-right py-4 text-[var(--foreground-muted)] font-semibold">Delta</th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-white/5">
-                    <td className="py-4 text-[#a0aec0]">Average</td>
+                  <tr className="border-b border-[var(--divider)]">
+                    <td className="py-4 text-[var(--foreground-muted)]">Average</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.tempAvgF)}</td>
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempAvgF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.tempAvgF))}</td>
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempAvgF))}</td>
                     )}
                   </tr>
-                  <tr className="border-b border-white/5">
-                    <td className="py-4 text-[#a0aec0]">Minimum</td>
+                  <tr className="border-b border-[var(--divider)]">
+                    <td className="py-4 text-[var(--foreground-muted)]">Minimum</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.tempMinF)}</td>
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempMinF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.tempMinF))}</td>
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempMinF))}</td>
                     )}
                   </tr>
-                  <tr className="border-b border-white/5">
-                    <td className="py-4 text-[#a0aec0]">Maximum</td>
+                  <tr className="border-b border-[var(--divider)]">
+                    <td className="py-4 text-[var(--foreground-muted)]">Maximum</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.tempMaxF)}</td>
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempMaxF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.tempMaxF))}</td>
-                    )}
-                  </tr>
-                  <tr>
-                    <td className="py-4 text-[#a0aec0]">Std Dev</td>
-                    {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.tempStdF, 2)}</td>
-                    ))}
-                    {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">—</td>
-                    )}
-                  </tr>
-                  <tr className="border-t border-white/10 border-b border-white/5">
-                    <td className="py-4 text-[#a0aec0]">Weather</td>
-                    {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.weatherTempAvgF)}</td>
-                    ))}
-                    {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.weatherTempAvgF))}</td>
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempMaxF))}</td>
                     )}
                   </tr>
                   <tr>
-                    <td className="py-4 text-[#a0aec0]">% Error</td>
+                    <td className="py-4 text-[var(--foreground-muted)]">Std Dev</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatPercent(col.tempErrorPct)}</td>
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempStdF, 2)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDeltaPercent(deviceColumns.map(c => c.tempErrorPct))}</td>
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">—</td>
+                    )}
+                  </tr>
+                  <tr className="border-t border-[var(--divider)] border-b border-[var(--divider)]">
+                    <td className="py-4 text-[var(--foreground-muted)]">Weather</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.weatherTempAvgF)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.weatherTempAvgF))}</td>
+                    )}
+                  </tr>
+                  <tr>
+                    <td className="py-4 text-[var(--foreground-muted)]">% Error</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatPercent(col.tempErrorPct)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDeltaPercent(deviceColumns.map(c => c.tempErrorPct))}</td>
                     )}
                   </tr>
                 </tbody>
@@ -247,75 +247,75 @@ export default function ComparePage() {
             </div>
 
             <div className="glass-card card-stats p-4 sm:p-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Humidity (%)</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] mb-4 sm:mb-6">Humidity (%)</h2>
               <div className="overflow-x-auto">
               <table className="w-full text-base sm:text-lg min-w-[400px]">
                 <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left py-4 text-[#a0aec0] font-semibold">Metric</th>
+                  <tr className="border-b border-[var(--divider)]">
+                    <th className="text-left py-4 text-[var(--foreground-muted)] font-semibold">Metric</th>
                     {deviceColumns.map(col => (
                       <th key={col.device.id} className="text-right py-4 font-semibold" style={{ color: col.device.color }}>
                         {col.device.display_name}
                       </th>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <th className="text-right py-4 text-[#a0aec0] font-semibold">Delta</th>
+                      <th className="text-right py-4 text-[var(--foreground-muted)] font-semibold">Delta</th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-white/5">
-                    <td className="py-4 text-[#a0aec0]">Average</td>
+                  <tr className="border-b border-[var(--divider)]">
+                    <td className="py-4 text-[var(--foreground-muted)]">Average</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.sensor?.humidity_avg)}</td>
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_avg)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_avg))}</td>
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_avg))}</td>
                     )}
                   </tr>
-                  <tr className="border-b border-white/5">
-                    <td className="py-4 text-[#a0aec0]">Minimum</td>
+                  <tr className="border-b border-[var(--divider)]">
+                    <td className="py-4 text-[var(--foreground-muted)]">Minimum</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.sensor?.humidity_min)}</td>
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_min)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_min))}</td>
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_min))}</td>
                     )}
                   </tr>
-                  <tr className="border-b border-white/5">
-                    <td className="py-4 text-[#a0aec0]">Maximum</td>
+                  <tr className="border-b border-[var(--divider)]">
+                    <td className="py-4 text-[var(--foreground-muted)]">Maximum</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.sensor?.humidity_max)}</td>
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_max)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_max))}</td>
-                    )}
-                  </tr>
-                  <tr>
-                    <td className="py-4 text-[#a0aec0]">Std Dev</td>
-                    {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.sensor?.humidity_stddev, 2)}</td>
-                    ))}
-                    {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">—</td>
-                    )}
-                  </tr>
-                  <tr className="border-t border-white/10 border-b border-white/5">
-                    <td className="py-4 text-[#a0aec0]">Weather</td>
-                    {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatValue(col.weather?.humidity_avg)}</td>
-                    ))}
-                    {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDelta(deviceColumns.map(c => c.weather?.humidity_avg))}</td>
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_max))}</td>
                     )}
                   </tr>
                   <tr>
-                    <td className="py-4 text-[#a0aec0]">% Error</td>
+                    <td className="py-4 text-[var(--foreground-muted)]">Std Dev</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-white">{formatPercent(col.humidityErrorPct)}</td>
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_stddev, 2)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[#a0aec0]/60">{formatDeltaPercent(deviceColumns.map(c => c.humidityErrorPct))}</td>
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">—</td>
+                    )}
+                  </tr>
+                  <tr className="border-t border-[var(--divider)] border-b border-[var(--divider)]">
+                    <td className="py-4 text-[var(--foreground-muted)]">Weather</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.weather?.humidity_avg)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.weather?.humidity_avg))}</td>
+                    )}
+                  </tr>
+                  <tr>
+                    <td className="py-4 text-[var(--foreground-muted)]">% Error</td>
+                    {deviceColumns.map(col => (
+                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatPercent(col.humidityErrorPct)}</td>
+                    ))}
+                    {deviceColumns.length >= 2 && (
+                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDeltaPercent(deviceColumns.map(c => c.humidityErrorPct))}</td>
                     )}
                   </tr>
                 </tbody>

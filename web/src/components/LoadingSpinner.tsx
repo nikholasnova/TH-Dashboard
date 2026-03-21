@@ -14,39 +14,45 @@ interface LoadingSpinnerProps {
 export function LoadingSpinner({
   message = 'Loading...',
   className,
-  color = '#a0aec0',
+  color = 'var(--foreground-secondary)',
   size = 'md',
 }: LoadingSpinnerProps) {
   return (
     <div className={`flex flex-col items-center justify-center ${className ?? ''}`}>
-      <div className="flex gap-1 mb-3">
-        {[0, 150, 300].map((delay) => (
+      <div className="flex gap-1.5 mb-3">
+        {[0, 160, 320].map((delay) => (
           <span
             key={delay}
-            className={`${DOT_SIZES[size]} rounded-full animate-bounce`}
-            style={{ animationDelay: `${delay}ms`, backgroundColor: color }}
+            className={`${DOT_SIZES[size]} rounded-full`}
+            style={{
+              backgroundColor: color,
+              animation: `dotPulse 1.4s ease-in-out ${delay}ms infinite`,
+            }}
           />
         ))}
       </div>
-      {message && <p className="text-sm text-[#a0aec0]">{message}</p>}
+      {message && <p className="text-sm text-[var(--foreground-muted)]">{message}</p>}
     </div>
   );
 }
 
 export function BounceDots({
-  color = '#a0aec0',
+  color = 'var(--foreground-secondary)',
   size = 'md',
 }: {
   color?: string;
   size?: keyof typeof DOT_SIZES;
 }) {
   return (
-    <div className="flex gap-1">
-      {[0, 150, 300].map((delay) => (
+    <div className="flex gap-1.5">
+      {[0, 160, 320].map((delay) => (
         <span
           key={delay}
-          className={`${DOT_SIZES[size]} rounded-full animate-bounce`}
-          style={{ animationDelay: `${delay}ms`, backgroundColor: color }}
+          className={`${DOT_SIZES[size]} rounded-full`}
+          style={{
+            backgroundColor: color,
+            animation: `dotPulse 1.4s ease-in-out ${delay}ms infinite`,
+          }}
         />
       ))}
     </div>

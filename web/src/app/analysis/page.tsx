@@ -189,8 +189,8 @@ export default function AnalysisPage() {
     if (stage === 'ready') {
       return (
         <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-[#01b574]" />
-          <span className="text-[#01b574] text-sm font-medium">
+          <div className="w-3 h-3 rounded-full bg-[var(--success)]" />
+          <span className="text-[var(--success)] text-sm font-medium">
             Python ready
           </span>
         </div>
@@ -200,8 +200,8 @@ export default function AnalysisPage() {
     if (stage === 'error') {
       return (
         <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-[#e31a1a]" />
-          <span className="text-[#e31a1a] text-sm">{message}</span>
+          <div className="w-3 h-3 rounded-full bg-[var(--error)]" />
+          <span className="text-[var(--error)] text-sm">{message}</span>
           <button
             onClick={handleRetryPyodide}
             className="btn-glass px-4 py-1.5 text-sm"
@@ -216,14 +216,14 @@ export default function AnalysisPage() {
       return (
         <div>
           <div className="flex items-center gap-3">
-            <BounceDots color="#0075ff" />
-            <span className="text-[#a0aec0] text-sm">
+            <BounceDots color="var(--info)" />
+            <span className="text-[var(--foreground-muted)] text-sm">
               {stage === 'loading-pyodide'
                 ? 'Loading Python runtime...'
                 : 'Loading scientific packages (numpy, pandas, scipy, statsmodels)...'}
             </span>
           </div>
-          <p className="text-xs text-[#a0aec0]/60 mt-2">
+          <p className="text-xs text-[var(--foreground-muted)]/60 mt-2">
             First load downloads ~15MB of Python packages. Subsequent visits use browser cache.
           </p>
         </div>
@@ -233,7 +233,7 @@ export default function AnalysisPage() {
     return (
       <div className="flex items-center gap-3">
         <BounceDots />
-        <span className="text-[#a0aec0] text-sm">
+        <span className="text-[var(--foreground-muted)] text-sm">
           Initializing Python environment...
         </span>
       </div>
@@ -245,17 +245,17 @@ export default function AnalysisPage() {
           <div className="glass-card p-4 sm:p-6 mb-6">{renderPyodideStatus()}</div>
 
           <div className="glass-card p-4 sm:p-6 mb-6">
-            <h2 className="text-lg font-semibold text-white mb-4">
+            <h2 className="text-lg font-semibold text-[var(--foreground)] mb-4">
               Configuration
             </h2>
 
             <div className="mb-5">
-              <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
+              <label className="text-sm text-[var(--foreground-muted)] font-medium mb-2 block">
                 Deployments
               </label>
               <div className="flex flex-wrap gap-2">
                 {deployments.length === 0 ? (
-                  <span className="text-sm text-[#a0aec0]/60">
+                  <span className="text-sm text-[var(--foreground-muted)]/60">
                     No deployments found
                   </span>
                 ) : (
@@ -266,12 +266,12 @@ export default function AnalysisPage() {
                       disabled={!pyodideReady}
                       className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all ${
                         selectedDeployments.includes(dep.id)
-                          ? 'nav-active text-white font-semibold'
-                          : 'text-[#a0aec0] hover:text-white hover:bg-white/5 border border-white/10'
+                          ? 'nav-active text-[var(--foreground)] font-semibold'
+                          : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)] border border-[var(--divider)]'
                       } ${!pyodideReady ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
                       {dep.name}{' '}
-                      <span className="text-[#a0aec0]/60 hidden sm:inline">
+                      <span className="text-[var(--foreground-muted)]/60 hidden sm:inline">
                         ({dep.device_id})
                       </span>
                     </button>
@@ -282,7 +282,7 @@ export default function AnalysisPage() {
 
             {step1Complete && (
               <div className="wizard-step-enter mb-5">
-                <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
+                <label className="text-sm text-[var(--foreground-muted)] font-medium mb-2 block">
                   Time Range
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -294,8 +294,8 @@ export default function AnalysisPage() {
                         disabled={!pyodideReady}
                         className={`px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${
                           selectedRange === range.hours
-                            ? 'nav-active text-white font-semibold'
-                            : 'text-[#a0aec0] hover:text-white hover:bg-white/5'
+                            ? 'nav-active text-[var(--foreground)] font-semibold'
+                            : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
                         } ${!pyodideReady ? 'opacity-40 cursor-not-allowed' : ''}`}
                       >
                         {range.label}
@@ -306,27 +306,27 @@ export default function AnalysisPage() {
                   {isCustom && (
                     <div className="glass-card p-3 flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
-                        <label className="text-xs text-[#a0aec0]">Start</label>
+                        <label className="text-xs text-[var(--foreground-muted)]">Start</label>
                         <input
                           type="datetime-local"
                           value={customStart}
                           onChange={(e) => setCustomStart(e.target.value)}
                           disabled={!pyodideReady}
-                          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white disabled:opacity-40"
+                          className="bg-[var(--input-bg)] border border-[var(--divider)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] disabled:opacity-40"
                         />
                       </div>
                       <div className="flex items-center gap-2">
-                        <label className="text-xs text-[#a0aec0]">End</label>
+                        <label className="text-xs text-[var(--foreground-muted)]">End</label>
                         <input
                           type="datetime-local"
                           value={customEnd}
                           onChange={(e) => setCustomEnd(e.target.value)}
                           disabled={!pyodideReady}
-                          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white disabled:opacity-40"
+                          className="bg-[var(--input-bg)] border border-[var(--divider)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] disabled:opacity-40"
                         />
                       </div>
                       {!isCustomValid && customStart && customEnd && (
-                        <span className="text-xs text-[#ffb547]">
+                        <span className="text-xs text-[var(--warning)]">
                           Pick a valid range
                         </span>
                       )}
@@ -338,7 +338,7 @@ export default function AnalysisPage() {
 
             {step1Complete && step2Complete && (
               <div className="wizard-step-enter mb-5">
-                <label className="text-sm text-[#a0aec0] font-medium mb-2 block">
+                <label className="text-sm text-[var(--foreground-muted)] font-medium mb-2 block">
                   Analysis Types
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -349,8 +349,8 @@ export default function AnalysisPage() {
                       disabled={!pyodideReady}
                       className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all ${
                         selectedAnalyses.includes(type.id)
-                          ? 'nav-active text-white font-semibold'
-                          : 'text-[#a0aec0] hover:text-white hover:bg-white/5 border border-white/10'
+                          ? 'nav-active text-[var(--foreground)] font-semibold'
+                          : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)] border border-[var(--divider)]'
                       } ${!pyodideReady ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
                       {type.label}
@@ -358,12 +358,12 @@ export default function AnalysisPage() {
                   ))}
                 </div>
                 {selectedAnalyses.includes('hypothesis_test') && selectedDeployments.length === 1 && (
-                  <p className="text-xs text-[#ffb547] mt-2">
+                  <p className="text-xs text-[var(--warning)] mt-2">
                     Hypothesis test requires at least 2 deployments
                   </p>
                 )}
                 {(selectedAnalyses.includes('seasonal_decomposition') || selectedAnalyses.includes('forecasting')) && (
-                  <p className="text-xs text-[#a0aec0]/60 mt-2">
+                  <p className="text-xs text-[var(--foreground-muted)]/60 mt-2">
                     Seasonal decomposition and forecasting need at least 2 days of continuous data
                   </p>
                 )}
@@ -387,11 +387,11 @@ export default function AnalysisPage() {
 
           <div className="glass-card p-4 sm:p-8">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Results</h2>
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Results</h2>
               {results && !isRunning && (
                 <button
                   onClick={() => setResults(null)}
-                  className="text-xs text-[#a0aec0] hover:text-white transition-colors"
+                  className="text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
                 >
                   Clear results
                 </button>
@@ -401,8 +401,8 @@ export default function AnalysisPage() {
             {isRunning && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 mb-4">
-                  <BounceDots color="#0075ff" />
-                  <span className="text-[#a0aec0] text-sm">{runProgress}</span>
+                  <BounceDots color="var(--info)" />
+                  <span className="text-[var(--foreground-muted)] text-sm">{runProgress}</span>
                 </div>
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="glass-card p-6 skeleton h-48" />
@@ -412,7 +412,7 @@ export default function AnalysisPage() {
 
             {!isRunning && !results && (
               <div className="flex flex-col items-center justify-center py-12">
-                <p className="text-[#a0aec0] text-sm">
+                <p className="text-[var(--foreground-muted)] text-sm">
                   Run an analysis to see results
                 </p>
               </div>
@@ -420,7 +420,7 @@ export default function AnalysisPage() {
 
             {!isRunning && results && areAllResultsEmpty(results) && (
               <div className="flex flex-col items-center justify-center py-12">
-                <p className="text-[#a0aec0] text-sm">
+                <p className="text-[var(--foreground-muted)] text-sm">
                   No results — the selected deployments may not have enough data in the chosen time range.
                 </p>
               </div>
@@ -430,10 +430,10 @@ export default function AnalysisPage() {
               <div className="space-y-8">
                 {results.descriptive && (
                   <section>
-                    <h3 className="text-md font-semibold text-white mb-3">Descriptive Statistics</h3>
+                    <h3 className="text-md font-semibold text-[var(--foreground)] mb-3">Descriptive Statistics</h3>
                     {isError(results.descriptive) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[#ffb547]">
-                        <p className="text-[#ffb547] text-sm">{results.descriptive.error}</p>
+                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
+                        <p className="text-[var(--warning)] text-sm">{results.descriptive.error}</p>
                       </div>
                     ) : (
                       <DescriptiveResults results={results.descriptive} />
@@ -443,10 +443,10 @@ export default function AnalysisPage() {
 
                 {results.correlation && (
                   <section>
-                    <h3 className="text-md font-semibold text-white mb-3">Correlation Analysis</h3>
+                    <h3 className="text-md font-semibold text-[var(--foreground)] mb-3">Correlation Analysis</h3>
                     {isError(results.correlation) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[#ffb547]">
-                        <p className="text-[#ffb547] text-sm">{results.correlation.error}</p>
+                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
+                        <p className="text-[var(--warning)] text-sm">{results.correlation.error}</p>
                       </div>
                     ) : (
                       <CorrelationResults results={results.correlation} />
@@ -456,10 +456,10 @@ export default function AnalysisPage() {
 
                 {results.hypothesis_test && (
                   <section>
-                    <h3 className="text-md font-semibold text-white mb-3">Hypothesis Testing</h3>
+                    <h3 className="text-md font-semibold text-[var(--foreground)] mb-3">Hypothesis Testing</h3>
                     {isError(results.hypothesis_test) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[#ffb547]">
-                        <p className="text-[#ffb547] text-sm">{results.hypothesis_test.error}</p>
+                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
+                        <p className="text-[var(--warning)] text-sm">{results.hypothesis_test.error}</p>
                       </div>
                     ) : (
                       <HypothesisTestResults results={results.hypothesis_test} />
@@ -469,10 +469,10 @@ export default function AnalysisPage() {
 
                 {results.seasonal_decomposition && (
                   <section>
-                    <h3 className="text-md font-semibold text-white mb-3">Seasonal Decomposition</h3>
+                    <h3 className="text-md font-semibold text-[var(--foreground)] mb-3">Seasonal Decomposition</h3>
                     {isError(results.seasonal_decomposition) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[#ffb547]">
-                        <p className="text-[#ffb547] text-sm">{results.seasonal_decomposition.error}</p>
+                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
+                        <p className="text-[var(--warning)] text-sm">{results.seasonal_decomposition.error}</p>
                       </div>
                     ) : (
                       <SeasonalResults results={results.seasonal_decomposition} />
@@ -482,10 +482,10 @@ export default function AnalysisPage() {
 
                 {results.forecasting && (
                   <section>
-                    <h3 className="text-md font-semibold text-white mb-3">Forecasting</h3>
+                    <h3 className="text-md font-semibold text-[var(--foreground)] mb-3">Forecasting</h3>
                     {isError(results.forecasting) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[#ffb547]">
-                        <p className="text-[#ffb547] text-sm">{results.forecasting.error}</p>
+                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
+                        <p className="text-[var(--warning)] text-sm">{results.forecasting.error}</p>
                       </div>
                     ) : (
                       <ForecastResults results={results.forecasting} />

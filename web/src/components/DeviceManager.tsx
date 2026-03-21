@@ -12,14 +12,14 @@ interface DeviceManagerProps {
 const DEVICE_ID_PATTERN = /^[a-z0-9_-]{1,32}$/;
 
 const COLOR_PALETTE = [
-  '#0075ff',
-  '#01b574',
-  '#ffb547',
-  '#e31a1a',
-  '#21d4fd',
-  '#a855f7',
-  '#f97316',
-  '#ec4899',
+  '#111111',
+  '#374151',
+  '#6b7280',
+  '#9ca3af',
+  '#d1d5db',
+  '#4b5563',
+  '#1f2937',
+  '#a3a3a3',
 ];
 
 export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
@@ -152,13 +152,13 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-[var(--overlay-bg)] backdrop-blur-sm" onClick={onClose} />
 
       <div className="relative glass-card w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden flex flex-col">
         <div className="p-6 overflow-y-auto scrollbar-thin">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">Manage Devices</h2>
-          <button onClick={onClose} className="text-[#a0aec0] hover:text-white transition-colors p-2">
+          <h2 className="text-xl font-bold text-[var(--foreground)]">Manage Devices</h2>
+          <button onClick={onClose} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors p-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -166,27 +166,27 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
         </div>
 
         {error && (
-          <div className="mb-4 p-3 rounded-xl bg-[#e31a1a]/10 border border-[#e31a1a]/30">
-            <p className="text-sm text-[#e31a1a]">{error}</p>
+          <div className="mb-4 p-3 rounded-xl bg-[var(--error)]/10 border border-[var(--error)]/30">
+            <p className="text-sm text-[var(--error)]">{error}</p>
           </div>
         )}
 
         <div className="space-y-3 mb-6">
           {allDevices.map((device) => (
-            <div key={device.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
+            <div key={device.id} className="p-4 rounded-xl bg-[var(--hover-bg)] border border-[var(--divider)]">
               {editingId === device.id ? (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm text-[#a0aec0] mb-1">Display Name</label>
+                    <label className="block text-sm text-[var(--foreground-muted)] mb-1">Display Name</label>
                     <input
                       type="text"
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#0075ff]/50"
+                      className="w-full px-3 py-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)]"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm text-[#a0aec0] mb-1">Color</label>
+                    <label className="block text-sm text-[var(--foreground-muted)] mb-1">Color</label>
                     <div className="flex gap-2 flex-wrap">
                       {COLOR_PALETTE.map((c) => (
                         <button
@@ -195,7 +195,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                           className="w-7 h-7 rounded-full transition-all"
                           style={{
                             backgroundColor: c,
-                            outline: editColor === c ? '2px solid white' : '2px solid transparent',
+                            outline: editColor === c ? '2px solid var(--foreground)' : '2px solid transparent',
                             outlineOffset: '2px',
                           }}
                         />
@@ -206,14 +206,14 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                     <button
                       onClick={handleSaveEdit}
                       disabled={isSaving || !editName.trim()}
-                      className="btn-glass px-4 py-2 text-sm font-semibold text-[#01b574] disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn-glass px-4 py-2 text-sm font-semibold text-[var(--success)] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSaving ? 'Saving...' : 'Save'}
                     </button>
                     <button
                       onClick={cancelEditing}
                       disabled={isSaving}
-                      className="px-4 py-2 text-sm font-medium text-[#a0aec0] hover:text-white transition-colors"
+                      className="px-4 py-2 text-sm font-medium text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
                     >
                       Cancel
                     </button>
@@ -226,8 +226,8 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                     style={{ backgroundColor: device.color }}
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium truncate">{device.display_name}</p>
-                    <p className="text-xs text-[#a0aec0]">{device.id}</p>
+                    <p className="text-[var(--foreground)] font-medium truncate">{device.display_name}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">{device.id}</p>
                   </div>
                   <button
                     onClick={() => handleToggleActive(device.id, device.is_active)}
@@ -237,7 +237,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                   >
                     <div
                       className={`w-9 h-5 rounded-full relative transition-colors ${
-                        device.is_active ? 'bg-[#01b574]' : 'bg-white/20'
+                        device.is_active ? 'bg-[var(--success)]' : 'bg-[var(--active-bg)]'
                       }`}
                     >
                       <div
@@ -250,7 +250,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                   <button
                     onClick={() => startEditing(device.id, device.display_name, device.color)}
                     disabled={isSaving}
-                    className="text-[#a0aec0] hover:text-white transition-colors flex-shrink-0"
+                    className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors flex-shrink-0"
                     title="Edit"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -261,20 +261,20 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
               )}
 
               {confirmDeactivate === device.id && (
-                <div className="mt-3 p-3 rounded-lg bg-[#e31a1a]/10 border border-[#e31a1a]/30">
-                  <p className="text-sm text-white mb-2">Deactivate <span className="font-semibold">{device.display_name}</span>? It will be hidden from the dashboard.</p>
+                <div className="mt-3 p-3 rounded-lg bg-[var(--error)]/10 border border-[var(--error)]/30">
+                  <p className="text-sm text-[var(--foreground)] mb-2">Deactivate <span className="font-semibold">{device.display_name}</span>? It will be hidden from the dashboard.</p>
                   <div className="flex gap-3">
                     <button
                       onClick={() => handleConfirmDeactivate(device.id)}
                       disabled={isSaving}
-                      className="btn-glass px-4 py-2 text-sm font-semibold text-[#e31a1a] disabled:opacity-50"
+                      className="btn-glass px-4 py-2 text-sm font-semibold text-[var(--error)] disabled:opacity-50"
                     >
                       {isSaving ? 'Deactivating...' : 'Yes, Deactivate'}
                     </button>
                     <button
                       onClick={() => setConfirmDeactivate(null)}
                       disabled={isSaving}
-                      className="px-4 py-2 text-sm text-[#a0aec0] hover:text-white transition-colors"
+                      className="px-4 py-2 text-sm text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
                     >
                       Cancel
                     </button>
@@ -285,11 +285,11 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
           ))}
         </div>
 
-        <div className="border-t border-white/10 pt-4">
-          <h3 className="text-lg font-semibold text-white mb-3">Add Device</h3>
+        <div className="border-t border-[var(--divider)] pt-4">
+          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-3">Add Device</h3>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm text-[#a0aec0] mb-1">Device ID</label>
+              <label className="block text-sm text-[var(--foreground-muted)] mb-1">Device ID</label>
               <input
                 type="text"
                 value={newId}
@@ -297,27 +297,27 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                   setNewId(e.target.value.toLowerCase());
                   setError(null);
                 }}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#0075ff]/50"
+                className="w-full px-3 py-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)]"
                 placeholder="e.g., node3"
               />
               {!isNewIdValid && (
-                <p className="text-xs text-[#e31a1a] mt-1">
+                <p className="text-xs text-[var(--error)] mt-1">
                   Only lowercase letters, numbers, hyphens, underscores (1-32 chars).
                 </p>
               )}
             </div>
             <div>
-              <label className="block text-sm text-[#a0aec0] mb-1">Display Name</label>
+              <label className="block text-sm text-[var(--foreground-muted)] mb-1">Display Name</label>
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:border-[#0075ff]/50"
+                className="w-full px-3 py-2 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)]"
                 placeholder="e.g., Node 3"
               />
             </div>
             <div>
-              <label className="block text-sm text-[#a0aec0] mb-1">Color</label>
+              <label className="block text-sm text-[var(--foreground-muted)] mb-1">Color</label>
               <div className="flex gap-2 flex-wrap">
                 {COLOR_PALETTE.map((c) => (
                   <button
@@ -326,7 +326,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                     className="w-7 h-7 rounded-full transition-all"
                     style={{
                       backgroundColor: c,
-                      outline: newColor === c ? '2px solid white' : '2px solid transparent',
+                      outline: newColor === c ? '2px solid var(--foreground)' : '2px solid transparent',
                       outlineOffset: '2px',
                     }}
                   />
@@ -336,7 +336,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
             <button
               onClick={handleAddDevice}
               disabled={isSaving || !newId.trim() || !newName.trim() || !isNewIdValid}
-              className="btn-glass w-full px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-glass w-full px-4 py-2 text-sm font-semibold text-[var(--foreground)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSaving ? 'Adding...' : 'Add Device'}
             </button>

@@ -26,12 +26,12 @@ export function ChatShell() {
     : 'fixed bottom-0 right-0 sm:bottom-6 sm:right-6 z-50 w-full sm:w-[42rem] flex flex-col sm:h-[44rem] max-h-[87vh]';
 
   const headerClass = isFullscreen
-    ? 'flex justify-between items-center px-4 py-2 bg-[rgba(15,15,15,0.95)] backdrop-blur-xl border-b border-white/15'
-    : 'flex justify-between items-center px-4 py-2 bg-[rgba(15,15,15,0.95)] backdrop-blur-xl border border-white/15 border-b-0 rounded-t-xl sm:rounded-t-2xl';
+    ? 'flex justify-between items-center px-4 py-2 bg-[var(--glass-bg-strong)] backdrop-blur-xl border-b border-[var(--glass-border)]'
+    : 'flex justify-between items-center px-4 py-2 bg-[var(--glass-bg-strong)] backdrop-blur-xl border border-[var(--glass-border)] border-b-0 rounded-t-xl sm:rounded-t-2xl';
 
   const bodyClass = isFullscreen
-    ? 'flex-1 min-h-0 bg-[rgba(15,15,15,0.95)] backdrop-blur-xl border-x border-white/15 overflow-hidden flex flex-col'
-    : 'flex-1 min-h-0 bg-[rgba(15,15,15,0.95)] backdrop-blur-xl border border-white/15 border-t-0 rounded-b-none sm:rounded-b-2xl overflow-hidden flex flex-col';
+    ? 'flex-1 min-h-0 bg-[var(--glass-bg-strong)] backdrop-blur-xl border-x border-[var(--glass-border)] overflow-hidden flex flex-col'
+    : 'flex-1 min-h-0 bg-[var(--glass-bg-strong)] backdrop-blur-xl border border-[var(--glass-border)] border-t-0 rounded-b-none sm:rounded-b-2xl overflow-hidden flex flex-col';
 
   return (
     <>
@@ -50,11 +50,11 @@ export function ChatShell() {
       {isOpen && (
         <div className={containerClass}>
           <div className={headerClass}>
-            <span className="text-sm font-semibold text-white">Kelvin AI</span>
+            <span className="text-sm font-semibold text-[var(--foreground)]">Kelvin AI</span>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setIsFullscreen(!isFullscreen)}
-                className="text-[#a0aec0] hover:text-white transition-colors p-1"
+                className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors p-1"
                 title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               >
                 {isFullscreen ? (
@@ -69,7 +69,7 @@ export function ChatShell() {
               </button>
               <button
                 onClick={() => { setIsOpen(false); setIsFullscreen(false); }}
-                className="text-[#a0aec0] hover:text-white transition-colors p-1"
+                className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors p-1"
                 title="Close chat"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

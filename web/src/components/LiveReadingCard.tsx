@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Reading, Deployment, ChartSample, celsiusToFahrenheit } from '@/lib/supabase';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { STALE_THRESHOLD_MS } from '@/lib/constants';
@@ -21,6 +21,15 @@ interface LiveReadingCardProps {
 }
 
 function Sparkline({ data }: { data: ChartSample[] }) {
+  const pathRef = useRef<SVGPathElement>(null);
+
+  useEffect(() => {
+    const el = pathRef.current;
+    if (!el) return;
+    const len = el.getTotalLength();
+    el.style.setProperty('--path-length', String(len));
+  }, [data]);
+
   if (data.length < 2) return null;
   const values = data.map((s) => celsiusToFahrenheit(s.temperature_avg));
   const min = Math.min(...values);
@@ -39,8 +48,17 @@ function Sparkline({ data }: { data: ChartSample[] }) {
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full" style={{ height: 40 }}>
-      <line x1="0" y1={h / 2} x2={w} y2={h / 2} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-      <path d={path} fill="none" stroke="#0075ff" strokeWidth="2" opacity={0.8} vectorEffect="non-scaling-stroke" />
+      <line x1="0" y1={h / 2} x2={w} y2={h / 2} stroke="var(--chart-grid)" strokeWidth="1" />
+      <path
+        ref={pathRef}
+        d={path}
+        fill="none"
+        stroke="var(--chart-line)"
+        strokeWidth="2"
+        opacity={0.7}
+        vectorEffect="non-scaling-stroke"
+        className="sparkline-animate"
+      />
     </svg>
   );
 }
@@ -63,34 +81,34 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
 
   return (
     <div
-      className={`glass-card p-4 sm:p-8 card-reading ${onClick ? 'cursor-pointer hover:border-white/30 transition-all' : ''}`}
+      className={`glass-card p-4 sm:p-8 card-reading ${onClick ? 'cursor-pointer hover:border-[var(--btn-border-hover)] transition-all' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">
         <div>
           {activeDeployment ? (
             <>
-              <h2 className="text-2xl font-bold text-white">{activeDeployment.name}</h2>
-              <span className="text-sm text-[#a0aec0]">{deviceName} &bull; Started {getTimeAgo(activeDeployment.started_at)}</span>
+              <h2 className="text-2xl font-bold text-[var(--foreground)]">{activeDeployment.name}</h2>
+              <span className="text-sm text-[var(--foreground-muted)]">{deviceName} &bull; Started {getTimeAgo(activeDeployment.started_at)}</span>
             </>
           ) : (
             <>
-              <h2 className="text-xl font-medium text-[#a0aec0]">No Active Deployment</h2>
-              <span className="text-sm text-[#a0aec0]">{deviceName} ({deviceId})</span>
+              <h2 className="text-xl font-medium text-[var(--foreground-secondary)]">No Active Deployment</h2>
+              <span className="text-sm text-[var(--foreground-muted)]">{deviceName} ({deviceId})</span>
             </>
           )}
         </div>
         <div className="flex items-center gap-3">
           {reading && !isStale && (
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#01b574] animate-pulse" />
-              <span className="text-sm text-[#01b574]">Live</span>
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[var(--success)]/8">
+              <div className="w-2 h-2 rounded-full bg-[var(--success)] animate-breathe" />
+              <span className="text-xs font-medium text-[var(--success)]">Live</span>
             </div>
           )}
           {reading && isStale && (
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-[#e31a1a]" />
-              <span className="text-sm text-[#e31a1a]">Offline</span>
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[var(--error)]/8">
+              <div className="w-2 h-2 rounded-full bg-[var(--error)]" />
+              <span className="text-xs font-medium text-[var(--error)]">Offline</span>
             </div>
           )}
           {onRefresh && (
@@ -102,7 +120,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
                 setTimeout(() => setIsRefreshing(false), 800);
               }}
               disabled={isRefreshing}
-              className="p-2 rounded-full bg-white/5 hover:bg-white/10 text-[#a0aec0] hover:text-white transition-colors disabled:opacity-50"
+              className="p-2 rounded-full bg-[var(--hover-bg)] hover:bg-[var(--active-bg)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
               title={lastRefresh ? `Last updated: ${lastRefresh.toLocaleTimeString()}` : 'Refresh'}
             >
               <svg
@@ -122,41 +140,41 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
       ) : reading && !isStale ? (
         <>
           <div className="grid grid-cols-2 gap-3 sm:gap-8 mb-6 sm:mb-8">
-            <div className="glass-card p-3 sm:p-6 !rounded-xl !border-white/10">
-              <p className="text-xs sm:text-sm text-[#a0aec0] uppercase tracking-wider mb-2 sm:mb-3">Temperature</p>
+            <div className="rounded-xl p-3 sm:p-6 bg-[var(--hover-bg)]">
+              <p className="text-xs sm:text-sm text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sm:mb-3">Temperature</p>
               <p className="stat-value">
                 {celsiusToFahrenheit(reading.temperature).toFixed(1)}
-                <span className="text-base sm:text-xl text-[#a0aec0] font-normal ml-1">°F</span>
+                <span className="text-base sm:text-xl text-[var(--foreground-muted)] font-normal ml-1">°F</span>
               </p>
-              <p className="text-xs sm:text-sm text-[#a0aec0] mt-1 sm:mt-2">
+              <p className="text-xs sm:text-sm text-[var(--foreground-muted)] mt-1 sm:mt-2">
                 {reading.temperature.toFixed(1)}°C
               </p>
               {freshWeather && (() => {
                 const sensorF = celsiusToFahrenheit(reading.temperature);
                 const weatherF = celsiusToFahrenheit(freshWeather.temperature);
                 const pct = computePercentError(sensorF, weatherF);
-                const pctColor = pct != null ? (pct < 3 ? '#01b574' : pct < 5 ? '#ffb547' : '#e31a1a') : '#a0aec0';
+                const pctColor = pct != null ? (pct < 3 ? 'var(--success)' : pct < 5 ? 'var(--warning)' : 'var(--error)') : 'var(--foreground-muted)';
                 return (
-                  <p className="text-xs mt-2 text-[#a0aec0]">
+                  <p className="text-xs mt-2 text-[var(--foreground-muted)]">
                     vs Official: {weatherF.toFixed(1)}°F{' '}
-                    <span style={{ color: pctColor }}>({pct != null ? `${formatPercent(pct)} Error` : '—'})</span>
+                    <span style={{ color: pctColor }} className="font-medium">({pct != null ? `${formatPercent(pct)} Error` : '—'})</span>
                   </p>
                 );
               })()}
             </div>
-            <div className="glass-card p-3 sm:p-6 !rounded-xl !border-white/10">
-              <p className="text-xs sm:text-sm text-[#a0aec0] uppercase tracking-wider mb-2 sm:mb-3">Humidity</p>
+            <div className="rounded-xl p-3 sm:p-6 bg-[var(--card-highlight)]">
+              <p className="text-xs sm:text-sm text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sm:mb-3">Humidity</p>
               <p className="stat-value">
                 {reading.humidity.toFixed(1)}
-                <span className="text-base sm:text-xl text-[#a0aec0] font-normal ml-1">%</span>
+                <span className="text-base sm:text-xl text-[var(--foreground-muted)] font-normal ml-1">%</span>
               </p>
               {freshWeather && (() => {
                 const pct = computePercentError(reading.humidity, freshWeather.humidity);
-                const pctColor = pct != null ? (pct < 3 ? '#01b574' : pct < 5 ? '#ffb547' : '#e31a1a') : '#a0aec0';
+                const pctColor = pct != null ? (pct < 3 ? 'var(--success)' : pct < 5 ? 'var(--warning)' : 'var(--error)') : 'var(--foreground-muted)';
                 return (
-                  <p className="text-xs mt-2 text-[#a0aec0]">
+                  <p className="text-xs mt-2 text-[var(--foreground-muted)]">
                     vs Official: {freshWeather.humidity.toFixed(1)}%{' '}
-                    <span style={{ color: pctColor }}>({pct != null ? `${formatPercent(pct)} Error` : '—'})</span>
+                    <span style={{ color: pctColor }} className="font-medium">({pct != null ? `${formatPercent(pct)} Error` : '—'})</span>
                   </p>
                 );
               })()}
@@ -169,14 +187,14 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
             </div>
           )}
 
-          <div className="text-sm text-[#a0aec0]">
+          <div className="text-sm text-[var(--foreground-muted)]">
             {formatDate(reading.created_at)} at {formatTime(reading.created_at)}
           </div>
         </>
       ) : reading && isStale ? (
         <div className="flex flex-col justify-center items-center flex-1 min-h-[140px]">
-          <div className="mb-4 p-3 rounded-full bg-[#e31a1a]/10">
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#e31a1a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div className="mb-4 p-3 rounded-full bg-[var(--error)]/8">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--error)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="1" y1="1" x2="23" y2="23" />
               <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
               <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
@@ -186,23 +204,23 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
               <line x1="12" y1="20" x2="12.01" y2="20" />
             </svg>
           </div>
-          <p className="text-lg font-medium text-[#e31a1a] mb-1">Device Offline</p>
-          <p className="text-sm text-[#a0aec0]">Last seen {getTimeAgo(reading.created_at)}</p>
+          <p className="text-lg font-medium text-[var(--error)] mb-1">Device Offline</p>
+          <p className="text-sm text-[var(--foreground-muted)]">Last seen {getTimeAgo(reading.created_at)}</p>
           <div className="grid grid-cols-2 gap-6 mt-5 w-full opacity-50">
             <div className="text-center">
-              <p className="text-xs text-[#a0aec0] uppercase tracking-wider mb-1">Last Temp</p>
-              <p className="text-lg text-[#a0aec0]">{celsiusToFahrenheit(reading.temperature).toFixed(1)}°F</p>
+              <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Last Temp</p>
+              <p className="text-lg text-[var(--foreground-secondary)]">{celsiusToFahrenheit(reading.temperature).toFixed(1)}°F</p>
             </div>
             <div className="text-center">
-              <p className="text-xs text-[#a0aec0] uppercase tracking-wider mb-1">Last Humidity</p>
-              <p className="text-lg text-[#a0aec0]">{reading.humidity.toFixed(1)}%</p>
+              <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Last Humidity</p>
+              <p className="text-lg text-[var(--foreground-secondary)]">{reading.humidity.toFixed(1)}%</p>
             </div>
           </div>
         </div>
       ) : (
         <div className="flex flex-col justify-center flex-1 min-h-[140px]">
-          <p className="text-xl text-[#a0aec0] font-medium text-center">No data available</p>
-          <p className="text-sm text-[#a0aec0]/60 mt-2 text-center">Waiting for sensor...</p>
+          <p className="text-xl text-[var(--foreground-secondary)] font-medium text-center">No data available</p>
+          <p className="text-sm text-[var(--foreground-muted)] mt-2 text-center">Waiting for sensor...</p>
         </div>
       )}
     </div>

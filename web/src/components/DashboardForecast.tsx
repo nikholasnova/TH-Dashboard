@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { getPyodide, type LoadingStatus } from '@/lib/pyodide';
 import { runHourlyForecast, type HourlyForecast } from '@/lib/analysisRunner';
 import { useDevices } from '@/contexts/DevicesContext';
@@ -47,9 +48,14 @@ function HourlyStrip({ points }: { points: HourlyForecast[] }) {
   const max = Math.max(...temps);
   const range = max - min || 1;
 
+  const nowHour = new Date().getHours();
+
   function yFor(temp: number) {
     return PAD_Y + CHART_H - ((temp - min) / range) * CHART_H;
   }
+
+  // Gridline Y positions at 25%, 50%, 75%
+  const gridYs = [0.25, 0.5, 0.75].map(pct => PAD_Y + CHART_H - pct * CHART_H);
 
   const polyPoints = points
     .map((p, i) => `${i * columnW + columnW / 2},${yFor(p.temp_f)}`)
@@ -66,6 +72,16 @@ function HourlyStrip({ points }: { points: HourlyForecast[] }) {
           viewBox={`0 0 ${stripWidth} ${SVG_H}`}
           preserveAspectRatio="none"
         >
+          <defs>
+            <linearGradient id="forecast-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="var(--chart-line)" />
+              <stop offset="100%" stopColor="var(--chart-line-end)" />
+            </linearGradient>
+          </defs>
+          {/* Subtle gridlines */}
+          {gridYs.map((y, i) => (
+            <line key={i} x1="0" y1={y} x2={stripWidth} y2={y} stroke="var(--chart-grid)" strokeWidth="1" />
+          ))}
           <polyline
             points={polyPoints}
             fill="none"
@@ -74,34 +90,32 @@ function HourlyStrip({ points }: { points: HourlyForecast[] }) {
             strokeLinejoin="round"
             strokeLinecap="round"
           />
-          <defs>
-            <linearGradient id="forecast-grad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#0075ff" />
-              <stop offset="100%" stopColor="#ffb547" />
-            </linearGradient>
-          </defs>
           {points.map((p, i) => (
             <circle
               key={p.iso}
               cx={i * columnW + columnW / 2}
               cy={yFor(p.temp_f)}
               r={DOT_R}
-              fill="white"
+              fill="var(--chart-dot)"
             />
           ))}
         </svg>
 
         {/* Temp labels row */}
         <div className="flex" style={{ width: stripWidth }}>
-          {points.map((p) => (
-            <div
-              key={p.iso}
-              className="text-center text-xs font-medium text-white pt-2"
-              style={{ width: columnW, flexShrink: 0 }}
-            >
-              {Math.round(p.temp_f)}°
-            </div>
-          ))}
+          {points.map((p) => {
+            const hour = new Date(p.iso).getHours();
+            const isCurrent = hour === nowHour;
+            return (
+              <div
+                key={p.iso}
+                className={`text-center text-xs pt-2 ${isCurrent ? 'font-bold text-[var(--foreground)]' : 'font-medium text-[var(--foreground-secondary)]'}`}
+                style={{ width: columnW, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}
+              >
+                {Math.round(p.temp_f)}°
+              </div>
+            );
+          })}
         </div>
 
         {/* Time labels row */}
@@ -109,7 +123,7 @@ function HourlyStrip({ points }: { points: HourlyForecast[] }) {
           {points.map((p) => (
             <div
               key={p.iso}
-              className="text-center text-[10px] text-[#a0aec0] pt-1"
+              className="text-center text-[10px] text-[var(--foreground-muted)] pt-1"
               style={{ width: columnW, flexShrink: 0 }}
             >
               {p.hour_label}
@@ -127,9 +141,9 @@ function SkeletonStrip() {
       <div className="flex gap-0">
         {Array.from({ length: 12 }).map((_, i) => (
           <div key={i} className="flex flex-col items-center gap-2 py-2" style={{ width: SCROLL_COL_W, flexShrink: 0 }}>
-            <div className="w-6 h-6 bg-white/5 rounded-full skeleton" />
-            <div className="w-8 h-3 bg-white/5 rounded skeleton" />
-            <div className="w-8 h-3 bg-white/5 rounded skeleton" />
+            <div className="w-6 h-6 bg-[var(--hover-bg)] rounded-full skeleton" />
+            <div className="w-8 h-3 bg-[var(--hover-bg)] rounded skeleton" />
+            <div className="w-8 h-3 bg-[var(--hover-bg)] rounded skeleton" />
           </div>
         ))}
       </div>
@@ -191,21 +205,28 @@ export function DashboardForecast() {
     <div className="glass-card p-4 sm:p-6 mt-8">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-white">24-Hour Forecast</h3>
-          <p className="text-xs text-[#a0aec0]">Holt-Winters exponential smoothing</p>
+          <h3 className="text-lg font-semibold text-[var(--foreground)]">24-Hour Forecast</h3>
+          <p className="text-xs text-[var(--foreground-muted)]">Holt-Winters exponential smoothing</p>
         </div>
-        <div className="flex rounded-lg overflow-hidden border border-white/10">
+        <div className="relative flex rounded-xl overflow-hidden border border-[var(--glass-border)] bg-[var(--card-highlight)]">
           {devices.map((device) => (
             <button
               key={device.id}
               onClick={() => setSelectedId(device.id)}
-              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`relative px-3 py-1.5 text-xs font-medium transition-colors z-10 ${
                 deviceId === device.id
-                  ? 'bg-white/10 text-white'
-                  : 'text-[#a0aec0] hover:text-white hover:bg-white/5'
+                  ? 'text-[var(--background-main)]'
+                  : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
               }`}
             >
-              {device.display_name}
+              {deviceId === device.id && (
+                <motion.div
+                  layoutId="forecast-tab"
+                  className="absolute inset-0 bg-[var(--primary)] rounded-lg"
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                />
+              )}
+              <span className="relative z-10">{device.display_name}</span>
             </button>
           ))}
         </div>
@@ -213,16 +234,16 @@ export function DashboardForecast() {
 
       {noDevices && (
         <div className="text-center py-8">
-          <p className="text-sm text-[#a0aec0]">No active devices</p>
-          <p className="text-xs text-[#a0aec0]/60 mt-1">Add a device to see forecasts</p>
+          <p className="text-sm text-[var(--foreground-secondary)]">No active devices</p>
+          <p className="text-xs text-[var(--foreground-muted)] mt-1">Add a device to see forecasts</p>
         </div>
       )}
 
       {!noDevices && forecastState.status === 'loading' && (
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-2 h-2 bg-[#0075ff] rounded-full animate-pulse" />
-            <span className="text-xs text-[#a0aec0]">{forecastState.message}</span>
+            <div className="w-2 h-2 bg-[var(--foreground-secondary)] rounded-full" style={{ animation: 'dotPulse 1.4s ease-in-out infinite' }} />
+            <span className="text-xs text-[var(--foreground-muted)]">{forecastState.message}</span>
           </div>
           <SkeletonStrip />
         </div>
@@ -234,18 +255,18 @@ export function DashboardForecast() {
 
       {forecastState.status === 'no-data' && (
         <div className="text-center py-8">
-          <p className="text-sm text-[#a0aec0]">Not enough data for forecasting</p>
-          <p className="text-xs text-[#a0aec0]/60 mt-1">Need at least 2 days of continuous readings</p>
+          <p className="text-sm text-[var(--foreground-secondary)]">Not enough data for forecasting</p>
+          <p className="text-xs text-[var(--foreground-muted)] mt-1">Need at least 2 days of continuous readings</p>
         </div>
       )}
 
       {forecastState.status === 'error' && (
         <div className="text-center py-8">
-          <p className="text-sm text-[#e31a1a]">Forecast unavailable</p>
-          <p className="text-xs text-[#a0aec0]/60 mt-1">{forecastState.message}</p>
+          <p className="text-sm text-[var(--error)]">Forecast unavailable</p>
+          <p className="text-xs text-[var(--foreground-muted)] mt-1">{forecastState.message}</p>
           <button
             onClick={() => setRetryKey((k) => k + 1)}
-            className="mt-3 px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 text-[#a0aec0] hover:text-white rounded-lg transition-colors"
+            className="mt-3 px-3 py-1.5 text-xs bg-[var(--hover-bg)] hover:bg-[var(--active-bg)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)] rounded-lg transition-colors"
           >
             Retry
           </button>

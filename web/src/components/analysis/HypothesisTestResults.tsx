@@ -17,7 +17,7 @@ function formatValue(value: number, metric: 'temperature' | 'humidity'): string 
 }
 
 function interpretEffectSize(d: number): { label: string; color: string } {
-  if (d < 0.2) return { label: 'Negligible', color: 'text-[#a0aec0]' };
+  if (d < 0.2) return { label: 'Negligible', color: 'text-[var(--foreground-muted)]' };
   if (d < 0.5) return { label: 'Small', color: 'text-yellow-400' };
   if (d < 0.8) return { label: 'Medium', color: 'text-orange-400' };
   return { label: 'Large', color: 'text-red-400' };
@@ -38,10 +38,10 @@ interface StatRowProps {
 
 function StatRow({ label, value, valueClassName }: StatRowProps) {
   return (
-    <tr className="border-b border-white/5 last:border-b-0">
-      <td className="py-1.5 pr-4 text-sm text-[#a0aec0]">{label}</td>
+    <tr className="border-b border-[var(--divider)] last:border-b-0">
+      <td className="py-1.5 pr-4 text-sm text-[var(--foreground-muted)]">{label}</td>
       <td
-        className={`py-1.5 text-sm text-right font-mono ${valueClassName ?? 'text-white'}`}
+        className={`py-1.5 text-sm text-right font-mono ${valueClassName ?? 'text-[var(--foreground)]'}`}
       >
         {value}
       </td>
@@ -56,20 +56,20 @@ interface HypothesisCardProps {
 function HypothesisCard({ result }: HypothesisCardProps) {
   const isTemp = result.metric === 'temperature';
   const metricLabel = isTemp ? 'Temperature' : 'Humidity';
-  const metricColor = isTemp ? '#0075ff' : '#01b574';
+  const metricColor = isTemp ? 'var(--info)' : 'var(--success)';
   const unit = isTemp ? '\u00B0F' : '%';
   const delta = Math.abs(result.mean_a - result.mean_b);
   const effectInfo = interpretEffectSize(result.effect_size);
   const evidenceLevel = getEvidenceLevel(result.p_value);
 
   const borderClass = result.significant
-    ? 'border-l-4 border-l-[#01b574]'
-    : 'border-l-4 border-l-white/10';
+    ? 'border-l-4 border-l-[var(--success)]'
+    : 'border-l-4 border-l-[var(--divider)]';
 
   return (
     <div className={`glass-card p-4 sm:p-6 ${borderClass}`}>
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <h3 className="text-lg font-semibold text-white">
+        <h3 className="text-lg font-semibold text-[var(--foreground)]">
           {result.deployment_a.name} vs {result.deployment_b.name}
         </h3>
         <span
@@ -85,65 +85,65 @@ function HypothesisCard({ result }: HypothesisCardProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
-          <p className="text-xs text-[#a0aec0] mb-2">Comparison</p>
+          <p className="text-xs text-[var(--foreground-muted)] mb-2">Comparison</p>
           <div className="overflow-x-auto">
           <table className="w-full mb-4 min-w-[320px]">
             <thead>
-              <tr className="border-b border-white/10">
-                <th className="py-1.5 text-left text-xs text-[#a0aec0] font-medium">
+              <tr className="border-b border-[var(--divider)]">
+                <th className="py-1.5 text-left text-xs text-[var(--foreground-muted)] font-medium">
                   Deployment
                 </th>
-                <th className="py-1.5 text-right text-xs text-[#a0aec0] font-medium">
+                <th className="py-1.5 text-right text-xs text-[var(--foreground-muted)] font-medium">
                   Mean
                 </th>
-                <th className="py-1.5 text-right text-xs text-[#a0aec0] font-medium">
+                <th className="py-1.5 text-right text-xs text-[var(--foreground-muted)] font-medium">
                   Std Dev
                 </th>
-                <th className="py-1.5 text-right text-xs text-[#a0aec0] font-medium">
+                <th className="py-1.5 text-right text-xs text-[var(--foreground-muted)] font-medium">
                   N
                 </th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-white/5">
-                <td className="py-1.5 text-sm text-white">
+              <tr className="border-b border-[var(--divider)]">
+                <td className="py-1.5 text-sm text-[var(--foreground)]">
                   {result.deployment_a.name}
                 </td>
-                <td className="py-1.5 text-sm text-white text-right font-mono">
+                <td className="py-1.5 text-sm text-[var(--foreground)] text-right font-mono">
                   {formatValue(result.mean_a, result.metric)}
                 </td>
-                <td className="py-1.5 text-sm text-white text-right font-mono">
+                <td className="py-1.5 text-sm text-[var(--foreground)] text-right font-mono">
                   {formatValue(result.std_a, result.metric)}
                 </td>
-                <td className="py-1.5 text-sm text-white text-right font-mono">
+                <td className="py-1.5 text-sm text-[var(--foreground)] text-right font-mono">
                   {result.n_a.toLocaleString()}
                 </td>
               </tr>
-              <tr className="border-b border-white/5">
-                <td className="py-1.5 text-sm text-white">
+              <tr className="border-b border-[var(--divider)]">
+                <td className="py-1.5 text-sm text-[var(--foreground)]">
                   {result.deployment_b.name}
                 </td>
-                <td className="py-1.5 text-sm text-white text-right font-mono">
+                <td className="py-1.5 text-sm text-[var(--foreground)] text-right font-mono">
                   {formatValue(result.mean_b, result.metric)}
                 </td>
-                <td className="py-1.5 text-sm text-white text-right font-mono">
+                <td className="py-1.5 text-sm text-[var(--foreground)] text-right font-mono">
                   {formatValue(result.std_b, result.metric)}
                 </td>
-                <td className="py-1.5 text-sm text-white text-right font-mono">
+                <td className="py-1.5 text-sm text-[var(--foreground)] text-right font-mono">
                   {result.n_b.toLocaleString()}
                 </td>
               </tr>
-              <tr className="border-b border-white/5 last:border-b-0">
-                <td className="py-1.5 text-sm text-[#a0aec0] italic">
+              <tr className="border-b border-[var(--divider)] last:border-b-0">
+                <td className="py-1.5 text-sm text-[var(--foreground-muted)] italic">
                   Delta
                 </td>
-                <td className="py-1.5 text-sm text-white text-right font-mono">
+                <td className="py-1.5 text-sm text-[var(--foreground)] text-right font-mono">
                   {delta.toFixed(2)}{unit}
                 </td>
-                <td className="py-1.5 text-sm text-right font-mono text-[#a0aec0]">
+                <td className="py-1.5 text-sm text-right font-mono text-[var(--foreground-muted)]">
                   &mdash;
                 </td>
-                <td className="py-1.5 text-sm text-right font-mono text-[#a0aec0]">
+                <td className="py-1.5 text-sm text-right font-mono text-[var(--foreground-muted)]">
                   &mdash;
                 </td>
               </tr>
@@ -153,7 +153,7 @@ function HypothesisCard({ result }: HypothesisCardProps) {
         </div>
 
         <div>
-          <p className="text-xs text-[#a0aec0] mb-2">Test Results</p>
+          <p className="text-xs text-[var(--foreground-muted)] mb-2">Test Results</p>
           <table className="w-full mb-4">
             <tbody>
               <StatRow
@@ -163,12 +163,12 @@ function HypothesisCard({ result }: HypothesisCardProps) {
               <StatRow
                 label="p-value"
                 value={formatPValue(result.p_value)}
-                valueClassName={result.significant ? 'text-green-400' : 'text-white'}
+                valueClassName={result.significant ? 'text-green-400' : 'text-[var(--foreground)]'}
               />
               <StatRow
                 label="Significant"
                 value={result.significant ? 'Yes (p < 0.05)' : 'No (p >= 0.05)'}
-                valueClassName={result.significant ? 'text-green-400' : 'text-[#a0aec0]'}
+                valueClassName={result.significant ? 'text-green-400' : 'text-[var(--foreground-muted)]'}
               />
               <StatRow
                 label="Cohen\u2019s d"
@@ -185,11 +185,11 @@ function HypothesisCard({ result }: HypothesisCardProps) {
           <div
             className={`mt-3 p-3 rounded-lg ${
               result.significant
-                ? 'bg-green-500/10 border border-green-500/20'
-                : 'bg-white/5 border border-white/10'
+                ? 'bg-[var(--success)]/10 border border-[var(--success)]/30'
+                : 'bg-[var(--hover-bg)] border border-[var(--divider)]'
             }`}
           >
-            <p className="text-sm text-white">
+            <p className="text-sm text-[var(--foreground)]">
               There is {evidenceLevel} that{' '}
               <span className="font-medium">{result.deployment_a.name}</span>{' '}
               and{' '}
@@ -214,7 +214,7 @@ function HypothesisCard({ result }: HypothesisCardProps) {
 export function HypothesisTestResults({ results }: HypothesisTestResultsProps) {
   if (!results || results.length === 0) {
     return (
-      <div className="text-sm text-[#a0aec0] text-center py-8">
+      <div className="text-sm text-[var(--foreground-muted)] text-center py-8">
         No hypothesis test results to display. Select at least two deployments
         to compare.
       </div>

@@ -22,10 +22,10 @@ function ForecastChart({ result, color }: ForecastChartProps) {
   if (historical.values.length < 2) {
     return (
       <div
-        className="bg-white/5 rounded-lg border border-white/10 flex items-center justify-center"
+        className="bg-[var(--hover-bg)] rounded-lg border border-[var(--divider)] flex items-center justify-center"
         style={{ height: CHART_HEIGHT }}
       >
-        <span className="text-xs text-[#a0aec0]">No data</span>
+        <span className="text-xs text-[var(--foreground-muted)]">No data</span>
       </div>
     );
   }
@@ -86,7 +86,7 @@ function ForecastChart({ result, color }: ForecastChartProps) {
 
   return (
     <div
-      className="bg-white/5 rounded-lg border border-white/10 relative"
+      className="bg-[var(--hover-bg)] rounded-lg border border-[var(--divider)] relative"
       style={{ height: CHART_HEIGHT }}
     >
       <svg
@@ -100,7 +100,7 @@ function ForecastChart({ result, color }: ForecastChartProps) {
           y1={drawTop}
           x2={drawRight}
           y2={drawTop}
-          stroke="rgba(255,255,255,0.05)"
+          stroke="var(--chart-grid)"
           strokeWidth="1"
         />
         <line
@@ -108,7 +108,7 @@ function ForecastChart({ result, color }: ForecastChartProps) {
           y1={(drawTop + drawBottom) / 2}
           x2={drawRight}
           y2={(drawTop + drawBottom) / 2}
-          stroke="rgba(255,255,255,0.05)"
+          stroke="var(--chart-grid)"
           strokeWidth="1"
         />
         <line
@@ -116,7 +116,7 @@ function ForecastChart({ result, color }: ForecastChartProps) {
           y1={drawBottom}
           x2={drawRight}
           y2={drawBottom}
-          stroke="rgba(255,255,255,0.05)"
+          stroke="var(--chart-grid)"
           strokeWidth="1"
         />
 
@@ -125,7 +125,7 @@ function ForecastChart({ result, color }: ForecastChartProps) {
           y1={drawTop}
           x2={boundaryX}
           y2={drawBottom}
-          stroke="rgba(255,255,255,0.5)"
+          stroke="var(--divider)"
           strokeWidth="1.5"
           strokeDasharray="6,4"
           vectorEffect="non-scaling-stroke"
@@ -152,26 +152,26 @@ function ForecastChart({ result, color }: ForecastChartProps) {
       </svg>
 
       <span
-        className="absolute text-[10px] text-[#a0aec0] font-mono"
+        className="absolute text-[10px] text-[var(--foreground-muted)] font-mono"
         style={{ top: CHART_PADDING_Y - 2, left: 4 }}
       >
         {fmtVal(maxVal)}
       </span>
       <span
-        className="absolute text-[10px] text-[#a0aec0] font-mono"
+        className="absolute text-[10px] text-[var(--foreground-muted)] font-mono"
         style={{ top: '50%', left: 4, transform: 'translateY(-50%)' }}
       >
         {fmtVal(midVal)}
       </span>
       <span
-        className="absolute text-[10px] text-[#a0aec0] font-mono"
+        className="absolute text-[10px] text-[var(--foreground-muted)] font-mono"
         style={{ bottom: CHART_PADDING_Y - 2, left: 4 }}
       >
         {fmtVal(minVal)}
       </span>
 
       <span
-        className="absolute text-[10px] text-[#a0aec0]/60 font-mono"
+        className="absolute text-[10px] text-[var(--foreground-muted)]/60 font-mono"
         style={{
           top: 4,
           right: CHART_PADDING_RIGHT + 4,
@@ -189,11 +189,11 @@ interface ForecastCardProps {
 
 function ForecastCard({ result }: ForecastCardProps) {
   const isTemp = result.metric === 'temperature';
-  const color = isTemp ? '#0075ff' : '#01b574';
+  const color = isTemp ? 'var(--info)' : 'var(--success)';
   const badgeLabel = isTemp ? 'Temperature' : 'Humidity';
   const badgeBg = isTemp
-    ? 'bg-blue-500/20 text-blue-400'
-    : 'bg-green-500/20 text-green-400';
+    ? 'bg-[var(--hover-bg)] text-[var(--foreground)]'
+    : 'bg-[var(--hover-bg)] text-[var(--foreground-secondary)]';
 
   const { alpha, beta, gamma, aic } = result.model_params;
 
@@ -201,10 +201,10 @@ function ForecastCard({ result }: ForecastCardProps) {
     <div className="glass-card p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-white">
+          <h3 className="text-lg font-semibold text-[var(--foreground)]">
             {result.deployment_name}
           </h3>
-          <p className="text-sm text-[#a0aec0]">{result.location}</p>
+          <p className="text-sm text-[var(--foreground-muted)]">{result.location}</p>
         </div>
         <span
           className={`px-2.5 py-1 rounded-full text-xs font-medium ${badgeBg}`}
@@ -217,24 +217,24 @@ function ForecastCard({ result }: ForecastCardProps) {
 
       <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
         <div className="text-xs">
-          <span className="text-[#a0aec0]">Alpha: </span>
-          <span className="text-white font-mono">{alpha.toFixed(4)}</span>
+          <span className="text-[var(--foreground-muted)]">Alpha: </span>
+          <span className="text-[var(--foreground)] font-mono">{alpha.toFixed(4)}</span>
         </div>
         <div className="text-xs">
-          <span className="text-[#a0aec0]">Beta: </span>
-          <span className="text-white font-mono">{beta.toFixed(4)}</span>
+          <span className="text-[var(--foreground-muted)]">Beta: </span>
+          <span className="text-[var(--foreground)] font-mono">{beta.toFixed(4)}</span>
         </div>
         <div className="text-xs">
-          <span className="text-[#a0aec0]">Gamma: </span>
-          <span className="text-white font-mono">{gamma.toFixed(4)}</span>
+          <span className="text-[var(--foreground-muted)]">Gamma: </span>
+          <span className="text-[var(--foreground)] font-mono">{gamma.toFixed(4)}</span>
         </div>
         <div className="text-xs">
-          <span className="text-[#a0aec0]">AIC: </span>
-          <span className="text-white font-mono">{aic.toFixed(2)}</span>
+          <span className="text-[var(--foreground-muted)]">AIC: </span>
+          <span className="text-[var(--foreground)] font-mono">{aic.toFixed(2)}</span>
         </div>
       </div>
 
-      <p className="mt-3 text-xs text-[#a0aec0]">
+      <p className="mt-3 text-xs text-[var(--foreground-muted)]">
         Holt-Winters triple exponential smoothing with daily seasonality.
         Forecast: next {result.forecast_hours} hours.
       </p>
@@ -245,7 +245,7 @@ function ForecastCard({ result }: ForecastCardProps) {
 export function ForecastResults({ results }: ForecastResultsProps) {
   if (!results || results.length === 0) {
     return (
-      <div className="text-sm text-[#a0aec0] text-center py-8">
+      <div className="text-sm text-[var(--foreground-muted)] text-center py-8">
         Insufficient data — need at least 2 days of continuous readings for
         forecasting.
       </div>

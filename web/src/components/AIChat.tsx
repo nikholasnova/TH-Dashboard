@@ -297,13 +297,13 @@ export function AIChat() {
         className="flex-1 min-h-0 overflow-y-auto mb-4 flex flex-col pr-3 scrollbar-thin"
         style={{
           scrollbarWidth: 'thin',
-          scrollbarColor: 'rgba(255,255,255,0.2) transparent',
+          scrollbarColor: 'rgba(0,0,0,0.15) transparent',
         }}
       >
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center px-4">
-            <p className="text-[#a0aec0] mb-2 sm:mb-3 text-xl sm:text-3xl font-medium text-center">Ask about your data</p>
-            <p className="text-[#a0aec0]/60 mb-6 sm:mb-8 text-xs sm:text-sm text-center max-w-md">
+            <p className="text-[var(--foreground-muted)] mb-2 sm:mb-3 text-xl sm:text-3xl font-medium text-center">Ask about your data</p>
+            <p className="text-[var(--foreground-muted)]/60 mb-6 sm:mb-8 text-xs sm:text-sm text-center max-w-md">
               Check live readings, validate sensor accuracy against official weather, spot trends, or generate a full report for your paper.
             </p>
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3 justify-center w-full sm:w-auto">
@@ -311,7 +311,7 @@ export function AIChat() {
                 <button
                   key={q}
                   onClick={() => sendMessage(q)}
-                  className="text-xs sm:text-sm px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-white/5 text-[#a0aec0] hover:bg-white/10 hover:text-white transition-colors text-center"
+                  className="text-xs sm:text-sm px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-[var(--hover-bg)] text-[var(--foreground-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--foreground)] transition-colors text-center"
                 >
                   {q}
                 </button>
@@ -325,11 +325,11 @@ export function AIChat() {
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[80%] ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                    <p className="text-xs text-[#a0aec0] mb-1">{msg.role === 'user' ? 'You' : 'Kelvin'}</p>
+                    <p className="text-xs text-[var(--foreground-muted)] mb-1">{msg.role === 'user' ? 'You' : 'Kelvin'}</p>
                     {msg.role === 'user' ? (
-                      <p className="text-base text-white whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                      <p className="text-base text-[var(--foreground)] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                     ) : (
-                      <div className="text-base text-white leading-relaxed prose prose-invert prose-sm max-w-none prose-headings:text-white prose-headings:font-bold prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-1 prose-p:my-1 prose-li:my-0 prose-strong:text-white prose-code:text-[#a0aec0] prose-pre:bg-white/5 prose-pre:border prose-pre:border-white/10">
+                      <div className="text-base text-[var(--foreground)] leading-relaxed prose prose-sm max-w-none prose-headings:text-[var(--foreground)] prose-headings:font-bold prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-1 prose-p:my-1 prose-li:my-0 prose-strong:text-[var(--foreground)] prose-code:text-[var(--foreground-muted)] prose-pre:bg-[var(--hover-bg)] prose-pre:border prose-pre:border-[var(--divider)]">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm]}
                           components={{
@@ -339,10 +339,10 @@ export function AIChat() {
                               </div>
                             ),
                             th: ({ children }) => (
-                              <th className="border border-white/20 px-2 py-1 text-left bg-white/5 text-white text-xs">{children}</th>
+                              <th className="border border-[var(--divider)] px-2 py-1 text-left bg-[var(--hover-bg)] text-[var(--foreground)] text-xs">{children}</th>
                             ),
                             td: ({ children }) => (
-                              <td className="border border-white/10 px-2 py-1 text-xs">{children}</td>
+                              <td className="border border-[var(--divider)] px-2 py-1 text-xs">{children}</td>
                             ),
                           }}
                         >
@@ -354,7 +354,7 @@ export function AIChat() {
                       <div className="mt-2 flex items-center gap-3">
                         <button
                           onClick={() => copyToClipboard(msg.content, i)}
-                          className="flex items-center gap-1 text-xs text-[#a0aec0]/50 hover:text-[#a0aec0] transition-colors"
+                          className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]/50 hover:text-[var(--foreground-muted)] transition-colors"
                           title="Copy to clipboard"
                         >
                           {copiedIndex === i ? (
@@ -372,7 +372,7 @@ export function AIChat() {
                         {msg.content.length > 500 && (
                           <button
                             onClick={() => downloadReport(msg.content)}
-                            className="flex items-center gap-1 text-xs text-[#a0aec0]/50 hover:text-[#a0aec0] transition-colors"
+                            className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]/50 hover:text-[var(--foreground-muted)] transition-colors"
                             title="Download as HTML report"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
@@ -389,7 +389,7 @@ export function AIChat() {
                   <div className="flex items-center gap-2">
                     <BounceDots size="sm" />
                     {toolStatus && (
-                      <span className="text-xs text-[#a0aec0]/60 animate-pulse">{toolStatus}...</span>
+                      <span className="text-xs text-[var(--foreground-muted)]/60 animate-pulse">{toolStatus}...</span>
                     )}
                   </div>
                 </div>
@@ -407,7 +407,7 @@ export function AIChat() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask about your data..."
           disabled={isLoading}
-          className="flex-1 px-6 py-3 rounded-full bg-white/5 border border-white/20 text-white placeholder-[#a0aec0]/50 focus:outline-none focus:border-white/40 transition-colors disabled:opacity-50"
+          className="flex-1 px-6 py-3 rounded-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] transition-colors disabled:opacity-50"
         />
         {isLoading ? (
           <button

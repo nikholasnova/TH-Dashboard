@@ -263,15 +263,15 @@ export default function ChartsPage() {
         <FilterToolbar timeRange={timeRange} deployments={deployments}>
           <div className="glass-card p-2 flex gap-1">
             <button onClick={() => setMetric('temperature')}
-              className={`px-5 py-2.5 text-sm rounded-xl transition-all ${metric === 'temperature' ? 'nav-active text-white font-semibold' : 'text-[#a0aec0] hover:text-white hover:bg-white/5'}`}>
+              className={`px-5 py-2.5 text-sm rounded-xl transition-all ${metric === 'temperature' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Temp
             </button>
             <button onClick={() => setMetric('humidity')}
-              className={`px-5 py-2.5 text-sm rounded-xl transition-all ${metric === 'humidity' ? 'nav-active text-white font-semibold' : 'text-[#a0aec0] hover:text-white hover:bg-white/5'}`}>
+              className={`px-5 py-2.5 text-sm rounded-xl transition-all ${metric === 'humidity' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Humidity
             </button>
             <button onClick={() => setMetric('both')}
-              className={`px-5 py-2.5 text-sm rounded-xl transition-all ${metric === 'both' ? 'nav-active text-white font-semibold' : 'text-[#a0aec0] hover:text-white hover:bg-white/5'}`}>
+              className={`px-5 py-2.5 text-sm rounded-xl transition-all ${metric === 'both' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Both
             </button>
           </div>
@@ -281,16 +281,16 @@ export default function ChartsPage() {
               className="btn-glass px-5 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
               {isExporting ? 'Exporting...' : 'Export CSV'}
             </button>
-            {exportError && <span className="text-sm text-[#ffb547]">{exportError}</span>}
+            {exportError && <span className="text-sm text-[var(--warning)]">{exportError}</span>}
           </div>
         </FilterToolbar>
 
         {deploymentFilter && (
-          <div className="mb-4 px-4 py-2 rounded-lg bg-[#0075ff]/20 border border-[#0075ff]/30 inline-flex items-center gap-2">
-            <span className="text-sm text-white">
+          <div className="mb-4 px-4 py-2 rounded-lg bg-[var(--active-bg)] border border-[var(--divider)] inline-flex items-center gap-2">
+            <span className="text-sm text-[var(--foreground)]">
               Showing: {deployments.find(d => d.id.toString() === deploymentFilter)?.name}
             </span>
-            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[#a0aec0] hover:text-white">✕</button>
+            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]">✕</button>
           </div>
         )}
 
@@ -302,8 +302,8 @@ export default function ChartsPage() {
           ) : !hasData ? (
             <div className="h-[500px] flex items-center justify-center fade-in">
               <div className="text-center">
-                <p className="text-xl text-[#a0aec0] font-medium">No data available</p>
-                <p className="text-sm text-[#a0aec0]/60 mt-2">Data will appear once sensors start reporting</p>
+                <p className="text-xl text-[var(--foreground-muted)] font-medium">No data available</p>
+                <p className="text-sm text-[var(--foreground-muted)]/60 mt-2">Data will appear once sensors start reporting</p>
               </div>
             </div>
           ) : (
@@ -332,11 +332,11 @@ export default function ChartsPage() {
                 } : undefined}
                 colors={({ id }) => {
                   const series = chartData.find(s => s.id === id);
-                  return series?.color || '#0075ff';
+                  return series?.color || 'var(--chart-line)';
                 }}
                 lineWidth={3}
                 pointSize={6}
-                pointColor="#0a0a0a"
+                pointColor="var(--background-main)"
                 pointBorderWidth={2}
                 pointBorderColor={{ from: 'seriesColor' }}
                 enableArea={metric !== 'both'}
@@ -345,7 +345,7 @@ export default function ChartsPage() {
                 enableSlices="x"
                 sliceTooltip={({ slice }) => (
                   <div className="glass-card px-4 py-3 !rounded-xl">
-                    <p className="text-xs text-[#a0aec0] mb-2">
+                    <p className="text-xs text-[var(--foreground-muted)] mb-2">
                       {slice.points[0]?.data.x instanceof Date ? slice.points[0].data.x.toLocaleString() : ''}
                     </p>
                     {slice.points.map((point) => {
@@ -355,8 +355,8 @@ export default function ChartsPage() {
                       return (
                         <div key={point.id} className="flex items-center gap-2 text-sm">
                           <span className="w-3 h-3 rounded-full" style={{ backgroundColor: point.seriesColor }} />
-                          <span className="font-semibold text-white">{chartData.find(s => s.id === point.seriesId)?.label ?? point.seriesId}:</span>
-                          <span className="text-[#a0aec0]">
+                          <span className="font-semibold text-[var(--foreground)]">{chartData.find(s => s.id === point.seriesId)?.label ?? point.seriesId}:</span>
+                          <span className="text-[var(--foreground-muted)]">
                             {typeof value === 'number' ? value.toFixed(1) : String(value)}{unit}
                           </span>
                         </div>
@@ -372,13 +372,13 @@ export default function ChartsPage() {
                   itemHeight: 20,
                   symbolSize: 12,
                   symbolShape: 'circle',
-                  itemTextColor: '#a0aec0',
+                  itemTextColor: 'var(--chart-text)',
                   data: chartData.map(s => ({ id: s.id, label: s.label ?? s.id, color: s.color })),
                 }]}
                 theme={{
-                  axis: { ticks: { text: { fill: '#a0aec0', fontSize: 12 } }, legend: { text: { fill: '#a0aec0', fontSize: 13, fontWeight: 600 } } },
-                  grid: { line: { stroke: 'rgba(255,255,255,0.05)' } },
-                  crosshair: { line: { stroke: '#a0aec0', strokeWidth: 1, strokeOpacity: 0.5 } },
+                  axis: { ticks: { text: { fill: 'var(--chart-text)', fontSize: 12 } }, legend: { text: { fill: 'var(--chart-text)', fontSize: 13, fontWeight: 600 } } },
+                  grid: { line: { stroke: 'var(--chart-grid)' } },
+                  crosshair: { line: { stroke: 'var(--chart-text)', strokeWidth: 1, strokeOpacity: 0.5 } },
                 }}
               />
             </div>

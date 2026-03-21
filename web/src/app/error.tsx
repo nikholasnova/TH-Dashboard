@@ -16,8 +16,8 @@ export default function Error({
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="glass-card p-8 text-center max-w-md">
-        <h2 className="text-xl font-semibold text-white mb-2">Something went wrong</h2>
-        <p className="text-sm text-[#a0aec0] mb-6">
+        <h2 className="text-xl font-semibold text-[var(--foreground)] mb-2">Something went wrong</h2>
+        <p className="text-sm text-[var(--foreground-muted)] mb-6">
           {error.message || 'An unexpected error occurred.'}
         </p>
         <button

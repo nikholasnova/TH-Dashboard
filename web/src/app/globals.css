@@ -2,25 +2,125 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  /* Vision UI Color Palette */
-  --background-main: #0a0a0a;
-  --background-card: rgba(15, 15, 15, 0.75);
-  --foreground: #ffffff;
-  --foreground-muted: #a0aec0;
+  /* Monochromatic Palette */
+  --background-main: #f0f1f3;
+  --background-card: rgba(255, 255, 255, 0.72);
+  --foreground: #0f172a;
+  --foreground-secondary: #475569;
+  --foreground-muted: #94a3b8;
 
-  /* Accent Colors */
-  --primary: #4318ff;
-  --primary-light: #868cff;
-  --info: #0075ff;
-  --info-light: #21d4fd;
-  --success: #01b574;
-  --success-light: #05cd99;
-  --warning: #ffb547;
-  --error: #e31a1a;
+  /* Primary (neutral interactive) */
+  --primary: #1e293b;
+  --primary-light: #334155;
+  --info: #374151;
+  --info-light: #6b7280;
+
+  /* Semantic Colors (status only) */
+  --success: #059669;
+  --success-light: #10b981;
+  --warning: #d97706;
+  --error: #dc2626;
 
   /* Card/Glass */
-  --card-border: rgba(255, 255, 255, 0.15);
-  --card-highlight: rgba(255, 255, 255, 0.05);
+  --card-border: rgba(0, 0, 0, 0.06);
+  --card-highlight: rgba(0, 0, 0, 0.02);
+
+  /* Glass surfaces */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.95);
+  --glass-bg-hover: rgba(255, 255, 255, 0.92);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-inset: rgba(255, 255, 255, 0.4);
+
+  /* Buttons */
+  --btn-bg: rgba(255, 255, 255, 0.78);
+  --btn-border: rgba(0, 0, 0, 0.08);
+  --btn-border-hover: rgba(0, 0, 0, 0.14);
+
+  /* Inputs & forms */
+  --input-bg: rgba(0, 0, 0, 0.04);
+  --input-border: rgba(0, 0, 0, 0.08);
+  --input-focus-ring: rgba(0, 0, 0, 0.08);
+  --input-focus-border: rgba(0, 0, 0, 0.2);
+
+  /* Surfaces & overlays */
+  --hover-bg: rgba(0, 0, 0, 0.04);
+  --active-bg: rgba(0, 0, 0, 0.08);
+  --divider: rgba(0, 0, 0, 0.06);
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+
+  /* Charts */
+  --chart-grid: rgba(0, 0, 0, 0.06);
+  --chart-text: #6b7280;
+  --chart-line: #374151;
+  --chart-line-end: #94a3b8;
+  --chart-dot: #1e293b;
+  --chart-tooltip-bg: rgba(255, 255, 255, 0.95);
+  --chart-tooltip-border: rgba(0, 0, 0, 0.1);
+
+  /* Background orbs */
+  --orb-warm: rgba(232, 221, 212, 0.35);
+  --orb-cool: rgba(212, 221, 232, 0.25);
+
+  /* Scrollbar */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+}
+
+/* Dark Mode */
+.dark {
+  --background-main: #1a1a1e;
+  --background-card: rgba(255, 255, 255, 0.06);
+  --foreground: #e4e4e7;
+  --foreground-secondary: #a1a1aa;
+  --foreground-muted: #71717a;
+
+  --primary: #d4d4d8;
+  --primary-light: #e4e4e7;
+  --info: #a1a1aa;
+  --info-light: #71717a;
+
+  --success: #34d399;
+  --success-light: #6ee7b7;
+  --warning: #fbbf24;
+  --error: #f87171;
+
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-highlight: rgba(255, 255, 255, 0.03);
+
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-strong: rgba(40, 40, 44, 0.95);
+  --glass-bg-hover: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-inset: rgba(255, 255, 255, 0.06);
+
+  --btn-bg: rgba(255, 255, 255, 0.08);
+  --btn-border: rgba(255, 255, 255, 0.1);
+  --btn-border-hover: rgba(255, 255, 255, 0.18);
+
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --input-border: rgba(255, 255, 255, 0.1);
+  --input-focus-ring: rgba(255, 255, 255, 0.1);
+  --input-focus-border: rgba(255, 255, 255, 0.2);
+
+  --hover-bg: rgba(255, 255, 255, 0.06);
+  --active-bg: rgba(255, 255, 255, 0.1);
+  --divider: rgba(255, 255, 255, 0.08);
+  --overlay-bg: rgba(0, 0, 0, 0.8);
+
+  --chart-grid: rgba(255, 255, 255, 0.06);
+  --chart-text: #71717a;
+  --chart-line: #a1a1aa;
+  --chart-line-end: #52525b;
+  --chart-dot: #d4d4d8;
+  --chart-tooltip-bg: rgba(40, 40, 44, 0.95);
+  --chart-tooltip-border: rgba(255, 255, 255, 0.1);
+
+  --orb-warm: rgba(80, 60, 40, 0.15);
+  --orb-cool: rgba(40, 60, 80, 0.12);
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
 }
 
 @theme inline {
@@ -36,21 +136,20 @@ body {
   font-family: var(--font-jetbrains), 'JetBrains Mono', monospace;
   min-height: 100vh;
   position: relative;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Radial gradient background overlay */
+/* Atmospheric background orbs */
 body::before {
   content: '';
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background:
-    radial-gradient(ellipse at 70% 20%, rgba(0, 117, 255, 0.15) 0%, transparent 50%),
-    radial-gradient(ellipse at 30% 80%, rgba(67, 24, 255, 0.1) 0%, transparent 50%);
-  pointer-events: none;
+  inset: 0;
   z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 20%, var(--orb-warm) 0%, transparent 70%),
+    radial-gradient(ellipse 70% 50% at 85% 80%, var(--orb-cool) 0%, transparent 70%);
+  transition: background 0.3s ease;
 }
 
 /* Main content wrapper */
@@ -59,66 +158,62 @@ body::before {
   z-index: 1;
 }
 
-/* Glassmorphism Card - Vision UI Style - defined below with transitions */
-
-/* Glass button - clear with white text */
+/* Glass button */
 .btn-glass {
-  background: rgba(15, 15, 15, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
   border-radius: 12px;
-  color: #ffffff;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-  transform: translateY(0) scale(1);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  color: var(--foreground);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(0);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
 .btn-glass:hover {
-  border-color: rgba(255, 255, 255, 0.5);
-  background: rgba(30, 30, 30, 0.9);
-  transform: translateY(-4px) scale(1.05);
+  border-color: var(--btn-border-hover);
+  background: var(--glass-bg-hover);
+  transform: translateY(-1px);
   box-shadow:
-    0 8px 25px rgba(0, 0, 0, 0.3),
-    0 0 20px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    0 2px 8px rgba(0, 0, 0, 0.06),
+    0 8px 20px rgba(0, 0, 0, 0.04);
 }
 
 .btn-glass:active {
-  transform: translateY(-2px) scale(1.02);
+  transform: translateY(0);
   transition: all 0.1s ease;
 }
 
-/* Active nav state - clear glass with white text */
+/* Active nav state */
 .nav-active {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: var(--active-bg);
+  border: 1px solid var(--glass-border);
+  border-bottom: 2px solid var(--primary);
   border-radius: 12px;
-  color: #ffffff;
-  box-shadow:
-    0 4px 15px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  color: var(--foreground);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .nav-active:hover {
-  transform: translateY(-3px) scale(1.03);
-  box-shadow:
-    0 8px 25px rgba(0, 0, 0, 0.3),
-    0 0 25px rgba(255, 255, 255, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  border-color: rgba(255, 255, 255, 0.4);
-  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  border-color: var(--btn-border-hover);
+  background: var(--active-bg);
 }
 
 /* Hover effect for nav links (non-active) */
 nav a:not(.nav-active) {
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 nav a:not(.nav-active):hover {
-  transform: translateY(-3px) scale(1.03);
-  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+  background: var(--hover-bg);
   border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
 /* Nav container - fixed height prevents resize on button hover */
@@ -131,28 +226,33 @@ nav.glass-card {
 
 /* Interactive glass card hover (for smaller interactive cards) */
 .glass-card-interactive {
-  background: rgba(15, 15, 15, 0.75);
-  backdrop-filter: blur(120px);
-  -webkit-backdrop-filter: blur(120px);
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1.5px solid var(--glass-border);
   border-radius: 20px;
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  transform: translateY(0) scale(1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(0);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-inset),
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.03);
 }
 
 .glass-card-interactive:hover {
-  transform: translateY(-6px) scale(1.02);
-  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  border-color: var(--btn-border-hover);
   box-shadow:
-    0 15px 40px rgba(0, 0, 0, 0.3),
-    0 0 30px rgba(255, 255, 255, 0.1);
+    0 4px 16px rgba(0, 0, 0, 0.06),
+    0 12px 32px rgba(0, 0, 0, 0.04);
 }
 
 /* Stat value large text */
 .stat-value {
   font-size: 1.75rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (min-width: 640px) {
@@ -212,12 +312,12 @@ nav.glass-card {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(255, 255, 255, 0.1) 50%,
-    rgba(255, 255, 255, 0.05) 100%
+    var(--hover-bg) 0%,
+    var(--active-bg) 50%,
+    var(--hover-bg) 100%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  animation: shimmer 2s ease-in-out infinite;
   border-radius: 8px;
 }
 
@@ -228,12 +328,16 @@ nav.glass-card {
 
 /* Glass card with smooth transitions */
 .glass-card {
-  background: rgba(15, 15, 15, 0.75);
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
-  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1.5px solid var(--glass-border);
   border-radius: 20px;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-inset),
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
 /* Minimum heights - cards can grow to fit content */
@@ -245,7 +349,62 @@ nav.glass-card {
   min-height: 320px;
 }
 
-/* Custom scrollbar for dark theme */
+/* Breathing glow for live indicators */
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.4);
+  }
+  50% {
+    transform: scale(1.3);
+    box-shadow: 0 0 8px 3px rgba(5, 150, 105, 0.15);
+  }
+}
+
+.animate-breathe {
+  animation: breathe 2.5s ease-in-out infinite;
+}
+
+/* Sparkline draw-on animation */
+@keyframes sparkline-draw {
+  from {
+    stroke-dashoffset: var(--path-length, 1000);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.sparkline-animate {
+  stroke-dasharray: var(--path-length, 1000);
+  animation: sparkline-draw 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Loading dot pulse animation */
+@keyframes dotPulse {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
+}
+
+/* Section labels */
+.section-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--foreground-muted);
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: 1rem;
+}
+
+/* Custom scrollbar */
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
 }
@@ -255,10 +414,10 @@ nav.glass-card {
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--scrollbar-thumb-hover);
 }

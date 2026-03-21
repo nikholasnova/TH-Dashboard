@@ -30,12 +30,12 @@ function DecompChart({ label, data, color }: DecompChartProps) {
   if (validPoints.length < 2) {
     return (
       <div>
-        <p className="text-[#a0aec0] text-xs mb-1">{label}</p>
+        <p className="text-[var(--foreground-muted)] text-xs mb-1">{label}</p>
         <div
-          className="bg-white/5 rounded-lg border border-white/10 flex items-center justify-center"
+          className="bg-[var(--hover-bg)] rounded-lg border border-[var(--divider)] flex items-center justify-center"
           style={{ height: CHART_HEIGHT }}
         >
-          <span className="text-xs text-[#a0aec0]">No data</span>
+          <span className="text-xs text-[var(--foreground-muted)]">No data</span>
         </div>
       </div>
     );
@@ -86,9 +86,9 @@ function DecompChart({ label, data, color }: DecompChartProps) {
 
   return (
     <div>
-      <p className="text-[#a0aec0] text-xs mb-1">{label}</p>
+      <p className="text-[var(--foreground-muted)] text-xs mb-1">{label}</p>
       <div
-        className="bg-white/5 rounded-lg border border-white/10 relative"
+        className="bg-[var(--hover-bg)] rounded-lg border border-[var(--divider)] relative"
         style={{ height: CHART_HEIGHT }}
       >
         <svg
@@ -102,7 +102,7 @@ function DecompChart({ label, data, color }: DecompChartProps) {
             y1={drawTop}
             x2={drawRight}
             y2={drawTop}
-            stroke="rgba(255,255,255,0.05)"
+            stroke="var(--chart-grid)"
             strokeWidth="1"
           />
           <line
@@ -110,7 +110,7 @@ function DecompChart({ label, data, color }: DecompChartProps) {
             y1={(drawTop + drawBottom) / 2}
             x2={drawRight}
             y2={(drawTop + drawBottom) / 2}
-            stroke="rgba(255,255,255,0.05)"
+            stroke="var(--chart-grid)"
             strokeWidth="1"
           />
           <line
@@ -118,7 +118,7 @@ function DecompChart({ label, data, color }: DecompChartProps) {
             y1={drawBottom}
             x2={drawRight}
             y2={drawBottom}
-            stroke="rgba(255,255,255,0.05)"
+            stroke="var(--chart-grid)"
             strokeWidth="1"
           />
 
@@ -136,13 +136,13 @@ function DecompChart({ label, data, color }: DecompChartProps) {
         </svg>
 
         <span
-          className="absolute text-[10px] text-[#a0aec0] font-mono"
+          className="absolute text-[10px] text-[var(--foreground-muted)] font-mono"
           style={{ top: CHART_PADDING_Y - 2, left: 4 }}
         >
           {fmtVal(maxVal)}
         </span>
         <span
-          className="absolute text-[10px] text-[#a0aec0] font-mono"
+          className="absolute text-[10px] text-[var(--foreground-muted)] font-mono"
           style={{ bottom: CHART_PADDING_Y - 2, left: 4 }}
         >
           {fmtVal(minVal)}
@@ -158,18 +158,18 @@ interface SeasonalCardProps {
 
 function SeasonalCard({ result }: SeasonalCardProps) {
   const isTemp = result.metric === 'temperature';
-  const color = isTemp ? '#0075ff' : '#01b574';
+  const color = isTemp ? 'var(--info)' : 'var(--success)';
   const badgeLabel = isTemp ? 'Temperature' : 'Humidity';
-  const badgeBg = isTemp ? 'bg-blue-500/20 text-blue-400' : 'bg-green-500/20 text-green-400';
+  const badgeBg = isTemp ? 'bg-[var(--hover-bg)] text-[var(--foreground)]' : 'bg-[var(--hover-bg)] text-[var(--foreground-secondary)]';
 
   return (
     <div className="glass-card p-4 sm:p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-white">
+          <h3 className="text-lg font-semibold text-[var(--foreground)]">
             {result.deployment_name}
           </h3>
-          <p className="text-sm text-[#a0aec0]">{result.location}</p>
+          <p className="text-sm text-[var(--foreground-muted)]">{result.location}</p>
         </div>
         <span
           className={`px-2.5 py-1 rounded-full text-xs font-medium ${badgeBg}`}
@@ -185,7 +185,7 @@ function SeasonalCard({ result }: SeasonalCardProps) {
         <DecompChart label="Residual" data={result.residual} color={color} />
       </div>
 
-      <p className="mt-4 text-xs text-[#a0aec0]">
+      <p className="mt-4 text-xs text-[var(--foreground-muted)]">
         Period: {result.period_minutes / 60} hours (daily cycle). Data resampled
         to 15-minute intervals.
       </p>
@@ -196,7 +196,7 @@ function SeasonalCard({ result }: SeasonalCardProps) {
 export function SeasonalResults({ results }: SeasonalResultsProps) {
   if (!results || results.length === 0) {
     return (
-      <div className="text-sm text-[#a0aec0] text-center py-8">
+      <div className="text-sm text-[var(--foreground-muted)] text-center py-8">
         Insufficient data — need at least 2 days of continuous readings for
         seasonal decomposition.
       </div>

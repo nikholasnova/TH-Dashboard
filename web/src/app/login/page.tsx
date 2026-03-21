@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { signIn } from '@/lib/auth';
 import { useSession } from '@/components/AuthProvider';
 import { useEffect } from 'react';
@@ -39,7 +40,7 @@ export default function LoginPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="glass-card p-8">
-          <p className="text-[#a0aec0]">Loading...</p>
+          <p className="text-[var(--foreground-muted)]">Loading...</p>
         </div>
       </div>
     );
@@ -50,24 +51,49 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="glass-card p-8 w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center p-4 relative">
+      {/* Focal gradient behind card */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: 'radial-gradient(ellipse 50% 40% at 50% 50%, rgba(148, 163, 184, 0.08) 0%, transparent 70%)',
+        }}
+      />
+
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+        className="glass-card p-8 w-full max-w-md relative"
+        style={{ background: 'var(--glass-bg)' }}
+      >
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-white mb-2">Welcome Back</h1>
-          <p className="text-[#a0aec0]">Sign in to access the dashboard</p>
+          {/* Decorative thermometer icon */}
+          <div className="flex justify-center mb-4">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="text-[var(--foreground-muted)]">
+              <rect x="13" y="4" width="6" height="18" rx="3" stroke="currentColor" strokeWidth="1.5" />
+              <circle cx="16" cy="24" r="4" stroke="currentColor" strokeWidth="1.5" />
+              <line x1="16" y1="14" x2="16" y2="20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          <h1 className="text-3xl text-[var(--foreground)] mb-2">
+            <span className="font-light">Welcome </span>
+            <span className="font-semibold">Back</span>
+          </h1>
+          <p className="text-[var(--foreground-muted)]">Sign in to access the dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="p-4 rounded-xl bg-[#e31a1a]/10 border border-[#e31a1a]/30">
-              <p className="text-sm text-[#e31a1a]">{error}</p>
+            <div className="p-4 rounded-xl bg-[var(--error)]/8 border border-[var(--error)]/20">
+              <p className="text-sm text-[var(--error)]">{error}</p>
             </div>
           )}
 
           <div>
             <label
               htmlFor="email"
-              className="block text-sm font-medium text-[#a0aec0] mb-2"
+              className="block text-sm font-medium text-[var(--foreground-muted)] mb-2"
             >
               Email
             </label>
@@ -78,7 +104,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white placeholder-[#a0aec0]/50 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/20 transition-colors"
+              className="w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] transition-all"
               placeholder="you@example.com"
             />
           </div>
@@ -86,7 +112,7 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-[#a0aec0] mb-2"
+              className="block text-sm font-medium text-[var(--foreground-muted)] mb-2"
             >
               Password
             </label>
@@ -97,7 +123,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/15 text-white placeholder-[#a0aec0]/50 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-white/20 transition-colors"
+              className="w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] transition-all"
               placeholder="Enter your password"
             />
           </div>
@@ -105,12 +131,12 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full btn-glass px-6 py-3 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-6 py-3 font-medium rounded-xl bg-[var(--primary)] text-[var(--background-main)] hover:bg-[var(--primary-light)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -6,8 +6,8 @@ import { getDevices } from '@/lib/supabase';
 import { useSession } from '@/components/AuthProvider';
 
 const FALLBACK_DEVICES: Device[] = [
-  { id: 'node1', display_name: 'Node 1', color: '#0075ff', is_active: true, monitor_enabled: true, sort_order: 1, created_at: '', updated_at: '' },
-  { id: 'node2', display_name: 'Node 2', color: '#01b574', is_active: true, monitor_enabled: true, sort_order: 2, created_at: '', updated_at: '' },
+  { id: 'node1', display_name: 'Node 1', color: '#374151', is_active: true, monitor_enabled: true, sort_order: 1, created_at: '', updated_at: '' },
+  { id: 'node2', display_name: 'Node 2', color: '#16a34a', is_active: true, monitor_enabled: true, sort_order: 2, created_at: '', updated_at: '' },
 ];
 
 interface DevicesContextValue {

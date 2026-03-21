@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { LiveReadingCard } from '@/components/LiveReadingCard';
 import { DeploymentModal } from '@/components/DeploymentModal';
 import { DeviceManager } from '@/components/DeviceManager';
@@ -112,7 +113,7 @@ export default function Dashboard() {
       <div className="flex justify-end mb-4">
         <button
           onClick={() => setShowDeviceManager(true)}
-          className="btn-glass px-3 py-1.5 text-xs text-[#a0aec0] hover:text-white transition-colors flex items-center gap-1.5"
+          className="btn-glass px-3 py-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-1.5"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -121,27 +122,41 @@ export default function Dashboard() {
           Manage Nodes
         </button>
       </div>
+
+      <p className="section-label">Live Readings</p>
       <div className={`grid ${getGridClasses(devices.length)} gap-8`}>
-        {devices.map((device) => (
-          <LiveReadingCard
+        {devices.map((device, i) => (
+          <motion.div
             key={device.id}
-            deviceId={device.id}
-            deviceName={device.display_name}
-            reading={deviceData[device.id]?.reading}
-            activeDeployment={deviceData[device.id]?.deployment}
-            isLoading={isLoading}
-            onClick={() => setSelectedDevice({ id: device.id, name: device.display_name })}
-            onRefresh={fetchLiveData}
-            lastRefresh={lastRefresh}
-            weatherReading={deviceData[device.id]?.weather}
-            sparklineData={deviceData[device.id]?.sparkline}
-          />
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.08, duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+          >
+            <LiveReadingCard
+              deviceId={device.id}
+              deviceName={device.display_name}
+              reading={deviceData[device.id]?.reading}
+              activeDeployment={deviceData[device.id]?.deployment}
+              isLoading={isLoading}
+              onClick={() => setSelectedDevice({ id: device.id, name: device.display_name })}
+              onRefresh={fetchLiveData}
+              lastRefresh={lastRefresh}
+              weatherReading={deviceData[device.id]?.weather}
+              sparklineData={deviceData[device.id]?.sparkline}
+            />
+          </motion.div>
         ))}
       </div>
 
-      <DashboardStats />
+      <div className="mt-10">
+        <p className="section-label">24h Overview</p>
+        <DashboardStats />
+      </div>
 
-      <DashboardForecast />
+      <div className="mt-10">
+        <p className="section-label">Forecast</p>
+        <DashboardForecast />
+      </div>
 
       {selectedDevice && (
         <DeploymentModal

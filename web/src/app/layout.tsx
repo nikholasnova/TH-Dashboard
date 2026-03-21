@@ -3,6 +3,7 @@ import { JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { DevicesProvider } from "@/contexts/DevicesContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ChatShell } from "@/components/ChatShell";
 import { ChatPageContextProvider } from "@/lib/chatContext";
 
@@ -23,18 +24,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');var d=t!=='light';if(d)document.documentElement.classList.add('dark')}catch(e){}})()`,
+          }}
+        />
+      </head>
       <body
         className={`${jetbrainsMono.variable} antialiased`}
       >
-        <AuthProvider>
-          <DevicesProvider>
-            <ChatPageContextProvider>
-              {children}
-              <ChatShell />
-            </ChatPageContextProvider>
-          </DevicesProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <DevicesProvider>
+              <ChatPageContextProvider>
+                {children}
+                <ChatShell />
+              </ChatPageContextProvider>
+            </DevicesProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

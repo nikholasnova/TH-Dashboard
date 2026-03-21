@@ -15,7 +15,7 @@ export default function GlobalError({
 
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: 'system-ui, sans-serif', background: '#0b1437' }}>
+      <body style={{ margin: 0, fontFamily: 'system-ui, sans-serif', background: '#f0f1f3' }}>
         <div style={{
           minHeight: '100vh',
           display: 'flex',
@@ -24,26 +24,28 @@ export default function GlobalError({
           padding: '1rem',
         }}>
           <div style={{
-            background: 'rgba(255,255,255,0.05)',
-            borderRadius: '1rem',
+            background: 'rgba(255,255,255,0.72)',
+            backdropFilter: 'blur(24px)',
+            borderRadius: '1.25rem',
             padding: '2rem',
             textAlign: 'center',
             maxWidth: '28rem',
-            border: '1px solid rgba(255,255,255,0.1)',
+            border: '1.5px solid rgba(0,0,0,0.06)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.03)',
           }}>
-            <h2 style={{ color: '#fff', fontSize: '1.25rem', marginBottom: '0.5rem' }}>
+            <h2 style={{ color: '#0f172a', fontSize: '1.25rem', marginBottom: '0.5rem' }}>
               Something went wrong
             </h2>
-            <p style={{ color: '#a0aec0', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+            <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
               {error.message || 'A critical error occurred.'}
             </p>
             <button
               onClick={reset}
               style={{
-                background: 'rgba(255,255,255,0.1)',
-                border: '1px solid rgba(255,255,255,0.2)',
+                background: 'rgba(0,0,0,0.05)',
+                border: '1px solid rgba(0,0,0,0.1)',
                 borderRadius: '0.75rem',
-                color: '#fff',
+                color: '#0f172a',
                 padding: '0.5rem 1.5rem',
                 cursor: 'pointer',
                 fontSize: '0.875rem',

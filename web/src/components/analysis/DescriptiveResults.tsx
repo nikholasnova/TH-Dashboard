@@ -13,9 +13,9 @@ interface StatRowProps {
 
 function StatRow({ label, value }: StatRowProps) {
   return (
-    <tr className="border-b border-white/5 last:border-b-0">
-      <td className="py-1.5 pr-4 text-sm text-[#a0aec0]">{label}</td>
-      <td className="py-1.5 text-sm text-white text-right font-mono">
+    <tr className="border-b border-[var(--divider)] last:border-b-0">
+      <td className="py-1.5 pr-4 text-sm text-[var(--foreground-muted)]">{label}</td>
+      <td className="py-1.5 text-sm text-[var(--foreground)] text-right font-mono">
         {value}
       </td>
     </tr>
@@ -56,7 +56,7 @@ function Histogram({ counts, binEdges, color, unit }: HistogramProps) {
               }}
               title={`${rangeStart}${unit} - ${rangeEnd}${unit}: ${count}`}
             >
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-black/90 text-xs text-white whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 rounded bg-[var(--chart-tooltip-bg)] text-xs text-[var(--foreground)] whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none z-10">
                 {rangeStart} - {rangeEnd}
                 {unit}: {count}
               </div>
@@ -65,11 +65,11 @@ function Histogram({ counts, binEdges, color, unit }: HistogramProps) {
         })}
       </div>
       <div className="flex justify-between mt-1">
-        <span className="text-[10px] text-[#a0aec0]">
+        <span className="text-[10px] text-[var(--foreground-muted)]">
           {binEdges[0].toFixed(1)}
           {unit}
         </span>
-        <span className="text-[10px] text-[#a0aec0]">
+        <span className="text-[10px] text-[var(--foreground-muted)]">
           {binEdges[binEdges.length - 1].toFixed(1)}
           {unit}
         </span>
@@ -85,7 +85,7 @@ interface MetricBlockProps {
 function MetricBlock({ result }: MetricBlockProps) {
   const isTemp = result.metric === 'temperature';
   const unit = isTemp ? '\u00B0F' : '%';
-  const color = isTemp ? '#0075ff' : '#01b574';
+  const color = isTemp ? 'var(--info)' : 'var(--success)';
   const label = isTemp ? 'Temperature' : 'Humidity';
 
   const fmt = (v: number) => `${v.toFixed(2)}${unit}`;
@@ -114,7 +114,7 @@ function MetricBlock({ result }: MetricBlockProps) {
         </tbody>
       </table>
 
-      <p className="text-xs text-[#a0aec0] mb-2">Distribution</p>
+      <p className="text-xs text-[var(--foreground-muted)] mb-2">Distribution</p>
       <Histogram
         counts={result.histogram.counts}
         binEdges={result.histogram.bin_edges}
@@ -128,7 +128,7 @@ function MetricBlock({ result }: MetricBlockProps) {
 export function DescriptiveResults({ results }: DescriptiveResultsProps) {
   if (!results || results.length === 0) {
     return (
-      <div className="text-sm text-[#a0aec0] text-center py-8">
+      <div className="text-sm text-[var(--foreground-muted)] text-center py-8">
         No descriptive statistics to display.
       </div>
     );
@@ -157,10 +157,10 @@ export function DescriptiveResults({ results }: DescriptiveResultsProps) {
       {Array.from(grouped.entries()).map(([depId, group]) => (
         <div key={depId} className="glass-card p-4 sm:p-6">
           <div className="mb-4">
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-lg font-semibold text-[var(--foreground)]">
               {group.name}
             </h3>
-            <p className="text-sm text-[#a0aec0]">{group.location}</p>
+            <p className="text-sm text-[var(--foreground-muted)]">{group.location}</p>
           </div>
 
           {/* Temperature + Humidity side by side (stacked on mobile) */}

@@ -70,12 +70,12 @@ export default function DeploymentsPage() {
     <PageLayout title="Deployments" subtitle="Manage device placement sessions">
         <div className="flex flex-wrap items-center gap-4 mb-8">
           <div className="glass-card p-3 flex flex-wrap items-center gap-4">
-            <span className="text-xs text-[#a0aec0] font-medium">Filters:</span>
+            <span className="text-xs text-[var(--foreground-muted)] font-medium">Filters:</span>
 
             <select
               value={deviceFilter}
               onChange={(e) => setDeviceFilter(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[100px]"
+              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] min-w-[100px]"
             >
               <option value="">All Devices</option>
               {devices.map((d) => (
@@ -86,7 +86,7 @@ export default function DeploymentsPage() {
             <select
               value={locationFilter}
               onChange={(e) => setLocationFilter(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[120px]"
+              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] min-w-[120px]"
             >
               <option value="">All Locations</option>
               {locations.map((loc) => (
@@ -97,7 +97,7 @@ export default function DeploymentsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white min-w-[100px]"
+              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] min-w-[100px]"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -107,7 +107,7 @@ export default function DeploymentsPage() {
 
           <button
             onClick={() => setShowNewModal(true)}
-            className="btn-glass px-5 py-3 text-sm font-semibold text-white"
+            className="btn-glass px-5 py-3 text-sm font-semibold text-[var(--foreground)]"
           >
             + New Deployment
           </button>
@@ -132,28 +132,28 @@ export default function DeploymentsPage() {
               <div
                 key={dep.id}
                 onClick={() => setSelectedDeployment(dep)}
-                className="glass-card p-6 cursor-pointer hover:border-white/30 transition-all"
+                className="glass-card p-6 cursor-pointer hover:border-[var(--btn-border-hover)] transition-all"
               >
                 <div className="flex items-center gap-4">
-                  <div className={`w-3 h-3 rounded-full ${dep.ended_at ? 'bg-[#a0aec0]/40' : 'bg-[#01b574] animate-pulse'}`} />
+                  <div className={`w-3 h-3 rounded-full ${dep.ended_at ? 'bg-[var(--foreground-muted)]/40' : 'bg-[var(--success)] animate-pulse'}`} />
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-white truncate">{dep.name}</h3>
-                    <p className="text-sm text-[#a0aec0]">
+                    <h3 className="text-lg font-semibold text-[var(--foreground)] truncate">{dep.name}</h3>
+                    <p className="text-sm text-[var(--foreground-muted)]">
                       {dep.device_id} &bull; {dep.location}
                     </p>
                   </div>
 
                   <div className="text-right hidden sm:block">
-                    <p className="text-sm text-white">{formatDateRange(dep)}</p>
-                    <p className="text-xs text-[#a0aec0]">
+                    <p className="text-sm text-[var(--foreground)]">{formatDateRange(dep)}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">
                       {dep.ended_at ? 'Ended' : 'Active'}
                     </p>
                   </div>
 
                   <div className="text-right">
-                    <p className="text-sm font-medium text-white">{dep.reading_count.toLocaleString()}</p>
-                    <p className="text-xs text-[#a0aec0]">readings</p>
+                    <p className="text-sm font-medium text-[var(--foreground)]">{dep.reading_count.toLocaleString()}</p>
+                    <p className="text-xs text-[var(--foreground-muted)]">readings</p>
                   </div>
                 </div>
               </div>
