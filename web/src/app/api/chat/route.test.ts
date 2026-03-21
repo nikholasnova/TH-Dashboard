@@ -7,10 +7,10 @@ type StartChatInput = { history: ChatHistoryMessage[] };
 
 const getServerUserMock = vi.fn();
 const executeToolMock = vi.fn();
-const sendMessageMock = vi.fn();
+const sendMessageStreamMock = vi.fn();
 const startChatMock = vi.fn((input: StartChatInput) => {
   void input;
-  return { sendMessage: sendMessageMock };
+  return { sendMessageStream: sendMessageStreamMock };
 });
 const getGenerativeModelMock = vi.fn(() => ({ startChat: startChatMock }));
 const GoogleGenerativeAIMock = vi.fn(() => ({ getGenerativeModel: getGenerativeModelMock }));
@@ -34,12 +34,17 @@ vi.mock('@google/generative-ai', () => ({
   },
 }));
 
-function makeModelResult(text: string, calls?: Array<{ name: string; args: Record<string, unknown> }>) {
+function makeStreamResult(text: string, calls?: Array<{ name: string; args: Record<string, unknown> }>) {
+  const response = {
+    functionCalls: () => calls,
+    text: () => text,
+  };
+  async function* generateChunks() {
+    if (text) yield { text: () => text };
+  }
   return {
-    response: {
-      functionCalls: () => calls,
-      text: () => text,
-    },
+    stream: generateChunks(),
+    response: Promise.resolve(response),
   };
 }
 
@@ -90,7 +95,7 @@ describe('/api/chat route', () => {
 
   it('caps message and history before forwarding to Gemini', async () => {
     getServerUserMock.mockResolvedValue({ id: 'user-1' });
-    sendMessageMock.mockResolvedValue(makeModelResult('final response'));
+    sendMessageStreamMock.mockImplementation(() => Promise.resolve(makeStreamResult('final response')));
 
     const { POST } = await import('./route');
 
@@ -120,16 +125,16 @@ describe('/api/chat route', () => {
       startChatArg.history.every((msg) => (msg.parts[0]?.text?.length || 0) <= 8000)
     ).toBe(true);
 
-    expect(sendMessageMock).toHaveBeenCalled();
-    const firstSentMessage = sendMessageMock.mock.calls[0]?.[0];
+    expect(sendMessageStreamMock).toHaveBeenCalled();
+    const firstSentMessage = sendMessageStreamMock.mock.calls[0]?.[0];
     expect(typeof firstSentMessage).toBe('string');
-    if (typeof firstSentMessage !== 'string') throw new Error('Expected first sendMessage call to be a string');
+    if (typeof firstSentMessage !== 'string') throw new Error('Expected first sendMessageStream call to be a string');
     expect(firstSentMessage.length).toBe(4000);
   });
 
   it('sanitizes malformed history entries without crashing', async () => {
     getServerUserMock.mockResolvedValue({ id: 'user-1' });
-    sendMessageMock.mockResolvedValue(makeModelResult('ok'));
+    sendMessageStreamMock.mockImplementation(() => Promise.resolve(makeStreamResult('ok')));
 
     const { POST } = await import('./route');
 
@@ -179,7 +184,7 @@ describe('/api/chat route', () => {
 
   it('enforces per-user rate limits', async () => {
     getServerUserMock.mockResolvedValue({ id: 'user-1' });
-    sendMessageMock.mockResolvedValue(makeModelResult('ok'));
+    sendMessageStreamMock.mockImplementation(() => Promise.resolve(makeStreamResult('ok')));
     const { POST } = await import('./route');
 
     const req = () =>
@@ -204,11 +209,11 @@ describe('/api/chat route', () => {
   it('handles tool-call loop and emits tool status markers', async () => {
     getServerUserMock.mockResolvedValue({ id: 'user-1' });
     executeToolMock.mockResolvedValue([{ id: 1, name: 'Patio' }]);
-    sendMessageMock
+    sendMessageStreamMock
       .mockResolvedValueOnce(
-        makeModelResult('', [{ name: 'get_deployments', args: { active_only: true } }])
+        makeStreamResult('', [{ name: 'get_deployments', args: { active_only: true } }])
       )
-      .mockResolvedValueOnce(makeModelResult('done'));
+      .mockResolvedValueOnce(makeStreamResult('done'));
 
     const { POST } = await import('./route');
 
@@ -230,14 +235,13 @@ describe('/api/chat route', () => {
 
   it('falls back to safe guidance when model text() is unavailable', async () => {
     getServerUserMock.mockResolvedValue({ id: 'user-1' });
-    sendMessageMock.mockResolvedValue({
-      response: {
+    sendMessageStreamMock.mockImplementation(() => Promise.resolve({
+      stream: (async function* () {})(),
+      response: Promise.resolve({
         functionCalls: () => undefined,
-        text: () => {
-          throw new Error('no candidates');
-        },
-      },
-    });
+        text: () => { throw new Error('no candidates'); },
+      }),
+    }));
 
     const { POST } = await import('./route');
     const req = new Request('http://localhost/api/chat', {
