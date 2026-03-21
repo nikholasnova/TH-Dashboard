@@ -208,7 +208,8 @@ export function AIChat() {
 
           setMessages((prev) => {
             const updated = [...prev];
-            updated[updated.length - 1] = { role: 'assistant', content: assistantContent };
+            const displayBuffer = buffer.startsWith('__STATUS__') ? '' : buffer;
+            updated[updated.length - 1] = { role: 'assistant', content: assistantContent + displayBuffer };
             return updated;
           });
         }

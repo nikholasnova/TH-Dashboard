@@ -337,8 +337,24 @@ export async function POST(req: Request) {
       try {
         if (signal.aborted) return;
 
-        let response = await chat.sendMessage(cappedMessage, { signal });
-        let result = response.response;
+        // Stream Gemini chunks directly to the response writer
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async function streamToWriter(sr: { stream: AsyncIterable<{ text: () => string }>; response: Promise<any> }) {
+          let wrote = false;
+          for await (const chunk of sr.stream) {
+            if (signal.aborted) break;
+            const t = chunk.text();
+            if (t) { wrote = true; await writer.write(encoder.encode(t)); }
+          }
+          return { result: await sr.response, textWritten: wrote };
+        }
+
+        let textWritten = false;
+        let sr = await streamToWriter(
+          await chat.sendMessageStream(cappedMessage, { signal })
+        );
+        let result = sr.result;
+        if (sr.textWritten) textWritten = true;
 
         // Max 10 iterations to prevent infinite tool-call loops
         let iterations = 0;
@@ -375,8 +391,11 @@ export async function POST(req: Request) {
 
           if (signal.aborted) break;
 
-          response = await chat.sendMessage(functionResponses, { signal });
-          result = response.response;
+          sr = await streamToWriter(
+            await chat.sendMessageStream(functionResponses, { signal })
+          );
+          result = sr.result;
+          if (sr.textWritten) textWritten = true;
           calls = result.functionCalls?.();
         }
 
@@ -388,30 +407,30 @@ export async function POST(req: Request) {
           ));
         }
 
-        // Write final response in chunks for streaming feel
-        let text = '';
-        try {
-          text = result.text();
-        } catch (textError) {
-          // text() throws if response was blocked or has no candidates
-          const blockReason = result.candidates?.[0]?.finishReason;
-          console.error('Gemini text() failed:', textError, '| finishReason:', blockReason);
-          if (blockReason === 'SAFETY') {
-            text = 'My response was filtered by safety settings. Please try rephrasing your question.';
+        // Text was already streamed token-by-token via streamToWriter.
+        // Only handle fallback for empty or blocked responses.
+        if (!textWritten) {
+          let wrote = false;
+          try {
+            const text = result.text();
+            if (text) {
+              await writer.write(encoder.encode(text));
+              wrote = true;
+            }
+          } catch (textError) {
+            const blockReason = result.candidates?.[0]?.finishReason;
+            console.error('Gemini text() failed:', textError, '| finishReason:', blockReason);
+            if (blockReason === 'SAFETY') {
+              await writer.write(encoder.encode('My response was filtered by safety settings. Please try rephrasing your question.'));
+              wrote = true;
+            }
           }
-        }
-
-        if (text) {
-          const chunkSize = 100;
-          for (let i = 0; i < text.length; i += chunkSize) {
-            if (signal.aborted) return;
-            await writer.write(encoder.encode(text.slice(i, i + chunkSize)));
+          if (!wrote) {
+            console.error('Gemini returned empty text. iterations:', iterations, '| pending calls:', calls?.length ?? 0);
+            await writer.write(encoder.encode(
+              'I wasn\'t able to generate a response for that query. Please try rephrasing or asking something more specific.'
+            ));
           }
-        } else {
-          console.error('Gemini returned empty text. iterations:', iterations, '| pending calls:', calls?.length ?? 0);
-          await writer.write(encoder.encode(
-            'I wasn\'t able to generate a response for that query. Please try rephrasing or asking something more specific.'
-          ));
         }
       } catch (error) {
         // Client disconnected — stop silently
