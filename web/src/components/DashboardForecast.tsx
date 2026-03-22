@@ -155,7 +155,6 @@ export function DashboardForecast() {
   const { devices, isLoading: devicesLoading } = useDevices();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [forecastState, setForecastState] = useState<ForecastState | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
 
   const selectedDevice = useMemo(
     () => devices.find(d => d.id === selectedId) ?? devices[0] ?? null,
@@ -203,10 +202,6 @@ export function DashboardForecast() {
     return () => { cancelled = true; };
   }
 
-  // Reset when device changes
-  useEffect(() => {
-    setForecastState(null);
-  }, [deviceId, retryKey]);
 
   return (
     <div className="glass-card p-4 sm:p-6 mt-8">
@@ -219,7 +214,7 @@ export function DashboardForecast() {
           {devices.map((device) => (
             <button
               key={device.id}
-              onClick={() => setSelectedId(device.id)}
+              onClick={() => { setSelectedId(device.id); setForecastState(null); }}
               className={`relative px-3 py-1.5 text-xs font-medium transition-colors z-10 ${
                 deviceId === device.id
                   ? 'text-[var(--background-main)]'
@@ -284,7 +279,7 @@ export function DashboardForecast() {
           <p className="text-sm text-[var(--error)]">Forecast unavailable</p>
           <p className="text-xs text-[var(--foreground-muted)] mt-1">{forecastState.message}</p>
           <button
-            onClick={() => setRetryKey((k) => k + 1)}
+            onClick={() => setForecastState(null)}
             className="mt-3 px-3 py-1.5 text-xs bg-[var(--hover-bg)] hover:bg-[var(--active-bg)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)] rounded-lg transition-colors"
           >
             Retry
