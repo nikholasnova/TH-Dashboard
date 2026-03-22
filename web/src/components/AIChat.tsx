@@ -76,7 +76,7 @@ export function AIChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
-  const [deploymentNames, setDeploymentNames] = useState<{ name: string; location: string }[]>([]);
+  const [deploymentNames, setDeploymentNames] = useState<{ name: string; location: string }[] | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
@@ -86,7 +86,9 @@ export function AIChat() {
       try {
         const deps = await getDeployments({ status: 'active' });
         setDeploymentNames(deps.map(d => ({ name: d.name, location: d.location })));
-      } catch {}
+      } catch {
+        setDeploymentNames([]);
+      }
     }
     loadDeployments();
   }, []);
@@ -266,6 +268,8 @@ export function AIChat() {
   };
 
   const suggestedQuestions = useMemo(() => {
+    if (!deploymentNames) return null;
+
     const questions: string[] = [];
 
     if (deploymentNames.length >= 2) {
@@ -307,7 +311,7 @@ export function AIChat() {
               Check live readings, validate sensor accuracy against official weather, spot trends, or generate a full report for your paper.
             </p>
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3 justify-center w-full sm:w-auto">
-              {suggestedQuestions.map((q) => (
+              {suggestedQuestions ? suggestedQuestions.map((q) => (
                 <button
                   key={q}
                   onClick={() => sendMessage(q)}
@@ -315,7 +319,13 @@ export function AIChat() {
                 >
                   {q}
                 </button>
-              ))}
+              )) : (
+                <>
+                  {['w-64', 'w-72', 'w-80', 'w-56'].map((w, i) => (
+                    <div key={i} className={`skeleton h-10 ${w} rounded-full`} />
+                  ))}
+                </>
+              )}
             </div>
           </div>
         ) : (

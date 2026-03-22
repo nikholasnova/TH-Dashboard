@@ -5,14 +5,15 @@ interface PageLayoutProps {
   title?: string;
   subtitle?: string;
   children: React.ReactNode;
+  onManageNodes?: () => void;
 }
 
-export function PageLayout({ children }: PageLayoutProps) {
+export function PageLayout({ children, onManageNodes }: PageLayoutProps) {
   return (
     <AuthGate>
       <div className="min-h-screen">
         <div className="container-responsive">
-          <Navbar />
+          <Navbar onManageNodes={onManageNodes} />
           {children}
         </div>
       </div>

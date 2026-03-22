@@ -109,8 +109,8 @@ export default function Dashboard() {
       : false;
 
   return (
-    <PageLayout title="Dashboard" subtitle="Real-time temperature & humidity monitoring">
-      <div className="flex justify-end mb-4">
+    <PageLayout title="Dashboard" subtitle="Real-time temperature & humidity monitoring" onManageNodes={() => setShowDeviceManager(true)}>
+      <div className="hidden sm:flex justify-end mb-4">
         <button
           onClick={() => setShowDeviceManager(true)}
           className="btn-glass px-3 py-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-1.5"

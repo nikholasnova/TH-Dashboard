@@ -19,6 +19,14 @@ export function ChatShell() {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isFullscreen]);
 
+  // Lock body scroll when chat covers the viewport
+  useEffect(() => {
+    const shouldLock = isOpen && (isFullscreen || window.innerWidth < 640);
+    if (!shouldLock) return;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [isOpen, isFullscreen]);
+
   if (loading || !user) return null;
 
   const containerClass = isFullscreen

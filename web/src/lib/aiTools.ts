@@ -63,13 +63,16 @@ export async function executeGetDeployments(params: {
 
   let results = (data || []) as DeploymentWithCount[];
 
+  // Normalize for fuzzy matching: lowercase, strip non-alphanumeric (except spaces)
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, '');
+
   if (params.location) {
-    const loc = params.location.toLowerCase();
-    results = results.filter(d => d.location.toLowerCase().includes(loc));
+    const loc = normalize(params.location);
+    results = results.filter(d => normalize(d.location).includes(loc));
   }
   if (params.name) {
-    const name = params.name.toLowerCase();
-    results = results.filter(d => d.name.toLowerCase().includes(name));
+    const name = normalize(params.name);
+    results = results.filter(d => normalize(d.name).includes(name));
   }
   if (params.zip_code) {
     results = results.filter(d => d.zip_code === params.zip_code);

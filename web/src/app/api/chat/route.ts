@@ -32,6 +32,7 @@ HOW TO ANSWER COMMON QUESTIONS:
 - "How accurate are my sensors?" / "Compare sensors to official weather" / "Margin of error": Call get_device_stats with start 7 days ago and end now, with NO device_id filter. This returns stats for ALL devices — registered sensor nodes AND their official weather counterparts (weather_<device_id>). Compare each sensor to its weather counterpart. Calculate the difference (delta) and percent error for temperature and humidity. Frame results as sensor accuracy validation.
 - "Show me trends" / "How has temperature changed?": Use get_chart_data with appropriate bucket sizes (15-60 min for a day, 1440 min for weeks/months).
 - If a user references a room, location, or place name, search deployments by location OR name to find matching deployments. Filters use partial matching, so "Queen Creek" will find "Queen Creek, AZ" and "patio" will find "Nik's Patio".
+- When looking up deployments by name or location, do NOT set active_only unless the user explicitly asks for only active/current deployments. Always search all deployments first.
 
 REPORT GENERATION:
 When asked to "generate a report", "write a report for my paper", "create an analysis document", or similar:
@@ -102,7 +103,7 @@ const getDeploymentsDecl: FunctionDeclaration = {
       location: { type: SchemaType.STRING, description: 'Filter by location (partial match, e.g. "Queen Creek" matches "Queen Creek, AZ")' },
       name: { type: SchemaType.STRING, description: 'Filter by deployment name (partial match, e.g. "patio" matches "Nik\'s Patio")' },
       zip_code: { type: SchemaType.STRING, description: 'Filter by zip code (exact match, e.g. "85142")' },
-      active_only: { type: SchemaType.BOOLEAN, description: 'Only return active deployments' },
+      active_only: { type: SchemaType.BOOLEAN, description: 'Only return active (not ended) deployments. Defaults to false — only set true when the user explicitly asks for active/current deployments.' },
     },
   },
 };
@@ -301,11 +302,18 @@ export async function POST(req: Request) {
 
     try {
       const serverClient = getServerClient();
-      const { data: deviceRows } = await serverClient
-        .from('devices')
-        .select('id, display_name')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true });
+      const [{ data: deviceRows }, { data: deploymentRows }] = await Promise.all([
+        serverClient
+          .from('devices')
+          .select('id, display_name')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true }),
+        serverClient
+          .from('deployments')
+          .select('id, name, device_id, location, zip_code, started_at, ended_at')
+          .order('started_at', { ascending: false })
+          .limit(50),
+      ]);
 
       const registeredDevices = deviceRows || [];
       if (registeredDevices.length > 0) {
@@ -313,8 +321,17 @@ export async function POST(req: Request) {
         const weatherList = registeredDevices.map(d => `weather_${d.id}`).join(', ');
         systemPrompt += `\n\nREGISTERED DEVICES: Sensors: ${sensorList}. Weather counterparts: ${weatherList}.`;
       }
+
+      const deployments = deploymentRows || [];
+      if (deployments.length > 0) {
+        const depList = deployments.map(d => {
+          const status = d.ended_at ? 'ended' : 'active';
+          return `id=${d.id} "${d.name}" (${d.device_id}, ${d.location}, ${status})`;
+        }).join('; ');
+        systemPrompt += `\n\nKNOWN DEPLOYMENTS: ${depList}. When the user references a deployment by name, match it to one of these — use the exact name from this list when calling get_deployments.`;
+      }
     } catch (e) {
-      console.error('Failed to fetch devices for chat context:', e);
+      console.error('Failed to fetch devices/deployments for chat context:', e);
     }
 
     const model = genAI.getGenerativeModel({
