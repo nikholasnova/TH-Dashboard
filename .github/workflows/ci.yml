@@ -63,7 +63,8 @@ jobs:
       - name: Display coverage summary
         working-directory: web
         if: always()
-        run: jq '.total | to_entries[] | "\(.key): \(.value.pct)%"' coverage/coverage-summary.json
+        run: |
+          jq '.total | to_entries[] | "\(.key): \(.value.pct)%"' coverage/coverage-summary.json
 
   nextjs-build:
     runs-on: ubuntu-latest
