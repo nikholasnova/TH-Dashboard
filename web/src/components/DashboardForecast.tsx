@@ -154,7 +154,7 @@ function SkeletonStrip() {
 export function DashboardForecast() {
   const { devices, isLoading: devicesLoading } = useDevices();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [forecastState, setForecastState] = useState<ForecastState>({ status: 'loading', message: 'Loading Python runtime...' });
+  const [forecastState, setForecastState] = useState<ForecastState | null>(null);
   const [retryKey, setRetryKey] = useState(0);
 
   const selectedDevice = useMemo(
@@ -164,8 +164,10 @@ export function DashboardForecast() {
   const deviceId = selectedDevice?.id ?? null;
   const noDevices = !devicesLoading && !deviceId;
 
-  useEffect(() => {
+  function runForecast() {
     if (!deviceId) return;
+    setForecastState({ status: 'loading', message: 'Loading Python runtime...' });
+
     let cancelled = false;
 
     async function run() {
@@ -199,6 +201,11 @@ export function DashboardForecast() {
 
     void run();
     return () => { cancelled = true; };
+  }
+
+  // Reset when device changes
+  useEffect(() => {
+    setForecastState(null);
   }, [deviceId, retryKey]);
 
   return (
@@ -239,7 +246,19 @@ export function DashboardForecast() {
         </div>
       )}
 
-      {!noDevices && forecastState.status === 'loading' && (
+      {!noDevices && forecastState === null && (
+        <div className="text-center py-8">
+          <p className="text-xs text-[var(--foreground-muted)] mb-3">Loads Pyodide runtime (~10s on first run)</p>
+          <button
+            onClick={runForecast}
+            className="px-4 py-2 text-sm font-medium btn-glass text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
+          >
+            Run Forecast
+          </button>
+        </div>
+      )}
+
+      {!noDevices && forecastState !== null && forecastState.status === 'loading' && (
         <div>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-2 h-2 bg-[var(--foreground-secondary)] rounded-full" style={{ animation: 'dotPulse 1.4s ease-in-out infinite' }} />
@@ -249,18 +268,18 @@ export function DashboardForecast() {
         </div>
       )}
 
-      {forecastState.status === 'ready' && (
+      {forecastState?.status === 'ready' && (
         <HourlyStrip points={forecastState.points} />
       )}
 
-      {forecastState.status === 'no-data' && (
+      {forecastState?.status === 'no-data' && (
         <div className="text-center py-8">
           <p className="text-sm text-[var(--foreground-secondary)]">Not enough data for forecasting</p>
           <p className="text-xs text-[var(--foreground-muted)] mt-1">Need at least 2 days of continuous readings</p>
         </div>
       )}
 
-      {forecastState.status === 'error' && (
+      {forecastState?.status === 'error' && (
         <div className="text-center py-8">
           <p className="text-sm text-[var(--error)]">Forecast unavailable</p>
           <p className="text-xs text-[var(--foreground-muted)] mt-1">{forecastState.message}</p>
