@@ -112,7 +112,7 @@ Weather data lives in `readings`, so all RPCs work with weather device IDs (e.g.
 
 ## 5) Web Application
 
-All pages require Supabase Auth session (`AuthGate`). The root layout wraps the app in `AuthProvider` > `DevicesProvider` > `ChatPageContextProvider`, making the device list and chat context available everywhere.
+All pages require Supabase Auth session (`AuthGate`). The root layout wraps the app in `ThemeProvider` > `AuthProvider` > `DevicesProvider` > `ChatPageContextProvider`, making the device list and chat context available everywhere.
 
 ### 5.1 Dashboard (`/`)
 

@@ -53,7 +53,7 @@ Each node needs a unique `DEVICE_ID`. The schema seeds `node1` and `node2` by de
 4. Deploy
 5. Verify cron jobs from `web/vercel.json`:
    - `/api/keepalive` — every 10 min
-   - `/api/weather` — every 30 min
+   - `/api/weather` — every 15 min
 
 ## 6) Environment Variables
 
