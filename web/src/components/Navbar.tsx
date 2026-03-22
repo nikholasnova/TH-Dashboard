@@ -24,22 +24,11 @@ export function Navbar({ onManageNodes }: NavbarProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const SCROLL_RANGE = 80;
-    let ticking = false;
+    const THRESHOLD = 16;
 
     const onScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          const t = Math.min(1, window.scrollY / SCROLL_RANGE);
-          const el = wrapperRef.current;
-          if (el) {
-            el.style.setProperty('--navbar-t', t.toString());
-            el.classList.toggle('navbar-stuck', t > 0.5);
-          }
-          ticking = false;
-        });
-        ticking = true;
-      }
+      const el = wrapperRef.current;
+      if (el) el.classList.toggle('navbar-stuck', window.scrollY > THRESHOLD);
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -63,7 +52,6 @@ export function Navbar({ onManageNodes }: NavbarProps) {
     <div
       ref={wrapperRef}
       className="navbar-sticky-wrapper mb-10"
-      style={{ '--navbar-t': '0' } as React.CSSProperties}
     >
     <nav className="flex items-center justify-between gap-4 relative">
       {/* Desktop: nav links left, user menu right */}

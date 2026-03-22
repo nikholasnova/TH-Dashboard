@@ -408,12 +408,19 @@ nav.glass-card {
 @media (max-width: 639px) {
   .navbar-sticky-wrapper {
     position: sticky;
-    top: calc(var(--navbar-t, 0) * 12px);
+    top: 0;
     z-index: 40;
-    padding: calc(var(--navbar-t, 0) * 8px) calc(var(--navbar-t, 0) * 12px);
-    border-radius: calc(var(--navbar-t, 0) * 20px);
-    backdrop-filter: blur(calc(var(--navbar-t, 0) * 24px));
-    -webkit-backdrop-filter: blur(calc(var(--navbar-t, 0) * 24px));
+    padding: 0;
+    border-radius: 0;
+    transition: padding 0.25s ease, border-radius 0.25s ease, top 0.25s ease;
+  }
+
+  .navbar-sticky-wrapper.navbar-stuck {
+    top: 12px;
+    padding: 8px 12px;
+    border-radius: 20px;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
     isolation: isolate;
   }
 
@@ -428,18 +435,14 @@ nav.glass-card {
       inset 0 1px 0 0 var(--glass-inset),
       0 4px 16px rgba(0, 0, 0, 0.08),
       0 12px 40px rgba(0, 0, 0, 0.04);
-    opacity: var(--navbar-t, 0);
+    opacity: 0;
     z-index: -1;
     pointer-events: none;
+    transition: opacity 0.25s ease;
   }
-}
 
-@media (max-width: 639px) and (prefers-reduced-motion: reduce) {
-  .navbar-sticky-wrapper {
-    --navbar-t: 0 !important;
-  }
-  .navbar-sticky-wrapper.navbar-stuck {
-    --navbar-t: 1 !important;
+  .navbar-sticky-wrapper.navbar-stuck::before {
+    opacity: 1;
   }
 }
 
