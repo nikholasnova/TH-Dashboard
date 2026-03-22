@@ -103,7 +103,7 @@ export function minutesSince(isoDate: string | null, nowMs: number): number | nu
   if (!isoDate) return null;
   const parsed = new Date(isoDate).getTime();
   if (!Number.isFinite(parsed)) return null;
-  return (nowMs - parsed) / 60000;
+  return Math.max(0, (nowMs - parsed) / 60000);
 }
 
 async function getLatestReading(
