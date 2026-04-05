@@ -26,6 +26,7 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install arduino:renesas_uno
           arduino-cli lib install "DFRobot_DHT20"
+          arduino-cli lib install "LiquidCrystal"
 
       - name: Create dummy secrets.h
         run: cp arduino/sensor_node/secrets.example.h arduino/sensor_node/secrets.h
