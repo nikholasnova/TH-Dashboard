@@ -1,7 +1,7 @@
 # IoT Temp/Humidity Dashboard
 
-[![CI](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/ci.yml)
-[![Arduino Build](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/arduino.yml/badge.svg)](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/arduino.yml)
+[![CI](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/ci.yml)
+[![Arduino Build](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/arduino.yml/badge.svg?branch=main)](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/arduino.yml)
 ![Tests](https://img.shields.io/badge/tests-328_passed-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-72%25_statements-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
