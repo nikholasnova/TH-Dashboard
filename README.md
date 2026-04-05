@@ -2,11 +2,9 @@
 
 [![CI](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/ci.yml)
 [![Arduino Build](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/arduino.yml/badge.svg)](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/arduino.yml)
-![Tests](https://img.shields.io/badge/tests-140_passed-brightgreen)
-![Coverage](https://img.shields.io/badge/coverage-50%25_statements-yellow)
+![Tests](https://img.shields.io/badge/tests-328_passed-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-72%25_statements-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
-![Node](https://img.shields.io/badge/node-20-green)
-![Next.js](https://img.shields.io/badge/Next.js-16-black)
 
 A full-stack IoT platform for collecting temperature and humidity from Arduino sensor nodes, comparing readings against local weather references, and analyzing the data through charts, statistics, and AI. Built as an educational project for an intro engineering class.
 
@@ -73,16 +71,18 @@ flowchart TB
 
 ## Test Coverage
 
-140 tests across 18 test files. Coverage is generated on every push via CI and uploaded as a build artifact.
+328 tests across 35 test files. Coverage is generated on every push via CI and uploaded as a build artifact.
 
 | Category | Statements | Branches | Functions | Lines |
 |----------|-----------|----------|-----------|-------|
-| **Overall** | 50% | 43% | 48% | 51% |
+| **Overall** | 72% | 64% | 68% | 74% |
 | API routes | 78-93% | 67-88% | 83-100% | 79-93% |
-| Components | 60% | 54% | 51% | 61% |
-| Lib/utilities | 65% | 57% | 69% | 67% |
+| Components | 68% | 62% | 59% | 71% |
+| Lib/utilities | 78% | 70% | 80% | 80% |
+| Supabase queries | 95-100% | 84-100% | 100% | 98-100% |
+| Contexts/providers | 60-100% | 50-100% | 60-100% | 65-100% |
 
-High-coverage areas: API routes (chat, keepalive, weather), utility modules (format, weatherZip, weatherCompare, conversions, constants), and core components (AuthGate, FilterToolbar, ChatShell, LoadingSpinner).
+High-coverage areas: Supabase query layer (devices, readings, deployments), API routes (chat, weather), utility modules (format, weatherZip, weatherCompare, conversions, auth), and core components (AuthGate, FilterToolbar, ChatShell, DeviceManager, ExportModal).
 
 ## Docs
 

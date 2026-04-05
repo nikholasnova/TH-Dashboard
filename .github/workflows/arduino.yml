@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - 'arduino/**'
+      - '.github/workflows/arduino.yml'
   pull_request:
     paths:
       - 'arduino/**'
+      - '.github/workflows/arduino.yml'
 
 jobs:
   build:
