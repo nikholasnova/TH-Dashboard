@@ -68,14 +68,14 @@ export default function DeploymentsPage() {
 
   return (
     <PageLayout title="Deployments" subtitle="Manage device placement sessions">
-        <div className="flex flex-wrap items-center gap-4 mb-8">
-          <div className="glass-card p-3 flex flex-wrap items-center gap-4">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+          <div className="glass-card p-3 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
             <span className="text-xs text-[var(--foreground-muted)] font-medium">Filters:</span>
 
             <select
               value={deviceFilter}
               onChange={(e) => setDeviceFilter(e.target.value)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] min-w-[100px]"
+              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full sm:w-auto sm:min-w-[100px]"
             >
               <option value="">All Devices</option>
               {devices.map((d) => (
@@ -86,7 +86,7 @@ export default function DeploymentsPage() {
             <select
               value={locationFilter}
               onChange={(e) => setLocationFilter(e.target.value)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] min-w-[120px]"
+              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full sm:w-auto sm:min-w-[120px]"
             >
               <option value="">All Locations</option>
               {locations.map((loc) => (
@@ -97,7 +97,7 @@ export default function DeploymentsPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] min-w-[100px]"
+              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full sm:w-auto sm:min-w-[100px]"
             >
               <option value="all">All Status</option>
               <option value="active">Active</option>
@@ -107,7 +107,7 @@ export default function DeploymentsPage() {
 
           <button
             onClick={() => setShowNewModal(true)}
-            className="btn-glass px-5 py-3 text-sm font-semibold text-[var(--foreground)]"
+            className="btn-glass px-5 py-3 text-sm font-semibold text-[var(--foreground)] w-full sm:w-auto"
           >
             + New Deployment
           </button>
@@ -132,15 +132,18 @@ export default function DeploymentsPage() {
               <div
                 key={dep.id}
                 onClick={() => setSelectedDeployment(dep)}
-                className="glass-card p-6 cursor-pointer hover:border-[var(--btn-border-hover)] transition-all"
+                className="glass-card p-4 sm:p-6 cursor-pointer hover:border-[var(--btn-border-hover)] transition-all"
               >
-                <div className="flex items-center gap-4">
-                  <div className={`w-3 h-3 rounded-full ${dep.ended_at ? 'bg-[var(--foreground-muted)]/40' : 'bg-[var(--success)] animate-pulse'}`} />
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className={`w-3 h-3 rounded-full shrink-0 ${dep.ended_at ? 'bg-[var(--foreground-muted)]/40' : 'bg-[var(--success)] animate-pulse'}`} />
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-[var(--foreground)] truncate">{dep.name}</h3>
-                    <p className="text-sm text-[var(--foreground-muted)]">
+                    <h3 className="text-base sm:text-lg font-semibold text-[var(--foreground)] truncate">{dep.name}</h3>
+                    <p className="text-xs sm:text-sm text-[var(--foreground-muted)]">
                       {dep.device_id} &bull; {dep.location}
+                    </p>
+                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5 sm:hidden">
+                      {formatDateRange(dep)} &bull; {dep.reading_count.toLocaleString()} readings
                     </p>
                   </div>
 
@@ -151,7 +154,7 @@ export default function DeploymentsPage() {
                     </p>
                   </div>
 
-                  <div className="text-right">
+                  <div className="text-right hidden sm:block">
                     <p className="text-sm font-medium text-[var(--foreground)]">{dep.reading_count.toLocaleString()}</p>
                     <p className="text-xs text-[var(--foreground-muted)]">readings</p>
                   </div>

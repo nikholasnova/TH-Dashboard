@@ -356,7 +356,7 @@ export function DeploymentModal({
                         </p>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm text-[var(--foreground-muted)] mb-2">Start Time</label>
                         <input

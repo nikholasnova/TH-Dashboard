@@ -253,7 +253,7 @@ export default function AnalysisPage() {
               <label className="text-sm text-[var(--foreground-muted)] font-medium mb-2 block">
                 Deployments
               </label>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex gap-2 overflow-x-auto scrollbar-thin pb-1">
                 {deployments.length === 0 ? (
                   <span className="text-sm text-[var(--foreground-muted)]/60">
                     No deployments found
@@ -264,7 +264,7 @@ export default function AnalysisPage() {
                       key={dep.id}
                       onClick={() => toggleDeployment(dep.id)}
                       disabled={!pyodideReady}
-                      className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all ${
+                      className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
                         selectedDeployments.includes(dep.id)
                           ? 'nav-active text-[var(--foreground)] font-semibold'
                           : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)] border border-[var(--divider)]'
@@ -285,14 +285,14 @@ export default function AnalysisPage() {
                 <label className="text-sm text-[var(--foreground-muted)] font-medium mb-2 block">
                   Time Range
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  <div className="glass-card p-2 flex flex-wrap gap-1">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
+                  <div className="glass-card p-2 flex gap-1 overflow-x-auto scrollbar-thin">
                     {TIME_RANGES.map((range) => (
                       <button
                         key={range.hours}
                         onClick={() => setSelectedRange(range.hours)}
                         disabled={!pyodideReady}
-                        className={`px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${
+                        className={`px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
                           selectedRange === range.hours
                             ? 'nav-active text-[var(--foreground)] font-semibold'
                             : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
@@ -341,13 +341,13 @@ export default function AnalysisPage() {
                 <label className="text-sm text-[var(--foreground-muted)] font-medium mb-2 block">
                   Analysis Types
                 </label>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex gap-2 overflow-x-auto scrollbar-thin pb-1">
                   {ANALYSIS_TYPES.map((type) => (
                     <button
                       key={type.id}
                       onClick={() => toggleAnalysis(type.id)}
                       disabled={!pyodideReady}
-                      className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all ${
+                      className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
                         selectedAnalyses.includes(type.id)
                           ? 'nav-active text-[var(--foreground)] font-semibold'
                           : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)] border border-[var(--divider)]'
