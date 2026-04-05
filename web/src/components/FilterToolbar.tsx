@@ -33,13 +33,15 @@ export function FilterToolbar({
           isValid={timeRange.isCustomValid}
         />
       )}
-      <DeviceDeploymentFilter
-        deviceFilter={timeRange.deviceFilter}
-        deploymentFilter={timeRange.deploymentFilter}
-        deployments={deployments}
-        onDeviceChange={timeRange.setDeviceFilter}
-        onDeploymentChange={timeRange.setDeploymentFilter}
-      />
+      <div className="hidden sm:block">
+        <DeviceDeploymentFilter
+          deviceFilter={timeRange.deviceFilter}
+          deploymentFilter={timeRange.deploymentFilter}
+          deployments={deployments}
+          onDeviceChange={timeRange.setDeviceFilter}
+          onDeploymentChange={timeRange.setDeploymentFilter}
+        />
+      </div>
       {children}
     </div>
   );

@@ -5,8 +5,6 @@ import dynamic from 'next/dynamic';
 import { PageLayout } from '@/components/PageLayout';
 import {
   ChartSample,
-  getAllReadings,
-  getAllReadingsRange,
   getChartSamples,
   celsiusToFahrenheit,
 } from '@/lib/supabase';
@@ -17,6 +15,7 @@ import { FilterToolbar } from '@/components/FilterToolbar';
 import { useTimeRange } from '@/hooks/useTimeRange';
 import { useDeployments } from '@/hooks/useDeployments';
 import { useDevices } from '@/contexts/DevicesContext';
+import { ExportModal } from '@/components/ExportModal';
 
 const ResponsiveLine = dynamic(
   () => import('@nivo/line').then((m) => m.ResponsiveLine),
@@ -37,8 +36,7 @@ export default function ChartsPage() {
   const [samples, setSamples] = useState<ChartSample[]>([]);
   const [metric, setMetric] = useState<MetricType>('temperature');
   const [isLoading, setIsLoading] = useState(true);
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -77,11 +75,6 @@ export default function ChartsPage() {
     return () => setPageContext({});
   }, [setPageContext, selectedRange, deviceFilter, deploymentFilter, customStart, customEnd]);
 
-  // Clear export error when any filter changes
-  useEffect(() => {
-    setExportError(null);
-  }, [selectedRange, customStart, customEnd, deviceFilter, deploymentFilter]);
-
   const pickBucketSeconds = (rangeMs: number) => {
     const rangeSeconds = rangeMs / 1000;
     const targetPoints = 200;
@@ -116,54 +109,19 @@ export default function ChartsPage() {
     return () => clearTimeout(timer);
   }, [fetchData]);
 
-  const exportCSV = async () => {
-    if (isCustom && !isCustomValid) return;
-    setIsExporting(true);
-    setExportError(null);
-
-    const { start, end, scopedDeviceId } = await getRangeBounds();
-    let rawReadings = isCustom || deploymentFilter
-      ? await getAllReadingsRange({ start, end })
-      : await getAllReadings(selectedRange);
-
-    if (scopedDeviceId) {
-      rawReadings = rawReadings.filter(r => r.device_id === scopedDeviceId);
-    }
-
-    if (rawReadings.length === 0) {
-      setExportError('No data to export');
-      setIsExporting(false);
-      return;
-    }
-
-    const csvSafe = (value: string): string => {
-      if (/[,"\n\r]/.test(value) || /^[=+\-@\t\r]/.test(value)) {
-        return `"${value.replace(/"/g, '""')}"`;
-      }
-      return value;
-    };
-
-    const headers = ['timestamp', 'device_id', 'source', 'temperature_f', 'temperature_c', 'humidity'];
-    const rows = rawReadings.map((r) => [
-      csvSafe(r.created_at),
-      csvSafe(r.device_id),
-      csvSafe(r.source ?? ''),
-      celsiusToFahrenheit(r.temperature).toFixed(2),
-      r.temperature.toFixed(2),
-      r.humidity.toFixed(2),
-    ]);
-
-    const csv = [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const label = deploymentFilter ? `dep-${deploymentFilter}` : isCustom ? 'custom' : `${selectedRange}h`;
-    a.download = `readings-${label}-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    setIsExporting(false);
+  const toDatetimeLocal = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
+
+  const exportDefaults = useMemo(() => {
+    if (isCustom && customStart && customEnd) {
+      return { start: customStart, end: customEnd };
+    }
+    const now = new Date();
+    const hoursAgo = selectedRange > 0 ? selectedRange : 24;
+    return { start: toDatetimeLocal(new Date(now.getTime() - hoursAgo * 3600000)), end: toDatetimeLocal(now) };
+  }, [isCustom, customStart, customEnd, selectedRange]);
 
   const isFiniteNumber = (value: unknown): value is number =>
     typeof value === 'number' && Number.isFinite(value);
@@ -283,13 +241,10 @@ export default function ChartsPage() {
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button onClick={exportCSV} disabled={isExporting || (isCustom && !isCustomValid)}
-              className="btn-glass px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-              {isExporting ? 'Exporting...' : 'Export CSV'}
-            </button>
-            {exportError && <span className="text-xs sm:text-sm text-[var(--warning)]">{exportError}</span>}
-          </div>
+          <button onClick={() => setIsExportModalOpen(true)}
+            className="btn-glass px-4 py-3 sm:px-5 sm:py-2.5 text-sm sm:text-sm w-full sm:w-auto">
+            Export CSV
+          </button>
         </FilterToolbar>
 
         {deploymentFilter && (
@@ -404,6 +359,13 @@ export default function ChartsPage() {
             </div>
           )}
         </div>
+        <ExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          defaultStart={exportDefaults.start}
+          defaultEnd={exportDefaults.end}
+          defaultDeviceId={deviceFilter}
+        />
     </PageLayout>
   );
 }

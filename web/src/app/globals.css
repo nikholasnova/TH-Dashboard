@@ -130,6 +130,10 @@
   --font-mono: var(--font-jetbrains);
 }
 
+html, body {
+  overflow-x: hidden;
+}
+
 body {
   background: var(--background-main);
   color: var(--foreground);
