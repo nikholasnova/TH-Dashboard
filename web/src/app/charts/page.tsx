@@ -83,10 +83,8 @@ export default function ChartsPage() {
   }, [selectedRange, customStart, customEnd, deviceFilter, deploymentFilter]);
 
   const pickBucketSeconds = (rangeMs: number) => {
-    const rangeHours = rangeMs / 3_600_000;
-    if (rangeHours >= 24) return 1800;
     const rangeSeconds = rangeMs / 1000;
-    const targetPoints = 1200;
+    const targetPoints = 200;
     const idealBucketSeconds = rangeSeconds / targetPoints;
     const bucketOptions = [300, 600, 900, 1800, 3600, 7200, 10800, 14400, 21600, 43200, 86400];
     return bucketOptions.find((bucket) => bucket >= idealBucketSeconds) || bucketOptions[bucketOptions.length - 1];
