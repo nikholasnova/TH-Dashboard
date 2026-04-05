@@ -123,7 +123,7 @@ function HourlyStrip({ points }: { points: HourlyForecast[] }) {
           {points.map((p) => (
             <div
               key={p.iso}
-              className="text-center text-[10px] text-[var(--foreground-muted)] pt-1"
+              className="text-center text-[11px] text-[var(--foreground-muted)] pt-1"
               style={{ width: columnW, flexShrink: 0 }}
             >
               {p.hour_label}
@@ -154,8 +154,7 @@ function SkeletonStrip() {
 export function DashboardForecast() {
   const { devices, isLoading: devicesLoading } = useDevices();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [forecastState, setForecastState] = useState<ForecastState>({ status: 'loading', message: 'Loading Python runtime...' });
-  const [retryKey, setRetryKey] = useState(0);
+  const [forecastState, setForecastState] = useState<ForecastState | null>(null);
 
   const selectedDevice = useMemo(
     () => devices.find(d => d.id === selectedId) ?? devices[0] ?? null,
@@ -164,8 +163,10 @@ export function DashboardForecast() {
   const deviceId = selectedDevice?.id ?? null;
   const noDevices = !devicesLoading && !deviceId;
 
-  useEffect(() => {
+  function runForecast() {
     if (!deviceId) return;
+    setForecastState({ status: 'loading', message: 'Loading Python runtime...' });
+
     let cancelled = false;
 
     async function run() {
@@ -199,21 +200,22 @@ export function DashboardForecast() {
 
     void run();
     return () => { cancelled = true; };
-  }, [deviceId, retryKey]);
+  }
+
 
   return (
     <div className="glass-card p-4 sm:p-6 mt-8">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-lg font-semibold text-[var(--foreground)]">24-Hour Forecast</h3>
-          <p className="text-xs text-[var(--foreground-muted)]">Holt-Winters exponential smoothing</p>
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <div className="min-w-0">
+          <h3 className="text-base sm:text-lg font-semibold text-[var(--foreground)]">24-Hour Forecast</h3>
+          <p className="text-[11px] sm:text-xs text-[var(--foreground-muted)] truncate">Holt-Winters exponential smoothing</p>
         </div>
-        <div className="relative flex rounded-xl overflow-hidden border border-[var(--glass-border)] bg-[var(--card-highlight)]">
+        <div className="relative flex rounded-xl overflow-hidden border border-[var(--glass-border)] bg-[var(--card-highlight)] shrink-0">
           {devices.map((device) => (
             <button
               key={device.id}
-              onClick={() => setSelectedId(device.id)}
-              className={`relative px-3 py-1.5 text-xs font-medium transition-colors z-10 ${
+              onClick={() => { setSelectedId(device.id); setForecastState(null); }}
+              className={`relative px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors z-10 ${
                 deviceId === device.id
                   ? 'text-[var(--background-main)]'
                   : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
@@ -239,7 +241,19 @@ export function DashboardForecast() {
         </div>
       )}
 
-      {!noDevices && forecastState.status === 'loading' && (
+      {!noDevices && forecastState === null && (
+        <div className="text-center py-8">
+          <p className="text-xs text-[var(--foreground-muted)] mb-3">Loads Pyodide runtime (~10s on first run)</p>
+          <button
+            onClick={runForecast}
+            className="px-4 py-2 text-sm font-medium btn-glass text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
+          >
+            Run Forecast
+          </button>
+        </div>
+      )}
+
+      {!noDevices && forecastState !== null && forecastState.status === 'loading' && (
         <div>
           <div className="flex items-center gap-2 mb-4">
             <div className="w-2 h-2 bg-[var(--foreground-secondary)] rounded-full" style={{ animation: 'dotPulse 1.4s ease-in-out infinite' }} />
@@ -249,23 +263,23 @@ export function DashboardForecast() {
         </div>
       )}
 
-      {forecastState.status === 'ready' && (
+      {forecastState?.status === 'ready' && (
         <HourlyStrip points={forecastState.points} />
       )}
 
-      {forecastState.status === 'no-data' && (
+      {forecastState?.status === 'no-data' && (
         <div className="text-center py-8">
           <p className="text-sm text-[var(--foreground-secondary)]">Not enough data for forecasting</p>
           <p className="text-xs text-[var(--foreground-muted)] mt-1">Need at least 2 days of continuous readings</p>
         </div>
       )}
 
-      {forecastState.status === 'error' && (
+      {forecastState?.status === 'error' && (
         <div className="text-center py-8">
           <p className="text-sm text-[var(--error)]">Forecast unavailable</p>
           <p className="text-xs text-[var(--foreground-muted)] mt-1">{forecastState.message}</p>
           <button
-            onClick={() => setRetryKey((k) => k + 1)}
+            onClick={() => setForecastState(null)}
             className="mt-3 px-3 py-1.5 text-xs bg-[var(--hover-bg)] hover:bg-[var(--active-bg)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)] rounded-lg transition-colors"
           >
             Retry

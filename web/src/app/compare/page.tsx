@@ -169,6 +169,49 @@ export default function ComparePage() {
           </>
         ) : (
           <div className="fade-in">
+            {/* Mobile: stacked cards per device */}
+            <div className="sm:hidden space-y-4">
+              {deviceColumns.map(col => (
+                <div key={col.device.id} className="glass-card p-4">
+                  <h3 className="text-base font-bold mb-3" style={{ color: col.device.color }}>
+                    {col.device.display_name}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
+                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Avg Temp</p>
+                      <p className="text-lg font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.tempAvgF)}°F</p>
+                    </div>
+                    <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
+                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Avg Humidity</p>
+                      <p className="text-lg font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.sensor?.humidity_avg)}%</p>
+                    </div>
+                    <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
+                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">High / Low</p>
+                      <p className="text-sm font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        <span className="text-[var(--warning)]">{formatValue(col.tempMaxF)}°</span>
+                        {' / '}
+                        <span className="text-[var(--info)]">{formatValue(col.tempMinF)}°</span>
+                      </p>
+                    </div>
+                    <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
+                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Std Dev</p>
+                      <p className="text-sm font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.tempStdF, 2)}°F</p>
+                    </div>
+                  </div>
+                  {(col.weatherTempAvgF != null || col.tempErrorPct != null) && (
+                    <div className="mt-3 pt-3 border-t border-[var(--divider)] flex items-center justify-between">
+                      <span className="text-xs text-[var(--foreground-muted)]">vs Weather: {formatValue(col.weatherTempAvgF)}°F</span>
+                      <span className="text-xs font-medium" style={{ color: col.tempErrorPct != null ? (col.tempErrorPct < 3 ? 'var(--success)' : col.tempErrorPct < 5 ? 'var(--warning)' : 'var(--error)') : 'var(--foreground-muted)' }}>
+                        {formatPercent(col.tempErrorPct)} Error
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: original tables */}
+            <div className="hidden sm:block">
             <div className="glass-card card-stats p-4 sm:p-8 mb-8">
               <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] mb-4 sm:mb-6">Temperature (°F)</h2>
               <div className="overflow-x-auto">
@@ -321,6 +364,7 @@ export default function ComparePage() {
                 </tbody>
               </table>
               </div>
+            </div>
             </div>
           </div>
         )}

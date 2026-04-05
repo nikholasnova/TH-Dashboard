@@ -124,7 +124,7 @@ export default function Dashboard() {
       </div>
 
       <p className="section-label">Live Readings</p>
-      <div className={`grid ${getGridClasses(devices.length)} gap-8`}>
+      <div className={`grid ${getGridClasses(devices.length)} gap-4 sm:gap-8`}>
         {devices.map((device, i) => (
           <motion.div
             key={device.id}

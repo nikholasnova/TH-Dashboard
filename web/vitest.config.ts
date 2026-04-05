@@ -12,6 +12,9 @@ export default defineConfig({
         setupFiles: ['./src/test/setup.ts'],
         globals: true,
         css: true,
+        coverage: {
+            reporter: ['text', 'json-summary'],
+        },
     },
     esbuild: {
         jsx: 'automatic',

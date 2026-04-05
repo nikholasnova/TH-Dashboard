@@ -31,14 +31,17 @@ function applyTheme(theme: Theme) {
   }
 }
 
+function getInitialTheme(): Theme {
+  if (typeof window === 'undefined') return 'dark';
+  return localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>('dark');
+  const [theme, setThemeState] = useState<Theme>(getInitialTheme);
 
   useEffect(() => {
-    const stored = localStorage.getItem('theme');
-    const choice: Theme = stored === 'light' ? 'light' : 'dark';
-    setThemeState(choice);
-    applyTheme(choice);
+    applyTheme(theme);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only apply on mount; useState(getInitialTheme) already has the correct value
   }, []);
 
   const setTheme = useCallback((choice: Theme) => {

@@ -46,7 +46,7 @@ describe('ChatShell', () => {
     expect(screen.getByTitle('Close chat')).toBeInTheDocument();
 
     await user.click(screen.getByTitle('Close chat'));
-    expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ai-chat').parentElement!.closest('.hidden')).toBeTruthy();
     expect(screen.getByTitle('Open Kelvin AI')).toBeInTheDocument();
   });
 

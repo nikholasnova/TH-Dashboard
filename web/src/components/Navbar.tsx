@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
 import { UserMenu } from './UserMenu';
 
 const NAV_LINKS = [
@@ -11,35 +10,51 @@ const NAV_LINKS = [
   { href: '/charts', label: 'Charts' },
   { href: '/compare', label: 'Compare' },
   { href: '/analysis', label: 'Analysis' },
-  { href: '/deployments', label: 'Deployments' },
+  { href: '/deployments', label: 'Deploy' },
 ];
+
+const NAV_ICONS: Record<string, React.ReactNode> = {
+  '/': (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+    </svg>
+  ),
+  '/charts': (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
+    </svg>
+  ),
+  '/compare': (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="18" rx="1" /><rect x="14" y="3" width="7" height="18" rx="1" />
+    </svg>
+  ),
+  '/analysis': (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 3h6v7l3 7H6l3-7V3z" /><path d="M10 3h4" /><circle cx="12" cy="14" r="1" />
+    </svg>
+  ),
+  '/deployments': (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+    </svg>
+  ),
+};
 
 interface NavbarProps {
   onManageNodes?: () => void;
 }
 
 export function Navbar({ onManageNodes }: NavbarProps) {
-  const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const SCROLL_RANGE = 80;
-    let ticking = false;
+    const THRESHOLD = 16;
 
     const onScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          const t = Math.min(1, window.scrollY / SCROLL_RANGE);
-          const el = wrapperRef.current;
-          if (el) {
-            el.style.setProperty('--navbar-t', t.toString());
-            el.classList.toggle('navbar-stuck', t > 0.5);
-          }
-          ticking = false;
-        });
-        ticking = true;
-      }
+      const el = wrapperRef.current;
+      if (el) el.classList.toggle('navbar-stuck', window.scrollY > THRESHOLD);
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -52,109 +67,50 @@ export function Navbar({ onManageNodes }: NavbarProps) {
     return pathname.startsWith(href);
   };
 
-  const gearIcon = (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  );
-
   return (
-    <div
-      ref={wrapperRef}
-      className="navbar-sticky-wrapper mb-10"
-      style={{ '--navbar-t': '0' } as React.CSSProperties}
-    >
-    <nav className="flex items-center justify-between gap-4 relative">
-      {/* Desktop: nav links left, user menu right */}
-      <div className="hidden sm:flex items-center gap-4">
-        <div className="flex glass-card p-2 gap-1.5" style={{ background: 'var(--glass-bg)', borderWidth: '1px' }}>
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`px-6 py-3 text-sm font-medium rounded-xl transition-colors ${
-                isActive(link.href)
-                  ? 'nav-active font-semibold'
-                  : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
-      </div>
-      <div className="hidden sm:block">
-        <UserMenu />
+    <>
+      {/* Desktop nav — unchanged */}
+      <div
+        ref={wrapperRef}
+        className="navbar-sticky-wrapper mb-10 hidden sm:block"
+      >
+        <nav className="flex items-center justify-between gap-4 relative">
+          <div className="flex items-center gap-4">
+            <div className="flex glass-card p-2 gap-1.5" style={{ background: 'var(--glass-bg)', borderWidth: '1px' }}>
+              {NAV_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`px-6 py-3 text-sm font-medium rounded-xl transition-colors ${
+                    isActive(link.href)
+                      ? 'nav-active font-semibold'
+                      : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
+                  }`}
+                >
+                  {link.label === 'Deploy' ? 'Deployments' : link.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div>
+            <UserMenu />
+          </div>
+        </nav>
       </div>
 
-      {/* Mobile: profile/theme/gear left, hamburger right */}
-      <div className="sm:hidden flex items-center gap-2">
-        <UserMenu />
-        {onManageNodes && (
-          <button
-            onClick={onManageNodes}
-            className="w-10 h-10 rounded-full bg-[var(--active-bg)] border border-[var(--btn-border-hover)] flex items-center justify-center text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-all"
-            aria-label="Manage nodes"
+      {/* Mobile bottom tab bar */}
+      <nav className="mobile-tab-bar sm:hidden">
+        {NAV_LINKS.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={`mobile-tab-item ${isActive(link.href) ? 'mobile-tab-active' : ''}`}
           >
-            {gearIcon}
-          </button>
-        )}
-      </div>
-
-      <div className="sm:hidden relative">
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="btn-glass p-3 w-12 h-12 flex flex-col items-center justify-center gap-1.5 relative z-50"
-          aria-label="Toggle menu"
-        >
-          <span
-            className={`block w-6 h-0.5 bg-[var(--primary)] rounded-full transition-all duration-300 ease-in-out ${
-              isOpen ? 'rotate-45 translate-y-2' : ''
-            }`}
-          />
-          <span
-            className={`block w-6 h-0.5 bg-[var(--primary)] rounded-full transition-all duration-300 ease-in-out ${
-              isOpen ? 'opacity-0 scale-0' : ''
-            }`}
-          />
-          <span
-            className={`block w-6 h-0.5 bg-[var(--primary)] rounded-full transition-all duration-300 ease-in-out ${
-              isOpen ? '-rotate-45 -translate-y-2' : ''
-            }`}
-          />
-        </button>
-
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.96 }}
-              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-              className="absolute top-14 right-0 w-48 bg-[var(--glass-bg-strong)] backdrop-blur-xl border border-[var(--glass-border)] rounded-2xl p-2 z-40 shadow-xl"
-            >
-              <div className="flex flex-col gap-1">
-                {NAV_LINKS.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setIsOpen(false)}
-                    className={`px-4 py-3 text-sm font-medium rounded-xl transition-colors ${
-                      isActive(link.href)
-                        ? 'bg-[var(--active-bg)] text-[var(--foreground)] font-semibold border-l-2 border-[var(--primary)]'
-                        : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
-                    }`}
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </nav>
-    </div>
+            {NAV_ICONS[link.href]}
+            <span className="text-[11px] leading-tight mt-0.5">{link.label}</span>
+          </Link>
+        ))}
+      </nav>
+    </>
   );
 }
