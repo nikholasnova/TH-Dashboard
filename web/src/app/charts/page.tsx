@@ -131,7 +131,6 @@ export default function ChartsPage() {
     if (scopedDeviceId) {
       rawReadings = rawReadings.filter(r => r.device_id === scopedDeviceId);
     }
-    rawReadings = rawReadings.filter(r => !r.device_id.startsWith('weather_'));
 
     if (rawReadings.length === 0) {
       setExportError('No data to export');
@@ -146,10 +145,11 @@ export default function ChartsPage() {
       return value;
     };
 
-    const headers = ['timestamp', 'device_id', 'temperature_f', 'temperature_c', 'humidity'];
+    const headers = ['timestamp', 'device_id', 'source', 'temperature_f', 'temperature_c', 'humidity'];
     const rows = rawReadings.map((r) => [
       csvSafe(r.created_at),
       csvSafe(r.device_id),
+      csvSafe(r.source ?? ''),
       celsiusToFahrenheit(r.temperature).toFixed(2),
       r.temperature.toFixed(2),
       r.humidity.toFixed(2),
