@@ -12,7 +12,7 @@
     "test:coverage": "node ./node_modules/vitest/vitest.mjs --coverage"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
+    "@google/generative-ai": "^0.24.1",
     "@nivo/core": "^0.99.0",
     "@nivo/line": "^0.99.0",
     "@supabase/ssr": "^0.8.0",
