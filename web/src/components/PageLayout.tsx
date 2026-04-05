@@ -19,7 +19,7 @@ export function PageLayout({ title, children, onManageNodes }: PageLayoutProps) 
 
   return (
     <AuthGate>
-      <div className="min-h-screen pb-20 sm:pb-0">
+      <div className="min-h-screen sm:pb-0" style={{ paddingBottom: 'var(--bottom-spacing)' }}>
         <div className="container-responsive">
           {/* Mobile page header */}
           <div className="sm:hidden flex items-center justify-between mb-4 pt-1">

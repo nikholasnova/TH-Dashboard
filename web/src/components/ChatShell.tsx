@@ -31,7 +31,11 @@ export function ChatShell() {
 
   const containerClass = isFullscreen
     ? 'fixed inset-0 z-50 flex flex-col'
-    : 'fixed bottom-[60px] right-0 sm:bottom-6 sm:right-6 z-50 w-full sm:w-[42rem] flex flex-col h-[75dvh] sm:h-[44rem] max-h-[calc(100dvh-60px)] sm:max-h-[87vh]';
+    : 'fixed right-0 sm:bottom-6 sm:right-6 z-50 w-full sm:w-[42rem] flex flex-col h-[75svh] sm:h-[44rem] sm:max-h-[87vh]';
+
+  const containerStyle = isFullscreen
+    ? undefined
+    : { bottom: 'var(--bottom-spacing, 60px)', maxHeight: 'calc(100svh - var(--bottom-spacing, 60px))' } as React.CSSProperties;
 
   const headerClass = isFullscreen
     ? 'flex justify-between items-center px-4 py-2 bg-[var(--glass-bg-strong)] backdrop-blur-xl border-b border-[var(--glass-border)]'
@@ -46,7 +50,8 @@ export function ChatShell() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-24 sm:bottom-6 right-4 sm:right-6 z-40 w-14 h-14 rounded-full btn-glass flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+          className="fixed sm:bottom-6 right-4 sm:right-6 z-40 w-14 h-14 rounded-full btn-glass flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+          style={{ bottom: 'calc(var(--bottom-spacing, 80px) + 16px)' }}
           title="Open Kelvin AI"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -55,7 +60,7 @@ export function ChatShell() {
         </button>
       )}
 
-      <div className={`${containerClass}${isOpen ? '' : ' hidden'}`}>
+      <div className={`${containerClass}${isOpen ? '' : ' hidden'}`} style={containerStyle}>
         <div className={headerClass}>
           <span className="text-sm font-semibold text-[var(--foreground)]">Kelvin AI</span>
           <div className="flex items-center gap-1">

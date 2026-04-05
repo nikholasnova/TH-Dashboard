@@ -135,6 +135,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-jetbrains), 'JetBrains Mono', monospace;
   min-height: 100vh;
+  min-height: 100svh;
   position: relative;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
@@ -450,6 +451,15 @@ nav.glass-card {
   .navbar-sticky-wrapper.navbar-stuck::before {
     opacity: 1;
   }
+}
+
+/* Mobile bottom spacing — single source of truth for tab bar + safe area */
+:root {
+  --tab-bar-height: 70px;
+  --bottom-spacing: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 640px) {
+  :root { --bottom-spacing: 0px; }
 }
 
 /* Mobile bottom tab bar */
