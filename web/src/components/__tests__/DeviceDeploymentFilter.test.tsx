@@ -13,8 +13,8 @@ vi.mock('@/contexts/DevicesContext', () => ({
 import { DeviceDeploymentFilter } from '../DeviceDeploymentFilter';
 
 const mockDeployments = [
-  { id: 1, name: 'Patio', device_id: 'node1', location: 'Backyard', started_at: '2024-01-01', ended_at: null, reading_count: 100 },
-  { id: 2, name: 'Kitchen', device_id: 'node2', location: 'Indoor', started_at: '2024-01-01', ended_at: null, reading_count: 50 },
+  { id: 1, name: 'Patio', device_id: 'node1', location: 'Backyard', notes: null, zip_code: null, started_at: '2024-01-01', ended_at: null, created_at: '2024-01-01', reading_count: 100 },
+  { id: 2, name: 'Kitchen', device_id: 'node2', location: 'Indoor', notes: null, zip_code: null, started_at: '2024-01-01', ended_at: null, created_at: '2024-01-01', reading_count: 50 },
 ];
 
 describe('DeviceDeploymentFilter', () => {
