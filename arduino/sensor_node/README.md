@@ -1,6 +1,6 @@
 # Arduino Sensor Node
 
-Firmware for the DHT20 temperature/humidity sensor node. Reads every 15 seconds, averages over 3-minute windows, and POSTs the average to Supabase. On upload failure, the buffer is retained and retried with exponential backoff.
+Firmware for the DHT20 temperature/humidity sensor node. Reads every 15 seconds, averages over 3-minute windows, and POSTs the average to Supabase. On upload failure, the buffer is retained and retried with linear backoff.
 
 ## Hardware
 
@@ -89,7 +89,7 @@ Upload: **Tools > Board > Arduino UNO R4 WiFi** > Select port > Upload
 2. Every 15 seconds: reads sensor, updates LCD, accumulates values
 3. Every 3 minutes: averages accumulated readings, POSTs to Supabase
 4. On successful upload: resets accumulators, restarts timer
-5. On failed upload: retains buffer, retries with exponential backoff (30s, 60s, 120s... capped at `SEND_INTERVAL_MS`). No data is lost during transient network issues.
+5. On failed upload: retains buffer, retries with linear backoff (30s, 60s, 90s, 120s... capped at `SEND_INTERVAL_MS`). No data is lost during transient network issues.
 6. LCD always shows the latest individual reading in Fahrenheit
 
 Temperature is stored in Celsius in the database and converted to Fahrenheit in the web UI.
@@ -120,7 +120,7 @@ Temperature is stored in Celsius in the database and converted to Fahrenheit in 
 ```
 
 - Timing: one averaged upload every `SEND_INTERVAL_MS` (default 3 minutes)
-- Retry: on failure, buffer is retained and retried with exponential backoff
+- Retry: on failure, buffer is retained and retried with linear backoff
 
 ## Data Format
 

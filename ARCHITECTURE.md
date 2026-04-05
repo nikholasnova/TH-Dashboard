@@ -49,26 +49,26 @@ Nodes are dynamically registered in the `devices` table. The dashboard, keepaliv
 
 - `created_at` set server-side by Supabase.
 - On success: accumulators reset, timer restarts.
-- On failure: buffer is retained and the node retries with exponential backoff (30s, 60s, 120s... capped at `SEND_INTERVAL_MS`). No data is lost during transient network issues.
+- On failure: buffer is retained and the node retries with linear backoff (30s, 60s, 90s, 120s... capped at `SEND_INTERVAL_MS`). No data is lost during transient network issues.
 
 ## 4) Persistence Layer (Supabase)
 
 ### 4.1 Tables
 
 **`readings`**
-- `device_id`, `temperature` (C), `humidity`, `created_at`, `source`, `deployment_id`, `zip_code`, `observed_at`
+- `id` (bigserial PK), `device_id`, `temperature` (C), `humidity`, `created_at`, `source`, `deployment_id`, `zip_code`, `observed_at`
 - `source` constrained to `sensor` (default) or `weather`
 - Weather inserts use `device_id = weather_<sensor_device_id>`
 - Index on `(device_id, created_at DESC)`
 - Soft dedup on 15-minute buckets in route code; DB unique index on `(device_id, quarter_hour(created_at UTC))` as fallback for `source = weather`
 
 **`deployments`**
-- Placement window metadata: `name`, `location`, `zip_code`, `started_at`, `ended_at`
+- Placement window metadata: `device_id`, `name`, `location`, `zip_code`, `notes`, `started_at`, `ended_at`
 - Optional unique-active constraint per `device_id` where `ended_at IS NULL`
 - Overlap exclusion constraint prevents conflicting time windows per device
 
 **`devices`**
-- Device registry: `id` (primary key), `display_name`, `color`, `is_active`, `monitor_enabled`, `sort_order`
+- Device registry: `id` (primary key), `display_name`, `color`, `is_active`, `monitor_enabled`, `sort_order`, `created_at`, `updated_at`
 - Managed through the Device Manager UI on the dashboard
 - `is_active` controls visibility in the dashboard; `monitor_enabled` controls keepalive alerting
 - Auto-registration trigger creates a `devices` row when a new `device_id` appears in `readings` (gated behind `app_settings.device_auto_register = 'true'`)
@@ -92,7 +92,7 @@ RLS enabled on all tables.
 | `deployments` | — | Full CRUD | — |
 | `devices` | — | Full CRUD | — |
 | `app_settings` | — | SELECT, UPDATE | — |
-| `device_alert_state` | — | SELECT | Upsert (keepalive) |
+| `device_alert_state` | — | SELECT | (service_role bypasses RLS; keepalive upserts via service_role) |
 
 `/api/weather` uses service_role + `CRON_SECRET`.
 
@@ -206,7 +206,7 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 |---------|----------|
 | WiFi disconnect | Firmware reconnects |
 | Bad sensor read | Skipped, window continues |
-| Upload failure | Buffer retained, retry with exponential backoff (30s, 60s, 120s... capped at send interval) |
+| Upload failure | Buffer retained, retry with linear backoff (30s, 60s, 90s... capped at send interval) |
 | Supabase/RPC error | Logged, empty-state fallback |
 | Missing `WEATHER_API_KEY` | Non-throwing `ok: false` response |
 | WeatherAPI per-ZIP error | Logged, remaining ZIPs continue |

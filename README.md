@@ -15,7 +15,7 @@ flowchart TB
   end
 
   subgraph ingest["2) Ingestion + Automation (Vercel)"]
-    cron["Vercel Cron<br/>*/10 keepalive, */15 weather"]
+    cron["Vercel Cron<br/>*/10 keepalive, :00/:15/:30/:45 weather"]
     keepalive["GET /api/keepalive"]
     weatherRoute["GET /api/weather"]
     wx["WeatherAPI.com<br/>Current conditions by ZIP"]

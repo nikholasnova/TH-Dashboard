@@ -1,103 +1,442 @@
-# Setup
+# Setup Guide
 
-## Prerequisites
+This guide walks you through forking this repo and getting a fully working IoT temperature and humidity monitoring system. By the end, you will have Arduino sensor nodes posting data to a cloud database and a live web dashboard to view, analyze, and compare your readings.
 
-- Supabase account
-- Node.js + npm
-- Arduino IDE
-- Vercel account (production)
+---
 
-## 1) Supabase
+## Table of Contents
 
-1. Create a project at [supabase.com](https://supabase.com)
-2. Run `supabase/schema.sql` in SQL Editor (creates all tables, RPC functions, and seed data)
-3. Copy from **Settings > API**: Project URL, `anon` key, `service_role` key
+1. [What You Need](#1-what-you-need)
+2. [Fork and Clone the Repo](#2-fork-and-clone-the-repo)
+3. [Set Up Supabase (Database)](#3-set-up-supabase-database)
+4. [Set Up the Web App Locally](#4-set-up-the-web-app-locally)
+5. [Set Up Arduino Sensor Nodes](#5-set-up-arduino-sensor-nodes)
+6. [Deploy to Vercel (Production)](#6-deploy-to-vercel-production)
+7. [Set Up Weather Comparison (Optional)](#7-set-up-weather-comparison-optional)
+8. [Set Up AI Chat (Optional)](#8-set-up-ai-chat-optional)
+9. [Set Up Email Alerts (Optional)](#9-set-up-email-alerts-optional)
+10. [Environment Variable Reference](#10-environment-variable-reference)
+11. [Verifying Everything Works](#11-verifying-everything-works)
+12. [Troubleshooting](#12-troubleshooting)
 
-## 2) Auth User
+---
 
-1. **Authentication > Users > Add user**
-2. Create email/password user
-3. Enable auto-confirm (or confirm manually)
+## 1. What You Need
 
-## 3) Web (Local)
+### Accounts (all free tier)
+
+| Service | Purpose | Sign Up |
+|---------|---------|---------|
+| **GitHub** | Host your fork | [github.com](https://github.com) |
+| **Supabase** | Database + authentication | [supabase.com](https://supabase.com) |
+| **Vercel** | Web hosting + scheduled jobs | [vercel.com](https://vercel.com) |
+
+Optional services (set up later if you want them):
+
+| Service | Purpose | Sign Up |
+|---------|---------|---------|
+| **Google Cloud** | AI chat (Gemini) | [console.cloud.google.com](https://console.cloud.google.com) |
+| **WeatherAPI.com** | Weather comparison data | [weatherapi.com/signup](https://www.weatherapi.com/signup) |
+| **Resend** | Email alerts when a sensor goes offline | [resend.com](https://resend.com) |
+
+### Software
+
+- **Node.js** (v18 or later) and **npm** -- [nodejs.org](https://nodejs.org)
+- **Arduino IDE** (2.x recommended) -- [arduino.cc/en/software](https://www.arduino.cc/en/software)
+- **Git** -- [git-scm.com](https://git-scm.com)
+
+### Hardware (per sensor node)
+
+| Component | Notes |
+|-----------|-------|
+| Arduino Uno R4 WiFi | The board with built-in WiFi -- not the R4 Minima |
+| DHT20 temperature/humidity sensor | I2C, address 0x38 |
+| 16x2 LCD display | Parallel 4-bit wiring (optional, for on-device readout) |
+| Breadboard + jumper wires | For prototyping |
+| 10K potentiometer | LCD contrast adjustment |
+| USB cable | Power + programming |
+
+---
+
+## 2. Fork and Clone the Repo
+
+1. Go to the original repository on GitHub.
+2. Click **Fork** in the top right.
+3. Clone your fork to your computer:
+
+```bash
+git clone https://github.com/YOUR-USERNAME/Temp-Humidity-Monitoring.git
+cd Temp-Humidity-Monitoring
+```
+
+---
+
+## 3. Set Up Supabase (Database)
+
+Supabase gives you a hosted Postgres database with a REST API. The Arduino posts data here, and the web app reads from it.
+
+### 3.1 Create a Project
+
+1. Log in at [supabase.com](https://supabase.com) and click **New Project**.
+2. Pick a name, set a database password (you won't need this directly), and choose a region close to you.
+3. Wait for the project to finish provisioning.
+
+### 3.2 Run the Schema
+
+The file `supabase/schema.sql` creates all the tables, functions, and security policies the system needs.
+
+1. In your Supabase dashboard, go to **SQL Editor** (left sidebar).
+2. Click **New Query**.
+3. Open `supabase/schema.sql` from the repo in a text editor, copy the entire contents, and paste it into the query editor.
+4. Click **Run**.
+
+You should see success messages. This creates the `readings`, `devices`, `deployments`, `app_settings`, and `device_alert_state` tables, plus all the RPC functions the dashboard uses. It also seeds two starter devices (`node1` and `node2`).
+
+### 3.3 Create a Login User
+
+The dashboard requires authentication. You need to create at least one user account.
+
+1. In Supabase, go to **Authentication** (left sidebar) > **Users**.
+2. Click **Add User** > **Create New User**.
+3. Enter an email and password. Check **Auto Confirm User** so you can log in immediately.
+4. Click **Create User**.
+
+Share this email/password with anyone who needs dashboard access (e.g., your lab partner or instructor).
+
+### 3.4 Copy Your API Credentials
+
+You need three values from Supabase. Find them at **Settings** > **API** (under "Project Settings" in the left sidebar):
+
+| What to copy | Where it is | What it's for |
+|--------------|-------------|---------------|
+| **Project URL** | Under "Project URL" | Tells the app and Arduino where your database is |
+| **anon public** key | Under "Project API keys" | Used by the Arduino to insert data and by the browser for reads |
+| **service_role** key | Under "Project API keys" (click "Reveal") | Used by server-side code only -- keep this secret |
+
+Write these down or keep the tab open. You will need them in the next two sections.
+
+---
+
+## 4. Set Up the Web App Locally
+
+### 4.1 Create Your Environment File
 
 ```bash
 cd web
 cp .env.example .env.local
-# Fill in env vars (see table below)
+```
+
+Open `web/.env.local` in a text editor and fill in the three Supabase values:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
+
+You also need a `CRON_SECRET` -- this can be any random string. It protects the scheduled API routes. Make one up or generate one:
+
+```bash
+openssl rand -hex 32
+```
+
+Paste it in:
+
+```
+CRON_SECRET=your-random-string-here
+```
+
+The other variables in `.env.example` are for optional features (weather, AI, alerts). You can leave them blank for now and add them later.
+
+### 4.2 Install and Run
+
+```bash
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`, sign in with your Supabase Auth user.
+Open [http://localhost:3000](http://localhost:3000) in your browser. You should see a login page. Sign in with the email and password you created in Supabase.
 
-## 4) Arduino Nodes
+The dashboard will be empty until your Arduino starts sending data.
+
+---
+
+## 5. Set Up Arduino Sensor Nodes
+
+### 5.1 Install Board Support and Libraries
+
+In Arduino IDE:
+
+1. **Tools > Boards Manager** -- search for **"Arduino UNO R4"** and install the board package.
+2. **Tools > Manage Libraries** -- search for **"DFRobot DHT20"** and install it.
+
+The `LiquidCrystal` and `WiFiS3` libraries are built in and do not need separate installation.
+
+### 5.2 Wire the Hardware
+
+#### DHT20 Sensor (I2C)
+
+| DHT20 Pin | Arduino Pin |
+|-----------|-------------|
+| VCC | 5V |
+| GND | GND |
+| SDA | SDA (A4) |
+| SCL | SCL (A5) |
+
+#### 16x2 LCD Display (Parallel 4-bit) -- optional
+
+| LCD Pin | Arduino Pin | Notes |
+|---------|-------------|-------|
+| VSS | GND | |
+| VDD | 5V | |
+| V0 | Potentiometer wiper | 10K pot between 5V and GND for contrast |
+| RS | 12 | |
+| RW | GND | Grounded = write-only |
+| E | 11 | |
+| D4 | 5 | |
+| D5 | 4 | |
+| D6 | 3 | |
+| D7 | 2 | |
+| A | 5V | Backlight anode |
+| K | GND | Backlight cathode |
+
+See `arduino/sensor_node/README.md` for a full wiring reference.
+
+### 5.3 Configure Credentials
 
 ```bash
 cd arduino/sensor_node
 cp secrets.example.h secrets.h
-# Fill WiFi + Supabase credentials
-# Set DEVICE_ID to a unique name (e.g., node1, node2, patio_sensor)
-# Upload with Arduino IDE
 ```
 
-Each node needs a unique `DEVICE_ID`. The schema seeds `node1` and `node2` by default. To add more nodes, either:
-- Register the device in the web dashboard (Dashboard > Manage Devices > Add Device) before powering it on, or
-- Enable auto-registration in `app_settings` and the device will be created when its first reading arrives.
+Open `secrets.h` and fill in your WiFi network and Supabase credentials:
 
-## 5) Vercel Deploy
+```cpp
+#define WIFI_SSID     "your-wifi-network"
+#define WIFI_PASSWORD "your-wifi-password"
+#define SUPABASE_URL      "https://your-project-id.supabase.co"
+#define SUPABASE_ANON_KEY "your-anon-key"
+```
 
-1. Push repo to GitHub
-2. Import in Vercel, set **Root Directory** to `web`
-3. Add environment variables
-4. Deploy
-5. Verify cron jobs from `web/vercel.json`:
-   - `/api/keepalive` — every 10 min
-   - `/api/weather` — every 15 min
+Important: the Arduino Uno R4 WiFi only supports **2.4GHz WiFi networks**. If your network is 5GHz only, it will not connect.
 
-## 6) Environment Variables
+### 5.4 Set the Device ID
 
-| Variable | Scope | Notes |
-|----------|-------|-------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Public | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public | Anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Secret | Server-only |
-| `GOOGLE_API_KEY` | Secret | Gemini AI |
-| `WEATHER_API_KEY` | Secret | WeatherAPI.com |
-| `CRON_SECRET` | Secret | Protects cron routes |
-| `RESEND_API_KEY` | Secret | Alert emails |
-| `ALERT_EMAIL_TO` | Config | Comma-separated recipients |
-| `ALERT_EMAIL_FROM` | Config | Optional sender address |
-| `MONITORED_DEVICE_IDS` | Config | Optional override. If unset, keepalive monitors all active devices with `monitor_enabled = true` in the `devices` table. |
-| `ALERT_STALE_MINUTES` | Config | Default: `10` |
-| `ENABLE_RECOVERY_ALERTS` | Config | `true`/`false` |
-| `ALERT_DASHBOARD_URL` | Config | Optional link in alert emails |
+Open `sensor_node.ino` and find the `DEVICE_ID` line near the top:
 
-## 7) Manual Route Checks
+```cpp
+#define DEVICE_ID "node1"
+```
+
+Each Arduino node must have a unique ID. The schema seeds `node1` and `node2` by default. If you are setting up a third node, change this to something like `"node3"` or `"lab_bench_a"`.
+
+Rules for device IDs: lowercase letters, numbers, hyphens, and underscores only. 1-32 characters.
+
+If you use an ID that is not already in the database, you have two options:
+- **Recommended:** Register the device in the web dashboard first (Dashboard > Manage Devices > Add Device).
+- **Alternative:** Enable auto-registration in the dashboard settings so devices are created automatically when their first reading arrives.
+
+### 5.5 Upload the Firmware
+
+1. Connect the Arduino via USB.
+2. In Arduino IDE: **Tools > Board > Arduino UNO R4 WiFi**.
+3. **Tools > Port** -- select the serial port for your Arduino.
+4. Click **Upload** (the right arrow button).
+
+### 5.6 Verify It Works
+
+Open **Tools > Serial Monitor** and set the baud rate to **115200**. You should see output like:
+
+```
+=== IoT Temp/Humidity Sensor ===
+Device ID: node1
+Initializing DHT20... OK
+Connecting to WiFi: YourNetwork...
+Connected! IP: 192.168.1.42
+Reading #1 | Temp: 22.5C (72.5F), Humidity: 45.2%
+...
+>> Sending average of 12 readings | Avg Temp: 22.55C, Avg Humidity: 45.15%
+>> Sent OK
+```
+
+The sensor reads every 15 seconds and uploads an average every 3 minutes. After the first `>> Sent OK`, check your Supabase dashboard -- go to **Table Editor > readings** and you should see a new row.
+
+Back in your web app at [http://localhost:3000](http://localhost:3000), the dashboard should start showing live data within 30 seconds.
+
+### 5.7 Adding More Nodes
+
+To add another sensor node, repeat steps 5.2-5.6 with a different `DEVICE_ID`. Each node needs its own Arduino, sensor, and unique ID. Register the new device in the web dashboard before (or after, if auto-registration is on) powering it up.
+
+---
+
+## 6. Deploy to Vercel (Production)
+
+Once things work locally, deploy to Vercel so the dashboard is accessible from anywhere.
+
+### 6.1 Push Your Fork to GitHub
+
+Make sure your latest code is pushed (do not commit `secrets.h` or `.env.local` -- they are already in `.gitignore`).
+
+### 6.2 Create a Vercel Project
+
+1. Log in at [vercel.com](https://vercel.com).
+2. Click **Add New Project** and import your GitHub repo.
+3. Under **Root Directory**, type `web` (the Next.js app is in the `web/` folder, not the repo root).
+4. Under **Environment Variables**, add all the variables from your `web/.env.local`. At minimum:
+
+| Variable | Value |
+|----------|-------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Your service role key |
+| `CRON_SECRET` | The random string you generated |
+
+5. Click **Deploy**.
+
+### 6.3 Cron Jobs
+
+The repo includes a `web/vercel.json` that configures two scheduled jobs:
+
+| Route | Schedule | Purpose |
+|-------|----------|---------|
+| `/api/keepalive` | Every 10 minutes | Checks if sensors are still reporting, sends alerts |
+| `/api/weather` | Every 15 minutes | Fetches weather data for comparison (needs `WEATHER_API_KEY`) |
+
+These run automatically on Vercel's free tier (Pro plan recommended if you need guaranteed execution). The keepalive route will work with just the Supabase keys. The weather route also needs a `WEATHER_API_KEY` (see section 7).
+
+---
+
+## 7. Set Up Weather Comparison (Optional)
+
+The Compare page shows how your sensor readings stack up against actual weather conditions. This requires a free WeatherAPI.com key.
+
+1. Sign up at [weatherapi.com/signup](https://www.weatherapi.com/signup).
+2. Copy your API key from the dashboard.
+3. Add it to your environment:
+   - **Local:** Add `WEATHER_API_KEY=your-key` to `web/.env.local`.
+   - **Vercel:** Add the same variable in your project settings > Environment Variables.
+4. In the web dashboard, go to **Deployments** and make sure your active deployments have a **ZIP code** set. The weather cron fetches conditions for each unique ZIP.
+
+To test it manually:
 
 ```bash
-# Keepalive
-curl -H "Authorization: Bearer <CRON_SECRET>" "https://<domain>/api/keepalive"
-
-# Weather
-curl -H "Authorization: Bearer <CRON_SECRET>" "https://<domain>/api/weather"
+curl -H "Authorization: Bearer YOUR_CRON_SECRET" "https://your-app.vercel.app/api/weather"
 ```
 
-Weather response includes: `inserted_count`, `skipped_existing_count`, `invalid_zip_count`, `errors`.
+You should get a JSON response with `inserted_count` showing how many weather readings were saved.
 
-## 8) Troubleshooting
+---
 
-| Problem | Fix |
-|---------|-----|
-| Can't log in | Verify Supabase Auth user exists and is confirmed. Try lowercase email. |
-| Arduino won't connect | Check SSID/password in `secrets.h`. Use 2.4GHz network. |
-| No data in dashboard | Confirm rows in `readings`, env vars set, authenticated session. Check that the device is registered and active in Manage Devices. |
-| Charts/Compare empty | Re-run `schema.sql`. Check RPC `EXECUTE` grants for `authenticated`. |
-| Analysis stuck loading | Check console for CDN errors. First load takes 10-30s. |
-| AI chat not responding | Confirm `GOOGLE_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, auth session. |
-| Cron route returns 401 | Verify `CRON_SECRET`. Include `Authorization: Bearer <CRON_SECRET>`. |
-| Weather/% Error shows `—` | Deployment needs valid ZIP. Confirm `WEATHER_API_KEY`. Trigger `/api/weather` manually. |
-| `device_alert_state` errors | Re-run latest `schema.sql`. |
-| No alert emails | Set `RESEND_API_KEY` + `ALERT_EMAIL_TO`. Custom sender needs domain verification. |
-| Unwanted device alerts | Toggle monitoring off for that device in Manage Devices, or set `MONITORED_DEVICE_IDS` env var to only the nodes you want. |
-| New node not showing up | Register it in Manage Devices first, or enable `device_auto_register` in `app_settings`. |
+## 8. Set Up AI Chat (Optional)
+
+The floating chat in the bottom-right corner uses Google Gemini to answer questions about your data (e.g., "What was the average temperature last Tuesday?" or "Compare node1 and node2 this week").
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com).
+2. Create a project (or use an existing one).
+3. Enable the **Generative Language API** (search for it in the API library).
+4. Go to **Credentials** > **Create Credentials** > **API Key**.
+5. Add it to your environment:
+   - **Local:** Add `GOOGLE_API_KEY=your-key` to `web/.env.local`.
+   - **Vercel:** Add the same variable in your project settings.
+
+The chat is rate-limited to 30 requests per 15 minutes per user.
+
+---
+
+## 9. Set Up Email Alerts (Optional)
+
+The keepalive system can email you when a sensor stops reporting (and again when it recovers).
+
+1. Sign up at [resend.com](https://resend.com).
+2. Create an API key.
+3. Add these to your environment:
+
+| Variable | Value |
+|----------|-------|
+| `RESEND_API_KEY` | Your Resend API key |
+| `ALERT_EMAIL_TO` | Email address(es) to notify, comma-separated |
+
+Optional additional settings:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ALERT_EMAIL_FROM` | Resend default | Custom sender (requires domain verification in Resend) |
+| `ALERT_STALE_MINUTES` | `10` | Minutes without data before a sensor is considered offline |
+| `ENABLE_RECOVERY_ALERTS` | `true` | Send an email when a sensor comes back online |
+| `ALERT_DASHBOARD_URL` | none | Link to your dashboard, included in alert emails |
+
+In the web dashboard, you can control which devices are monitored under **Manage Devices** -- toggle the monitor switch for each device.
+
+---
+
+## 10. Environment Variable Reference
+
+All variables go in `web/.env.local` for local development and in Vercel's project settings for production.
+
+### Required
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL (e.g., `https://abc123.supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only, keep secret) |
+| `CRON_SECRET` | Random string to protect the `/api/keepalive` and `/api/weather` routes |
+
+### Optional
+
+| Variable | Description |
+|----------|-------------|
+| `GOOGLE_API_KEY` | Google Gemini API key (for AI chat) |
+| `WEATHER_API_KEY` | WeatherAPI.com key (for weather comparison) |
+| `RESEND_API_KEY` | Resend API key (for email alerts) |
+| `ALERT_EMAIL_TO` | Comma-separated alert recipient emails |
+| `ALERT_EMAIL_FROM` | Custom sender address (needs Resend domain verification) |
+| `MONITORED_DEVICE_IDS` | Override which devices are monitored (comma-separated). If unset, uses devices with monitoring enabled in the dashboard. |
+| `ALERT_STALE_MINUTES` | Minutes without data before alerting (default: `10`) |
+| `ENABLE_RECOVERY_ALERTS` | `true` or `false` (default: `true`) |
+| `ALERT_DASHBOARD_URL` | URL included in alert emails |
+
+---
+
+## 11. Verifying Everything Works
+
+Use this checklist to confirm each piece is working:
+
+- [ ] **Supabase schema**: The `readings`, `devices`, `deployments` tables exist in your Supabase Table Editor.
+- [ ] **Auth user**: You can log in at your web app's login page.
+- [ ] **Arduino posting data**: Serial monitor shows `>> Sent OK` and rows appear in the `readings` table.
+- [ ] **Dashboard live data**: The dashboard shows your sensor readings and updates every 30 seconds.
+- [ ] **Vercel deployment**: Your app is accessible at `https://your-app.vercel.app`.
+- [ ] **Keepalive cron**: Run `curl -H "Authorization: Bearer YOUR_CRON_SECRET" https://your-app.vercel.app/api/keepalive` and check for a 200 response.
+- [ ] **Weather (if configured)**: The Compare page shows weather data next to your sensor readings.
+- [ ] **AI chat (if configured)**: The chat icon in the bottom-right responds to questions about your data.
+
+---
+
+## 12. Troubleshooting
+
+### Arduino Issues
+
+| Problem | Solution |
+|---------|----------|
+| "No WiFi Module!" | Wrong board selected. Use **Arduino UNO R4 WiFi**, not UNO R4 Minima. |
+| "Sensor Error!" | Check DHT20 wiring (SDA to A4, SCL to A5). The sensor needs about 100ms after power-on. |
+| "WiFi Failed!" | Verify SSID and password in `secrets.h`. The R4 WiFi only supports 2.4GHz networks. |
+| LCD is blank or garbled | Adjust the contrast potentiometer. Double-check all LCD pin connections. |
+| "Send failed - retaining buffer" | Upload failed but data is kept. The node retries automatically. Check WiFi and that your Supabase URL/key are correct. |
+| Data not appearing in Supabase | Open Serial Monitor at 115200 baud and look for error codes. Verify the `readings` table exists and the anon INSERT policy is in place. |
+
+### Web App Issues
+
+| Problem | Solution |
+|---------|----------|
+| Can't log in | Verify your Supabase Auth user exists and is confirmed. Try typing the email in all lowercase. |
+| Dashboard is empty | Confirm there are rows in the `readings` table, your env vars are set, and the device is registered and active in Manage Devices. |
+| Charts or Compare page is empty | Re-run `supabase/schema.sql`. The RPC functions may be missing. Check that `EXECUTE` is granted to `authenticated`. |
+| Analysis page stuck loading | Check the browser console for CDN errors. The first load downloads Pyodide (10-30 seconds). |
+| AI chat not responding | Confirm `GOOGLE_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are set. You must be logged in. |
+| Cron route returns 401 | The `CRON_SECRET` in your request must match the one in your environment. Include it as `Authorization: Bearer YOUR_SECRET`. |
+| Weather shows dashes | The deployment needs a valid ZIP code. Confirm `WEATHER_API_KEY` is set. Try triggering `/api/weather` manually with curl. |
+| No alert emails | Both `RESEND_API_KEY` and `ALERT_EMAIL_TO` must be set. A custom sender address requires domain verification in Resend. |
+| New device not showing up | Register it in Manage Devices first, or enable `device_auto_register` in the app settings. |
+| Unwanted device alerts | Toggle monitoring off for that device in Manage Devices, or set `MONITORED_DEVICE_IDS` to only the nodes you want monitored. |

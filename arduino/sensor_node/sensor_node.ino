@@ -137,7 +137,7 @@ void loop() {
       consecutiveFailures = 0;
     } else {
       consecutiveFailures++;
-      // Back off: retry after 30s, 60s, 120s... capped at SEND_INTERVAL
+      // Back off: retry after 30s, 60s, 90s, 120s... capped at SEND_INTERVAL
       unsigned long backoff = min((unsigned long)30000 * consecutiveFailures, SEND_INTERVAL_MS);
       lastSendTime = now - SEND_INTERVAL_MS + backoff;
     }
