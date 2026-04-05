@@ -1,5 +1,13 @@
 # IoT Temp/Humidity Dashboard
 
+[![CI](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/ci.yml)
+[![Arduino Build](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/arduino.yml/badge.svg)](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/arduino.yml)
+![Tests](https://img.shields.io/badge/tests-140_passed-brightgreen)
+![Coverage](https://img.shields.io/badge/coverage-50%25_statements-yellow)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Node](https://img.shields.io/badge/node-20-green)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+
 A full-stack IoT platform for collecting temperature and humidity from Arduino sensor nodes, comparing readings against local weather references, and analyzing the data through charts, statistics, and AI. Built as an educational project for an intro engineering class.
 
 Arduino Uno R4 WiFi nodes with DHT20 sensors post averaged readings to Supabase every 3 minutes. The system supports any number of sensor nodes — devices are registered and managed through the web dashboard, so adding a new node is just flashing a sketch and clicking "Add Device." A Vercel cron fetches weather every 15 minutes from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, deployment management, in-browser Python analysis via Pyodide, and an AI chat powered by Gemini.
@@ -62,6 +70,19 @@ flowchart TB
 | AI | Gemini 2.5 Flash (tool-calling) |
 | Analysis | Pyodide (numpy, pandas, scipy, statsmodels) |
 | Weather | WeatherAPI.com (free tier) |
+
+## Test Coverage
+
+140 tests across 18 test files. Coverage is generated on every push via CI and uploaded as a build artifact.
+
+| Category | Statements | Branches | Functions | Lines |
+|----------|-----------|----------|-----------|-------|
+| **Overall** | 50% | 43% | 48% | 51% |
+| API routes | 78-93% | 67-88% | 83-100% | 79-93% |
+| Components | 60% | 54% | 51% | 61% |
+| Lib/utilities | 65% | 57% | 69% | 67% |
+
+High-coverage areas: API routes (chat, keepalive, weather), utility modules (format, weatherZip, weatherCompare, conversions, constants), and core components (AuthGate, FilterToolbar, ChatShell, LoadingSpinner).
 
 ## Docs
 
