@@ -466,8 +466,8 @@ nav.glass-card {
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-top: 1px solid var(--glass-border);
-  padding: 6px 0;
-  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+  padding: 10px 0;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
 }
 
 .mobile-tab-item {
@@ -476,15 +476,36 @@ nav.glass-card {
   align-items: center;
   justify-content: center;
   flex: 1;
-  padding: 4px 0;
+  padding: 8px 0;
   color: var(--foreground-muted);
-  transition: color 0.15s ease;
+  transition: color 0.15s ease, transform 0.1s ease, opacity 0.1s ease;
   -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-tab-item:active {
+  transform: scale(0.92);
+  opacity: 0.7;
+}
+
+@media (min-width: 640px) {
+  .mobile-tab-bar {
+    display: none;
+  }
 }
 
 .mobile-tab-active {
   color: var(--primary);
   font-weight: 600;
+}
+
+/* Hide scrollbar on mobile during streaming — keeps scroll functional */
+@media (max-width: 639px) {
+  .scrollbar-hide-mobile {
+    scrollbar-width: none;
+  }
+  .scrollbar-hide-mobile::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Custom scrollbar */

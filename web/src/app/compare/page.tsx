@@ -178,15 +178,15 @@ export default function ComparePage() {
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
-                      <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Avg Temp</p>
+                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Avg Temp</p>
                       <p className="text-lg font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.tempAvgF)}°F</p>
                     </div>
                     <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
-                      <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Avg Humidity</p>
+                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Avg Humidity</p>
                       <p className="text-lg font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.sensor?.humidity_avg)}%</p>
                     </div>
                     <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
-                      <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">High / Low</p>
+                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">High / Low</p>
                       <p className="text-sm font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
                         <span className="text-[var(--warning)]">{formatValue(col.tempMaxF)}°</span>
                         {' / '}
@@ -194,7 +194,7 @@ export default function ComparePage() {
                       </p>
                     </div>
                     <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
-                      <p className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Std Dev</p>
+                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Std Dev</p>
                       <p className="text-sm font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.tempStdF, 2)}°F</p>
                     </div>
                   </div>

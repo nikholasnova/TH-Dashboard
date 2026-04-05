@@ -120,7 +120,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
                 setTimeout(() => setIsRefreshing(false), 800);
               }}
               disabled={isRefreshing}
-              className="p-2 rounded-full bg-[var(--hover-bg)] hover:bg-[var(--active-bg)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
+              className="p-3 rounded-full bg-[var(--hover-bg)] hover:bg-[var(--active-bg)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
               title={lastRefresh ? `Last updated: ${lastRefresh.toLocaleTimeString()}` : 'Refresh'}
             >
               <svg

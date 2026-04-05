@@ -192,7 +192,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                         <button
                           key={c}
                           onClick={() => setEditColor(c)}
-                          className="w-7 h-7 rounded-full transition-all"
+                          className="w-9 h-9 sm:w-7 sm:h-7 rounded-full transition-all"
                           style={{
                             backgroundColor: c,
                             outline: editColor === c ? '2px solid var(--foreground)' : '2px solid transparent',
@@ -323,7 +323,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                   <button
                     key={c}
                     onClick={() => setNewColor(c)}
-                    className="w-7 h-7 rounded-full transition-all"
+                    className="w-9 h-9 sm:w-7 sm:h-7 rounded-full transition-all"
                     style={{
                       backgroundColor: c,
                       outline: newColor === c ? '2px solid var(--foreground)' : '2px solid transparent',

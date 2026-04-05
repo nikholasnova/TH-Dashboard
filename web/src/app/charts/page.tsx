@@ -305,18 +305,18 @@ export default function ChartsPage() {
 
         <div className="glass-card p-3 sm:p-8">
           {isLoading ? (
-            <div className="h-[300px] sm:h-[500px]">
+            <div className="h-[360px] sm:h-[500px]">
               <LoadingSpinner message="Loading chart data..." className="h-full" />
             </div>
           ) : !hasData ? (
-            <div className="h-[300px] sm:h-[500px] flex items-center justify-center fade-in">
+            <div className="h-[360px] sm:h-[500px] flex items-center justify-center fade-in">
               <div className="text-center">
                 <p className="text-lg sm:text-xl text-[var(--foreground-muted)] font-medium">No data available</p>
                 <p className="text-sm text-[var(--foreground-muted)]/60 mt-2">Data will appear once sensors start reporting</p>
               </div>
             </div>
           ) : (
-            <div className="h-[300px] sm:h-[500px] fade-in">
+            <div className="h-[360px] sm:h-[500px] fade-in">
               <ResponsiveLine
                 data={chartData}
                 margin={isMobile
@@ -393,6 +393,16 @@ export default function ChartsPage() {
                   crosshair: { line: { stroke: 'var(--chart-text)', strokeWidth: 1, strokeOpacity: 0.5 } },
                 }}
               />
+            </div>
+          )}
+          {isMobile && hasData && chartData.length > 1 && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 px-1 sm:hidden">
+              {chartData.map(s => (
+                <div key={s.id} className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                  <span className="text-xs text-[var(--foreground-muted)]">{s.label ?? s.id}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>

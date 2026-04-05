@@ -107,7 +107,7 @@ export function Navbar({ onManageNodes }: NavbarProps) {
             className={`mobile-tab-item ${isActive(link.href) ? 'mobile-tab-active' : ''}`}
           >
             {NAV_ICONS[link.href]}
-            <span className="text-[10px] leading-tight mt-0.5">{link.label}</span>
+            <span className="text-[11px] leading-tight mt-0.5">{link.label}</span>
           </Link>
         ))}
       </nav>

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getDeployments } from '@/lib/supabase';
 import { useChatPageContext } from '@/lib/chatContext';
@@ -69,6 +69,128 @@ function simpleMarkdownToHtml(md: string): string {
   return html;
 }
 
+const REMARK_PLUGINS = [remarkGfm];
+
+const MD_COMPONENTS = {
+  table: ({ children }: { children?: React.ReactNode }) => (
+    <div className="overflow-x-auto my-2">
+      <table className="text-xs border-collapse w-full">{children}</table>
+    </div>
+  ),
+  th: ({ children }: { children?: React.ReactNode }) => (
+    <th className="border border-[var(--divider)] px-2 py-1 text-left bg-[var(--hover-bg)] text-[var(--foreground)] text-xs">{children}</th>
+  ),
+  td: ({ children }: { children?: React.ReactNode }) => (
+    <td className="border border-[var(--divider)] px-2 py-1 text-xs">{children}</td>
+  ),
+} satisfies Components;
+
+const ChatMessage = memo(function ChatMessage({
+  msg,
+  index,
+  copiedIndex,
+  onCopy,
+  onDownload,
+}: {
+  msg: Message;
+  index: number;
+  copiedIndex: number | null;
+  onCopy: (text: string, index: number) => void;
+  onDownload: (content: string) => void;
+}) {
+  return (
+    <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[80%] ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+        <p className="text-xs text-[var(--foreground-muted)] mb-1">{msg.role === 'user' ? 'You' : 'Kelvin'}</p>
+        {msg.role === 'user' ? (
+          <p className="text-base text-[var(--foreground)] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+        ) : (
+          <div className="text-base text-[var(--foreground)] leading-relaxed prose prose-sm max-w-none prose-headings:text-[var(--foreground)] prose-headings:font-bold prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-1 prose-p:my-1 prose-li:my-0 prose-strong:text-[var(--foreground)] prose-code:text-[var(--foreground-muted)] prose-pre:bg-[var(--hover-bg)] prose-pre:border prose-pre:border-[var(--divider)]">
+            <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MD_COMPONENTS}>
+              {msg.content}
+            </ReactMarkdown>
+          </div>
+        )}
+        {msg.role === 'assistant' && msg.content && (
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              onClick={() => onCopy(msg.content, index)}
+              className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]/50 hover:text-[var(--foreground-muted)] transition-colors"
+              title="Copy to clipboard"
+            >
+              {copiedIndex === index ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  Copied
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                  Copy
+                </>
+              )}
+            </button>
+            {msg.content.length > 500 && (
+              <button
+                onClick={() => onDownload(msg.content)}
+                className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]/50 hover:text-[var(--foreground-muted)] transition-colors"
+                title="Download as HTML report"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                Download Report
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+
+const MessageList = memo(function MessageList({
+  messages,
+  isLoading,
+  toolStatus,
+  copiedIndex,
+  onCopy,
+  onDownload,
+}: {
+  messages: Message[];
+  isLoading: boolean;
+  toolStatus: string | null;
+  copiedIndex: number | null;
+  onCopy: (text: string, index: number) => void;
+  onDownload: (content: string) => void;
+}) {
+  return (
+    <>
+      <div className="flex-1" />
+      <div className="space-y-4">
+        {messages.map((msg, i) => (
+          <ChatMessage
+            key={i}
+            msg={msg}
+            index={i}
+            copiedIndex={copiedIndex}
+            onCopy={onCopy}
+            onDownload={onDownload}
+          />
+        ))}
+        {isLoading && !messages[messages.length - 1]?.content && (
+          <div className="flex justify-start mt-1 pl-1">
+            <div className="flex items-center gap-2">
+              <BounceDots size="sm" />
+              <span className={`text-xs animate-pulse transition-opacity duration-200 ${toolStatus ? 'text-[var(--foreground-muted)]/60 opacity-100' : 'opacity-0'}`}>
+                {toolStatus ? `${toolStatus}...` : '\u00A0'}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+});
+
 export function AIChat() {
   const pageContext = useChatPageContext();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -131,12 +253,13 @@ export function AIChat() {
     URL.revokeObjectURL(url);
   }, []);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollToBottom();
+    const el = scrollContainerRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [messages]);
 
   useEffect(() => {
@@ -184,20 +307,32 @@ export function AIChat() {
 
       const reader = response.body?.getReader();
       readerRef.current = reader || null;
-      const decoder = new TextDecoder();
       let assistantContent = '';
       let buffer = '';
+      let pendingUpdate: string | null = null;
+      let rafId = 0;
+
+      const flushUpdate = () => {
+        if (pendingUpdate !== null) {
+          const content = pendingUpdate;
+          pendingUpdate = null;
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: 'assistant', content };
+            return updated;
+          });
+        }
+      };
 
       if (reader) {
+        const decoder = new TextDecoder();
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
 
-          // Process complete lines for status markers, pass rest through as content
           const lines = buffer.split('\n');
-          // Keep the last element as buffer (may be incomplete)
           buffer = lines.pop() || '';
 
           for (const line of lines) {
@@ -208,15 +343,13 @@ export function AIChat() {
             }
           }
 
-          setMessages((prev) => {
-            const updated = [...prev];
-            const displayBuffer = buffer.startsWith('__STATUS__') ? '' : buffer;
-            updated[updated.length - 1] = { role: 'assistant', content: assistantContent + displayBuffer };
-            return updated;
-          });
+          const displayBuffer = buffer.startsWith('__STATUS__') ? '' : buffer;
+          pendingUpdate = assistantContent + displayBuffer;
+          cancelAnimationFrame(rafId);
+          rafId = requestAnimationFrame(flushUpdate);
         }
+        cancelAnimationFrame(rafId);
 
-        // Process any remaining buffer
         if (buffer) {
           if (buffer.startsWith('__STATUS__')) {
             setToolStatus(buffer.slice('__STATUS__'.length));
@@ -298,7 +431,8 @@ export function AIChat() {
   return (
     <div className="flex flex-col flex-1 min-h-0 p-4 sm:p-6">
       <div
-        className="flex-1 min-h-0 overflow-y-auto mb-4 flex flex-col pr-3 scrollbar-thin"
+        ref={scrollContainerRef}
+        className="flex-1 min-h-0 overflow-y-auto mb-6 flex flex-col pr-3 scrollbar-thin scrollbar-hide-mobile"
         style={{
           scrollbarWidth: 'thin',
           scrollbarColor: 'rgba(0,0,0,0.15) transparent',
@@ -330,81 +464,14 @@ export function AIChat() {
           </div>
         ) : (
           <>
-            <div className="flex-1" />
-            <div className="space-y-4">
-              {messages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[80%] ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                    <p className="text-xs text-[var(--foreground-muted)] mb-1">{msg.role === 'user' ? 'You' : 'Kelvin'}</p>
-                    {msg.role === 'user' ? (
-                      <p className="text-base text-[var(--foreground)] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                    ) : (
-                      <div className="text-base text-[var(--foreground)] leading-relaxed prose prose-sm max-w-none prose-headings:text-[var(--foreground)] prose-headings:font-bold prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-1 prose-p:my-1 prose-li:my-0 prose-strong:text-[var(--foreground)] prose-code:text-[var(--foreground-muted)] prose-pre:bg-[var(--hover-bg)] prose-pre:border prose-pre:border-[var(--divider)]">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            table: ({ children }) => (
-                              <div className="overflow-x-auto my-2">
-                                <table className="text-xs border-collapse w-full">{children}</table>
-                              </div>
-                            ),
-                            th: ({ children }) => (
-                              <th className="border border-[var(--divider)] px-2 py-1 text-left bg-[var(--hover-bg)] text-[var(--foreground)] text-xs">{children}</th>
-                            ),
-                            td: ({ children }) => (
-                              <td className="border border-[var(--divider)] px-2 py-1 text-xs">{children}</td>
-                            ),
-                          }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
-                    )}
-                    {msg.role === 'assistant' && msg.content && (
-                      <div className="mt-2 flex items-center gap-3">
-                        <button
-                          onClick={() => copyToClipboard(msg.content, i)}
-                          className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]/50 hover:text-[var(--foreground-muted)] transition-colors"
-                          title="Copy to clipboard"
-                        >
-                          {copiedIndex === i ? (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                              Copied
-                            </>
-                          ) : (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                              Copy
-                            </>
-                          )}
-                        </button>
-                        {msg.content.length > 500 && (
-                          <button
-                            onClick={() => downloadReport(msg.content)}
-                            className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]/50 hover:text-[var(--foreground-muted)] transition-colors"
-                            title="Download as HTML report"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                            Download Report
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {isLoading && !messages[messages.length - 1]?.content && (
-                <div className="flex justify-start -mt-3">
-                  <div className="flex items-center gap-2">
-                    <BounceDots size="sm" />
-                    {toolStatus && (
-                      <span className="text-xs text-[var(--foreground-muted)]/60 animate-pulse">{toolStatus}...</span>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <MessageList
+              messages={messages}
+              isLoading={isLoading}
+              toolStatus={toolStatus}
+              copiedIndex={copiedIndex}
+              onCopy={copyToClipboard}
+              onDownload={downloadReport}
+            />
             <div ref={messagesEndRef} />
           </>
         )}
