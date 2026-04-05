@@ -16,7 +16,4 @@ export default defineConfig({
             reporter: ['text', 'json-summary'],
         },
     },
-    esbuild: {
-        jsx: 'automatic',
-    },
 });
