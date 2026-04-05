@@ -58,9 +58,9 @@ export function DashboardStats() {
   if (sensorStats.length === 0) return null;
 
   return (
-    <div className="glass-card p-4 sm:p-6 mt-8">
+    <div className="glass-card p-3 sm:p-6 mt-8">
       <p className="section-label">Last 24 Hours</p>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--divider)]">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--divider)]">
         <div className="lg:px-6 first:lg:pl-0 last:lg:pr-0">
           <div className="h-[3px] w-8 bg-[var(--primary)] rounded-full mb-3" />
           <p className="text-xs text-[var(--foreground-muted)] mb-1">Avg Temperature</p>
@@ -68,8 +68,8 @@ export function DashboardStats() {
             {sensorStats.map(s => {
               const dev = devices.find(d => d.id === s.device_id);
               return s.temp_avg != null ? (
-                <p key={s.device_id} className="text-lg text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {dev?.display_name ?? s.device_id}: {celsiusToFahrenheit(s.temp_avg).toFixed(1)}°F
+                <p key={s.device_id} className="text-base sm:text-lg text-[var(--foreground)] font-medium truncate" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  <span className="hidden sm:inline">{dev?.display_name ?? s.device_id}: </span>{celsiusToFahrenheit(s.temp_avg).toFixed(1)}°F
                 </p>
               ) : null;
             })}

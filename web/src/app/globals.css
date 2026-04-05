@@ -266,7 +266,13 @@ nav.glass-card {
   width: 100%;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container-responsive {
+    padding: 2rem;
+  }
 }
 
 @media (min-width: 1400px) {
@@ -444,6 +450,41 @@ nav.glass-card {
   .navbar-sticky-wrapper.navbar-stuck::before {
     opacity: 1;
   }
+}
+
+/* Mobile bottom tab bar */
+.mobile-tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background: var(--glass-bg-strong);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid var(--glass-border);
+  padding: 6px 0;
+  padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+}
+
+.mobile-tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 4px 0;
+  color: var(--foreground-muted);
+  transition: color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-tab-active {
+  color: var(--primary);
+  font-weight: 600;
 }
 
 /* Custom scrollbar */

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { PageLayout } from '@/components/PageLayout';
 import {
@@ -39,6 +39,15 @@ export default function ChartsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   const { devices } = useDevices();
   const timeRange = useTimeRange();
@@ -263,25 +272,25 @@ export default function ChartsPage() {
         <FilterToolbar timeRange={timeRange} deployments={deployments}>
           <div className="glass-card p-2 flex gap-1">
             <button onClick={() => setMetric('temperature')}
-              className={`px-5 py-2.5 text-sm rounded-xl transition-all ${metric === 'temperature' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
+              className={`px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'temperature' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Temp
             </button>
             <button onClick={() => setMetric('humidity')}
-              className={`px-5 py-2.5 text-sm rounded-xl transition-all ${metric === 'humidity' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
+              className={`px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'humidity' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Humidity
             </button>
             <button onClick={() => setMetric('both')}
-              className={`px-5 py-2.5 text-sm rounded-xl transition-all ${metric === 'both' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
+              className={`px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'both' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Both
             </button>
           </div>
 
           <div className="flex items-center gap-3">
             <button onClick={exportCSV} disabled={isExporting || (isCustom && !isCustomValid)}
-              className="btn-glass px-5 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+              className="btn-glass px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed">
               {isExporting ? 'Exporting...' : 'Export CSV'}
             </button>
-            {exportError && <span className="text-sm text-[var(--warning)]">{exportError}</span>}
+            {exportError && <span className="text-xs sm:text-sm text-[var(--warning)]">{exportError}</span>}
           </div>
         </FilterToolbar>
 
@@ -294,33 +303,36 @@ export default function ChartsPage() {
           </div>
         )}
 
-        <div className="glass-card p-8">
+        <div className="glass-card p-3 sm:p-8">
           {isLoading ? (
-            <div className="h-[500px]">
+            <div className="h-[300px] sm:h-[500px]">
               <LoadingSpinner message="Loading chart data..." className="h-full" />
             </div>
           ) : !hasData ? (
-            <div className="h-[500px] flex items-center justify-center fade-in">
+            <div className="h-[300px] sm:h-[500px] flex items-center justify-center fade-in">
               <div className="text-center">
-                <p className="text-xl text-[var(--foreground-muted)] font-medium">No data available</p>
+                <p className="text-lg sm:text-xl text-[var(--foreground-muted)] font-medium">No data available</p>
                 <p className="text-sm text-[var(--foreground-muted)]/60 mt-2">Data will appear once sensors start reporting</p>
               </div>
             </div>
           ) : (
-            <div className="h-[500px] fade-in">
+            <div className="h-[300px] sm:h-[500px] fade-in">
               <ResponsiveLine
                 data={chartData}
-                margin={{ top: 30, right: metric === 'both' ? 70 : 30, bottom: 60, left: 70 }}
+                margin={isMobile
+                  ? { top: 20, right: metric === 'both' ? 50 : 12, bottom: 44, left: 40 }
+                  : { top: 30, right: metric === 'both' ? 70 : 30, bottom: 60, left: 70 }
+                }
                 xScale={{ type: 'time' }}
                 yScale={{ type: 'linear', min: 'auto', max: 'auto', stacked: false }}
-                axisBottom={{ format: '%H:%M', tickRotation: -45, legend: 'Time', legendOffset: 50, legendPosition: 'middle' }}
+                axisBottom={{ format: '%H:%M', tickRotation: -45, legend: isMobile ? undefined : 'Time', legendOffset: 50, legendPosition: 'middle' }}
                 axisLeft={{
-                  legend: metric === 'both' ? '°F (Temp)' : metric === 'temperature' ? '°F' : '%',
+                  legend: isMobile ? undefined : (metric === 'both' ? '°F (Temp)' : metric === 'temperature' ? '°F' : '%'),
                   legendOffset: -55,
                   legendPosition: 'middle'
                 }}
                 axisRight={metric === 'both' ? {
-                  legend: '% (Humidity)',
+                  legend: isMobile ? undefined : '% (Humidity)',
                   legendOffset: 55,
                   legendPosition: 'middle',
                   format: (v) => {
@@ -334,8 +346,8 @@ export default function ChartsPage() {
                   const series = chartData.find(s => s.id === id);
                   return series?.color || 'var(--chart-line)';
                 }}
-                lineWidth={3}
-                pointSize={6}
+                lineWidth={isMobile ? 2 : 3}
+                pointSize={isMobile ? 4 : 6}
                 pointColor="var(--background-main)"
                 pointBorderWidth={2}
                 pointBorderColor={{ from: 'seriesColor' }}
@@ -364,7 +376,7 @@ export default function ChartsPage() {
                     })}
                   </div>
                 )}
-                legends={[{
+                legends={isMobile ? [] : [{
                   anchor: 'top-right',
                   direction: 'row',
                   translateY: -25,
@@ -376,7 +388,7 @@ export default function ChartsPage() {
                   data: chartData.map(s => ({ id: s.id, label: s.label ?? s.id, color: s.color })),
                 }]}
                 theme={{
-                  axis: { ticks: { text: { fill: 'var(--chart-text)', fontSize: 12 } }, legend: { text: { fill: 'var(--chart-text)', fontSize: 13, fontWeight: 600 } } },
+                  axis: { ticks: { text: { fill: 'var(--chart-text)', fontSize: isMobile ? 10 : 12 } }, legend: { text: { fill: 'var(--chart-text)', fontSize: isMobile ? 11 : 13, fontWeight: 600 } } },
                   grid: { line: { stroke: 'var(--chart-grid)' } },
                   crosshair: { line: { stroke: 'var(--chart-text)', strokeWidth: 1, strokeOpacity: 0.5 } },
                 }}

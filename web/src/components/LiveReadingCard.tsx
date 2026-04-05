@@ -139,7 +139,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
         <LoadingSpinner message="Loading..." className="flex-1 min-h-[140px]" />
       ) : reading && !isStale ? (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:gap-8 mb-6 sm:mb-8">
+          <div className="grid grid-cols-2 gap-3 sm:gap-8 mb-4 sm:mb-8">
             <div className="rounded-xl p-3 sm:p-6 bg-[var(--hover-bg)]">
               <p className="text-xs sm:text-sm text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sm:mb-3">Temperature</p>
               <p className="stat-value">
@@ -155,7 +155,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
                 const pct = computePercentError(sensorF, weatherF);
                 const pctColor = pct != null ? (pct < 3 ? 'var(--success)' : pct < 5 ? 'var(--warning)' : 'var(--error)') : 'var(--foreground-muted)';
                 return (
-                  <p className="text-xs mt-2 text-[var(--foreground-muted)]">
+                  <p className="hidden sm:block text-xs mt-2 text-[var(--foreground-muted)]">
                     vs Official: {weatherF.toFixed(1)}°F{' '}
                     <span style={{ color: pctColor }} className="font-medium">({pct != null ? `${formatPercent(pct)} Error` : '—'})</span>
                   </p>
@@ -172,7 +172,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
                 const pct = computePercentError(reading.humidity, freshWeather.humidity);
                 const pctColor = pct != null ? (pct < 3 ? 'var(--success)' : pct < 5 ? 'var(--warning)' : 'var(--error)') : 'var(--foreground-muted)';
                 return (
-                  <p className="text-xs mt-2 text-[var(--foreground-muted)]">
+                  <p className="hidden sm:block text-xs mt-2 text-[var(--foreground-muted)]">
                     vs Official: {freshWeather.humidity.toFixed(1)}%{' '}
                     <span style={{ color: pctColor }} className="font-medium">({pct != null ? `${formatPercent(pct)} Error` : '—'})</span>
                   </p>

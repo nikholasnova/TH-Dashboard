@@ -46,7 +46,7 @@ export function ChatShell() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full btn-glass flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+          className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-40 w-14 h-14 rounded-full btn-glass flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
           title="Open Kelvin AI"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

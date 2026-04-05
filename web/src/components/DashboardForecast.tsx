@@ -205,17 +205,17 @@ export function DashboardForecast() {
 
   return (
     <div className="glass-card p-4 sm:p-6 mt-8">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-lg font-semibold text-[var(--foreground)]">24-Hour Forecast</h3>
-          <p className="text-xs text-[var(--foreground-muted)]">Holt-Winters exponential smoothing</p>
+      <div className="flex items-center justify-between mb-4 gap-2">
+        <div className="min-w-0">
+          <h3 className="text-base sm:text-lg font-semibold text-[var(--foreground)]">24-Hour Forecast</h3>
+          <p className="text-[10px] sm:text-xs text-[var(--foreground-muted)] truncate">Holt-Winters exponential smoothing</p>
         </div>
-        <div className="relative flex rounded-xl overflow-hidden border border-[var(--glass-border)] bg-[var(--card-highlight)]">
+        <div className="relative flex rounded-xl overflow-hidden border border-[var(--glass-border)] bg-[var(--card-highlight)] shrink-0">
           {devices.map((device) => (
             <button
               key={device.id}
               onClick={() => { setSelectedId(device.id); setForecastState(null); }}
-              className={`relative px-3 py-1.5 text-xs font-medium transition-colors z-10 ${
+              className={`relative px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium transition-colors z-10 ${
                 deviceId === device.id
                   ? 'text-[var(--background-main)]'
                   : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
