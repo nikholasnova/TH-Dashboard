@@ -12,8 +12,8 @@ const startChatMock = vi.fn((input: StartChatInput) => {
   void input;
   return { sendMessageStream: sendMessageStreamMock };
 });
-const getGenerativeModelMock = vi.fn(() => ({ startChat: startChatMock }));
-const GoogleGenerativeAIMock = vi.fn(() => ({ getGenerativeModel: getGenerativeModelMock }));
+const getGenerativeModelMock = vi.fn(function () { return { startChat: startChatMock }; });
+const GoogleGenerativeAIMock = vi.fn(function () { return { getGenerativeModel: getGenerativeModelMock }; });
 
 vi.mock('@/lib/serverAuth', () => ({
   getServerUser: getServerUserMock,
