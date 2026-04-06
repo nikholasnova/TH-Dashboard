@@ -25,10 +25,8 @@ const DevicesContext = createContext<DevicesContextValue>({
 });
 
 async function fetchAllDevices() {
-  const [active, all] = await Promise.all([
-    getDevices(true),
-    getDevices(false),
-  ]);
+  const all = await getDevices(false);
+  const active = all.filter(d => d.is_active);
   return { active, all };
 }
 

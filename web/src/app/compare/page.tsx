@@ -1,17 +1,17 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { PageLayout } from '@/components/PageLayout';
-import { DeviceStats, getDeviceStats, getDeployment } from '@/lib/supabase';
+import { DeviceStats, getDeviceStats } from '@/lib/supabase';
 import { computePercentError, getScopedCompareDeviceIds } from '@/lib/weatherCompare';
 import { formatValue, formatPercent, safeC2F, safeDeltaC2F } from '@/lib/format';
 import { useDevices } from '@/contexts/DevicesContext';
 import { useSetChatPageContext } from '@/lib/chatContext';
 import { DEPLOYMENT_ALL_TIME_HOURS, DEPLOYMENT_ALL_TIME_LABEL, TIME_RANGES } from '@/lib/constants';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { FilterToolbar } from '@/components/FilterToolbar';
 import { useTimeRange } from '@/hooks/useTimeRange';
 import { useDeployments } from '@/hooks/useDeployments';
+import { ViewportScaler } from '@/components/ViewportScaler';
 
 function formatDelta(values: (number | null | undefined)[], decimals = 1): string {
   const valid = values.filter((v): v is number => v != null);
@@ -37,11 +37,19 @@ function formatDeltaPercent(values: (number | null | undefined)[]): string {
   return `±${(spread / 2).toFixed(1)}%`;
 }
 
-export default function ComparePage() {
-  const [stats, setStats] = useState<DeviceStats[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+let compareCache: DeviceStats[] | null = null;
 
-  const { devices } = useDevices();
+export default function ComparePage() {
+  const [stats, setStats] = useState<DeviceStats[]>(compareCache ?? []);
+  const [isLoading, setIsLoading] = useState(!compareCache);
+
+  const cacheRef = useRef(stats);
+  cacheRef.current = stats;
+  useEffect(() => {
+    return () => { compareCache = cacheRef.current; };
+  }, []);
+
+  const { devices, isLoading: devicesLoading } = useDevices();
   const timeRange = useTimeRange();
   const { deployments } = useDeployments(timeRange.deviceFilter);
   const {
@@ -66,12 +74,14 @@ export default function ComparePage() {
     return () => setPageContext({});
   }, [setPageContext, selectedRange, deviceFilter, deploymentFilter]);
 
+  const hasDataRef2 = useRef(stats.length > 0);
+
   const fetchData = useCallback(async () => {
     if (isCustom && !isCustomValid) return;
-    setIsLoading(true);
+    if (!hasDataRef2.current) setIsLoading(true);
 
     try {
-      const { start, end } = await getRangeBounds();
+      const { start, end, deployment: dep } = await getRangeBounds();
       const fetchForDeviceIds = async (deviceIds: string[]) => {
         const uniqueIds = Array.from(new Set(deviceIds));
         const statsByDevice = await Promise.all(
@@ -81,7 +91,6 @@ export default function ComparePage() {
       };
 
       if (deploymentFilter) {
-        const dep = await getDeployment(parseInt(deploymentFilter, 10));
         if (!dep) {
           setStats([]);
         } else {
@@ -100,15 +109,17 @@ export default function ComparePage() {
       }
     } finally {
       setIsLoading(false);
+      hasDataRef2.current = true;
     }
   }, [deploymentFilter, deviceFilter, getRangeBounds, isCustom, isCustomValid]);
 
   useEffect(() => {
+    if (devicesLoading) return;
     const timer = setTimeout(() => {
       void fetchData();
     }, 0);
     return () => clearTimeout(timer);
-  }, [fetchData]);
+  }, [fetchData, devicesLoading]);
 
   const activeDeployment = deploymentFilter ? deployments.find(d => d.id.toString() === deploymentFilter) : null;
 
@@ -145,6 +156,7 @@ export default function ComparePage() {
 
   return (
     <PageLayout title="Compare" subtitle="Side-by-side sensor statistics">
+      <ViewportScaler>
         <FilterToolbar timeRange={timeRange} deployments={deployments} />
 
         {deploymentFilter && activeDeployment && (
@@ -156,19 +168,136 @@ export default function ComparePage() {
           </div>
         )}
 
-        {isLoading ? (
-          <>
-            <div className="glass-card card-stats p-8 mb-8">
-              <h2 className="text-2xl font-bold text-[var(--foreground)] mb-6">Temperature (°F)</h2>
-              <LoadingSpinner message="Loading stats..." />
-            </div>
-            <div className="glass-card card-stats p-8">
-              <h2 className="text-2xl font-bold text-[var(--foreground)] mb-6">Humidity (%)</h2>
-              <LoadingSpinner message="Loading stats..." />
-            </div>
-          </>
-        ) : (
-          <div className="fade-in">
+        <div className={isLoading ? 'opacity-50' : 'fade-in'}>
+            {/* Delta summary cards — desktop only */}
+              <div className="hidden sm:grid sm:grid-cols-4 gap-4 mb-6">
+                {(() => {
+                  const validTemps = deviceColumns.filter(c => c.tempAvgF != null);
+                  const tempSpread = validTemps.length >= 2
+                    ? Math.abs(Math.max(...validTemps.map(c => c.tempAvgF!)) - Math.min(...validTemps.map(c => c.tempAvgF!)))
+                    : null;
+                  const validErrors = deviceColumns.filter(c => c.tempErrorPct != null);
+                  const mostAccurate = validErrors.length > 0
+                    ? validErrors.reduce((best, c) => (c.tempErrorPct! < best.tempErrorPct! ? c : best))
+                    : null;
+                  const totalReadings = deviceColumns.reduce((sum, c) => sum + (c.sensor?.reading_count ?? 0), 0);
+                  const allHighs = deviceColumns.map(c => c.tempMaxF).filter((v): v is number => v != null);
+                  const allLows = deviceColumns.map(c => c.tempMinF).filter((v): v is number => v != null);
+                  const overallHigh = allHighs.length > 0 ? Math.max(...allHighs) : null;
+                  const overallLow = allLows.length > 0 ? Math.min(...allLows) : null;
+
+                  return (
+                    <>
+                      <div className="glass-card p-4">
+                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Temp Spread</p>
+                        <p className="text-2xl font-bold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {tempSpread != null ? `${tempSpread.toFixed(1)}°F` : '—'}
+                        </p>
+                        <p className="text-xs text-[var(--foreground-muted)] mt-1">between sensor averages</p>
+                      </div>
+                      <div className="glass-card p-4">
+                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Most Accurate</p>
+                        <p className="text-2xl font-bold text-[var(--foreground)]">
+                          {mostAccurate ? mostAccurate.device.display_name : '—'}
+                        </p>
+                        <p className="text-xs text-[var(--foreground-muted)] mt-1">
+                          {mostAccurate ? `${formatPercent(mostAccurate.tempErrorPct)} error vs weather` : 'no weather data'}
+                        </p>
+                      </div>
+                      <div className="glass-card p-4">
+                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Overall Range</p>
+                        <p className="text-2xl font-bold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {overallHigh != null && overallLow != null
+                            ? <><span className="text-[var(--warning)]">{overallHigh.toFixed(1)}°</span>{' / '}<span className="text-[var(--info)]">{overallLow.toFixed(1)}°</span></>
+                            : '—'}
+                        </p>
+                        <p className="text-xs text-[var(--foreground-muted)] mt-1">high / low across all sensors</p>
+                      </div>
+                      <div className="glass-card p-4">
+                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Total Readings</p>
+                        <p className="text-2xl font-bold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {totalReadings.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-[var(--foreground-muted)] mt-1">across {deviceColumns.length} sensor{deviceColumns.length !== 1 ? 's' : ''}</p>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+            {/* Range overlap bars — desktop only */}
+              <div className="hidden sm:grid sm:grid-cols-2 gap-6 mb-6">
+                {(() => {
+                  const tempCols = deviceColumns.filter(c => c.tempMinF != null && c.tempMaxF != null);
+                  const humCols = deviceColumns.filter(c => c.sensor?.humidity_min != null && c.sensor?.humidity_max != null);
+                  const tempGlobalMin = tempCols.length > 0 ? Math.min(...tempCols.map(c => c.tempMinF!)) : 0;
+                  const tempGlobalMax = tempCols.length > 0 ? Math.max(...tempCols.map(c => c.tempMaxF!)) : 100;
+                  const tempRange = tempGlobalMax - tempGlobalMin || 1;
+                  const humGlobalMin = humCols.length > 0 ? Math.min(...humCols.map(c => c.sensor!.humidity_min!)) : 0;
+                  const humGlobalMax = humCols.length > 0 ? Math.max(...humCols.map(c => c.sensor!.humidity_max!)) : 100;
+                  const humRange = humGlobalMax - humGlobalMin || 1;
+
+                  return (
+                    <>
+                      <div className="glass-card p-4 sm:p-5">
+                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-3">Temperature Range Overlap</p>
+                        <div className="space-y-2.5" style={{ minHeight: deviceColumns.length * 32 }}>
+                          {tempCols.map(col => {
+                            const left = ((col.tempMinF! - tempGlobalMin) / tempRange) * 100;
+                            const width = ((col.tempMaxF! - col.tempMinF!) / tempRange) * 100;
+                            return (
+                              <div key={col.device.id}>
+                                <div className="flex justify-between text-xs text-[var(--foreground-muted)] mb-1">
+                                  <span style={{ color: col.device.color }}>{col.device.display_name}</span>
+                                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.tempMinF)}° – {formatValue(col.tempMaxF)}°</span>
+                                </div>
+                                <div className="h-2.5 w-full bg-[var(--hover-bg)] rounded-full relative">
+                                  <div
+                                    className="absolute h-full rounded-full"
+                                    style={{ left: `${left}%`, width: `${Math.max(width, 2)}%`, backgroundColor: col.device.color, opacity: 0.7 }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex justify-between text-[10px] text-[var(--foreground-muted)] mt-2" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          <span>{tempGlobalMin.toFixed(1)}°F</span>
+                          <span>{tempGlobalMax.toFixed(1)}°F</span>
+                        </div>
+                      </div>
+                      <div className="glass-card p-4 sm:p-5">
+                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-3">Humidity Range Overlap</p>
+                        <div className="space-y-2.5" style={{ minHeight: deviceColumns.length * 32 }}>
+                          {humCols.map(col => {
+                            const left = ((col.sensor!.humidity_min! - humGlobalMin) / humRange) * 100;
+                            const width = ((col.sensor!.humidity_max! - col.sensor!.humidity_min!) / humRange) * 100;
+                            return (
+                              <div key={col.device.id}>
+                                <div className="flex justify-between text-xs text-[var(--foreground-muted)] mb-1">
+                                  <span style={{ color: col.device.color }}>{col.device.display_name}</span>
+                                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.sensor?.humidity_min)}% – {formatValue(col.sensor?.humidity_max)}%</span>
+                                </div>
+                                <div className="h-2.5 w-full bg-[var(--hover-bg)] rounded-full relative">
+                                  <div
+                                    className="absolute h-full rounded-full"
+                                    style={{ left: `${left}%`, width: `${Math.max(width, 2)}%`, backgroundColor: col.device.color, opacity: 0.7 }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex justify-between text-[10px] text-[var(--foreground-muted)] mt-2" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          <span>{humGlobalMin.toFixed(1)}%</span>
+                          <span>{humGlobalMax.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
             {/* Mobile: stacked cards per device */}
             <div className="sm:hidden space-y-4">
               {deviceColumns.map(col => (
@@ -210,78 +339,78 @@ export default function ComparePage() {
               ))}
             </div>
 
-            {/* Desktop: original tables */}
-            <div className="hidden sm:block">
-            <div className="glass-card card-stats p-4 sm:p-8 mb-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] mb-4 sm:mb-6">Temperature (°F)</h2>
+            {/* Desktop: side-by-side tables */}
+            <div className="hidden sm:grid sm:grid-cols-2 sm:gap-6">
+            <div className="glass-card p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] mb-3 sm:mb-4">Temperature (°F)</h2>
               <div className="overflow-x-auto">
-              <table className="w-full text-base sm:text-lg min-w-[400px]">
+              <table className="w-full text-sm sm:text-base">
                 <thead>
                   <tr className="border-b border-[var(--divider)]">
-                    <th className="text-left py-4 text-[var(--foreground-muted)] font-semibold">Metric</th>
+                    <th className="text-left py-3 text-[var(--foreground-muted)] font-semibold">Metric</th>
                     {deviceColumns.map(col => (
-                      <th key={col.device.id} className="text-right py-4 font-semibold" style={{ color: col.device.color }}>
+                      <th key={col.device.id} className="text-right py-3 font-semibold" style={{ color: col.device.color }}>
                         {col.device.display_name}
                       </th>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <th className="text-right py-4 text-[var(--foreground-muted)] font-semibold">Delta</th>
+                      <th className="text-right py-3 text-[var(--foreground-muted)] font-semibold">Delta</th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b border-[var(--divider)]">
-                    <td className="py-4 text-[var(--foreground-muted)]">Average</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">Average</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempAvgF)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempAvgF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempAvgF))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempAvgF))}</td>
                     )}
                   </tr>
                   <tr className="border-b border-[var(--divider)]">
-                    <td className="py-4 text-[var(--foreground-muted)]">Minimum</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">Minimum</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempMinF)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempMinF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempMinF))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempMinF))}</td>
                     )}
                   </tr>
                   <tr className="border-b border-[var(--divider)]">
-                    <td className="py-4 text-[var(--foreground-muted)]">Maximum</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">Maximum</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempMaxF)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempMaxF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempMaxF))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempMaxF))}</td>
                     )}
                   </tr>
                   <tr>
-                    <td className="py-4 text-[var(--foreground-muted)]">Std Dev</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">Std Dev</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempStdF, 2)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempStdF, 2)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">—</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">—</td>
                     )}
                   </tr>
                   <tr className="border-t border-[var(--divider)] border-b border-[var(--divider)]">
-                    <td className="py-4 text-[var(--foreground-muted)]">Weather</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">Weather</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.weatherTempAvgF)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.weatherTempAvgF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.weatherTempAvgF))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.weatherTempAvgF))}</td>
                     )}
                   </tr>
                   <tr>
-                    <td className="py-4 text-[var(--foreground-muted)]">% Error</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">% Error</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatPercent(col.tempErrorPct)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatPercent(col.tempErrorPct)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDeltaPercent(deviceColumns.map(c => c.tempErrorPct))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDeltaPercent(deviceColumns.map(c => c.tempErrorPct))}</td>
                     )}
                   </tr>
                 </tbody>
@@ -289,76 +418,76 @@ export default function ComparePage() {
               </div>
             </div>
 
-            <div className="glass-card card-stats p-4 sm:p-8">
-              <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] mb-4 sm:mb-6">Humidity (%)</h2>
+            <div className="glass-card p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] mb-3 sm:mb-4">Humidity (%)</h2>
               <div className="overflow-x-auto">
-              <table className="w-full text-base sm:text-lg min-w-[400px]">
+              <table className="w-full text-sm sm:text-base">
                 <thead>
                   <tr className="border-b border-[var(--divider)]">
-                    <th className="text-left py-4 text-[var(--foreground-muted)] font-semibold">Metric</th>
+                    <th className="text-left py-3 text-[var(--foreground-muted)] font-semibold">Metric</th>
                     {deviceColumns.map(col => (
-                      <th key={col.device.id} className="text-right py-4 font-semibold" style={{ color: col.device.color }}>
+                      <th key={col.device.id} className="text-right py-3 font-semibold" style={{ color: col.device.color }}>
                         {col.device.display_name}
                       </th>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <th className="text-right py-4 text-[var(--foreground-muted)] font-semibold">Delta</th>
+                      <th className="text-right py-3 text-[var(--foreground-muted)] font-semibold">Delta</th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b border-[var(--divider)]">
-                    <td className="py-4 text-[var(--foreground-muted)]">Average</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">Average</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_avg)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_avg)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_avg))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_avg))}</td>
                     )}
                   </tr>
                   <tr className="border-b border-[var(--divider)]">
-                    <td className="py-4 text-[var(--foreground-muted)]">Minimum</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">Minimum</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_min)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_min)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_min))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_min))}</td>
                     )}
                   </tr>
                   <tr className="border-b border-[var(--divider)]">
-                    <td className="py-4 text-[var(--foreground-muted)]">Maximum</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">Maximum</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_max)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_max)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_max))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_max))}</td>
                     )}
                   </tr>
                   <tr>
-                    <td className="py-4 text-[var(--foreground-muted)]">Std Dev</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">Std Dev</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_stddev, 2)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_stddev, 2)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">—</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">—</td>
                     )}
                   </tr>
                   <tr className="border-t border-[var(--divider)] border-b border-[var(--divider)]">
-                    <td className="py-4 text-[var(--foreground-muted)]">Weather</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">Weather</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatValue(col.weather?.humidity_avg)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.weather?.humidity_avg)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.weather?.humidity_avg))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.weather?.humidity_avg))}</td>
                     )}
                   </tr>
                   <tr>
-                    <td className="py-4 text-[var(--foreground-muted)]">% Error</td>
+                    <td className="py-3 text-[var(--foreground-muted)]">% Error</td>
                     {deviceColumns.map(col => (
-                      <td key={col.device.id} className="py-4 text-right font-semibold text-[var(--foreground)]">{formatPercent(col.humidityErrorPct)}</td>
+                      <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatPercent(col.humidityErrorPct)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-4 text-right text-[var(--foreground-muted)]/60">{formatDeltaPercent(deviceColumns.map(c => c.humidityErrorPct))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDeltaPercent(deviceColumns.map(c => c.humidityErrorPct))}</td>
                     )}
                   </tr>
                 </tbody>
@@ -367,7 +496,7 @@ export default function ComparePage() {
             </div>
             </div>
           </div>
-        )}
+      </ViewportScaler>
     </PageLayout>
   );
 }

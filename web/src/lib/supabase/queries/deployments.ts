@@ -152,6 +152,35 @@ export async function deleteDeployment(id: number): Promise<boolean> {
   return true;
 }
 
+export async function getActiveDeployments(
+  deviceIds: string[]
+): Promise<Record<string, Deployment | null>> {
+  const result: Record<string, Deployment | null> = {};
+  for (const id of deviceIds) result[id] = null;
+
+  if (!supabase || deviceIds.length === 0) return result;
+
+  const { data, error } = await supabase
+    .from('deployments')
+    .select('*')
+    .in('device_id', deviceIds)
+    .is('ended_at', null)
+    .order('started_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching active deployments:', error);
+    return result;
+  }
+
+  for (const row of data || []) {
+    if (result[row.device_id] === null) {
+      result[row.device_id] = row;
+    }
+  }
+
+  return result;
+}
+
 export async function getActiveDeployment(
   deviceId: string
 ): Promise<Deployment | null> {

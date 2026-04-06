@@ -37,13 +37,14 @@ vi.stubGlobal('ResizeObserver', vi.fn(() => ({
   unobserve: vi.fn(),
 })));
 
-import { DashboardForecast } from '../DashboardForecast';
+import { DashboardForecast, clearForecastCache } from '../DashboardForecast';
 
 describe('DashboardForecast', () => {
   const user = userEvent.setup();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    clearForecastCache();
   });
 
   it('shows Run Forecast button initially', () => {

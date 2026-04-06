@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import dynamic from 'next/dynamic';
 import { PageLayout } from '@/components/PageLayout';
 import {
@@ -24,6 +24,115 @@ const ResponsiveLine = dynamic(
 
 type MetricType = 'temperature' | 'humidity' | 'both';
 
+type ChartPoint = {
+  x: Date;
+  y: number;
+  rawValue?: number;
+  unit?: string;
+};
+
+interface ChartSeries {
+  id: string;
+  label: string;
+  color: string;
+  data: ChartPoint[];
+}
+
+interface NivoChartProps {
+  chartData: ChartSeries[];
+  metric: MetricType;
+  isMobile: boolean;
+  chartYMin: number;
+  tempMin: number;
+  tempMax: number;
+  humidityMin: number;
+  humidityMax: number;
+}
+
+const NivoChart = memo(function NivoChart({
+  chartData, metric, isMobile, chartYMin,
+  tempMin, tempMax, humidityMin, humidityMax,
+}: NivoChartProps) {
+  return (
+    <ResponsiveLine
+      data={chartData}
+      margin={isMobile
+        ? { top: 20, right: metric === 'both' ? 50 : 12, bottom: 44, left: 40 }
+        : { top: 30, right: metric === 'both' ? 70 : 30, bottom: 60, left: 70 }
+      }
+      xScale={{ type: 'time' }}
+      yScale={{ type: 'linear', min: 'auto', max: 'auto', stacked: false }}
+      axisBottom={{ format: '%H:%M', tickRotation: -45, legend: isMobile ? undefined : 'Time', legendOffset: 50, legendPosition: 'middle' }}
+      axisLeft={{
+        legend: isMobile ? undefined : (metric === 'both' ? '°F (Temp)' : metric === 'temperature' ? '°F' : '%'),
+        legendOffset: -55,
+        legendPosition: 'middle'
+      }}
+      axisRight={metric === 'both' ? {
+        legend: isMobile ? undefined : '% (Humidity)',
+        legendOffset: 55,
+        legendPosition: 'middle',
+        format: (v) => {
+          if (tempMax === tempMin) return humidityMin.toFixed(0);
+          const h = humidityMin + ((Number(v) - tempMin) / (tempMax - tempMin)) * (humidityMax - humidityMin);
+          return h.toFixed(0);
+        },
+      } : undefined}
+      colors={({ id }) => {
+        const series = chartData.find(s => s.id === id);
+        return series?.color || 'var(--chart-line)';
+      }}
+      lineWidth={isMobile ? 2 : 3}
+      pointSize={isMobile ? 4 : 6}
+      pointColor="var(--background-main)"
+      pointBorderWidth={2}
+      pointBorderColor={{ from: 'seriesColor' }}
+      enableArea={metric !== 'both'}
+      areaBaselineValue={chartYMin}
+      areaOpacity={0.1}
+      motionConfig={{ mass: 1, tension: 300, friction: 40 }}
+      enableSlices="x"
+      sliceTooltip={({ slice }) => (
+        <div className="glass-card px-4 py-3 !rounded-xl">
+          <p className="text-xs text-[var(--foreground-muted)] mb-2">
+            {slice.points[0]?.data.x instanceof Date ? slice.points[0].data.x.toLocaleString() : ''}
+          </p>
+          {slice.points.map((point) => {
+            const data = point.data as { rawValue?: number; unit?: string; y: number };
+            const value = data.rawValue ?? data.y;
+            const unit = data.unit ?? (metric === 'temperature' ? '°F' : '%');
+            return (
+              <div key={point.id} className="flex items-center gap-2 text-sm">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: point.seriesColor }} />
+                <span className="font-semibold text-[var(--foreground)]">{chartData.find(s => s.id === point.seriesId)?.label ?? point.seriesId}:</span>
+                <span className="text-[var(--foreground-muted)]">
+                  {typeof value === 'number' ? value.toFixed(1) : String(value)}{unit}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      legends={isMobile ? [] : [{
+        anchor: 'top-right',
+        direction: 'row',
+        translateY: -25,
+        itemWidth: metric === 'both' ? 110 : 80,
+        itemHeight: 20,
+        symbolSize: 12,
+        symbolShape: 'circle',
+        itemTextColor: 'var(--chart-text)',
+        data: chartData.map(s => ({ id: s.id, label: s.label ?? s.id, color: s.color })),
+      }]}
+      theme={{
+        axis: { ticks: { text: { fill: 'var(--chart-text)', fontSize: isMobile ? 10 : 12 } }, legend: { text: { fill: 'var(--chart-text)', fontSize: isMobile ? 11 : 13, fontWeight: 600 } } },
+        grid: { line: { stroke: 'var(--chart-grid)' } },
+        crosshair: { line: { stroke: 'var(--chart-text)', strokeWidth: 1, strokeOpacity: 0.5 } },
+      }}
+    />
+  );
+});
+
 function lightenColor(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -36,6 +145,7 @@ export default function ChartsPage() {
   const [samples, setSamples] = useState<ChartSample[]>([]);
   const [metric, setMetric] = useState<MetricType>('temperature');
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);
@@ -83,9 +193,12 @@ export default function ChartsPage() {
     return bucketOptions.find((bucket) => bucket >= idealBucketSeconds) || bucketOptions[bucketOptions.length - 1];
   };
 
+  const hasDataRef = useRef(false);
+
   const fetchData = useCallback(async () => {
     if (isCustom && !isCustomValid) return;
-    setIsLoading(true);
+    if (!hasDataRef.current) setIsLoading(true);
+    setIsFetching(true);
     try {
       const { start, end, scopedDeviceId } = await getRangeBounds();
       const rangeMs = new Date(end).getTime() - new Date(start).getTime();
@@ -97,16 +210,15 @@ export default function ChartsPage() {
         device_id: scopedDeviceId,
       });
       setSamples(data);
+      hasDataRef.current = data.length > 0;
     } finally {
       setIsLoading(false);
+      setIsFetching(false);
     }
   }, [getRangeBounds, isCustom, isCustomValid]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      void fetchData();
-    }, 0);
-    return () => clearTimeout(timer);
+    void fetchData();
   }, [fetchData]);
 
   const toDatetimeLocal = (d: Date) => {
@@ -126,57 +238,48 @@ export default function ChartsPage() {
   const isFiniteNumber = (value: unknown): value is number =>
     typeof value === 'number' && Number.isFinite(value);
 
-  // Guard Nivo from invalid points (NaN/null dates or values) which can produce d="null" path errors.
-  const validSamples = samples.filter((sample) => {
-    const ts = new Date(sample.bucket_ts);
-    return (
-      !Number.isNaN(ts.getTime()) &&
-      isFiniteNumber(sample.temperature_avg) &&
-      isFiniteNumber(sample.humidity_avg)
-    );
-  });
+  const { chartData, hasData, chartYMin, tempMin, tempMax, humidityMin, humidityMax } = useMemo(() => {
+    const validSamples = samples.filter((sample) => {
+      const ts = new Date(sample.bucket_ts);
+      return (
+        !Number.isNaN(ts.getTime()) &&
+        isFiniteNumber(sample.temperature_avg) &&
+        isFiniteNumber(sample.humidity_avg)
+      );
+    });
 
-  // Calculate temp range for normalizing humidity in "both" mode
-  const tempValues = validSamples.map((r) => celsiusToFahrenheit(r.temperature_avg));
-  const tempMin = tempValues.length > 0 ? Math.min(...tempValues) : 0;
-  const tempMax = tempValues.length > 0 ? Math.max(...tempValues) : 100;
-  const humidityValues = validSamples.map((r) => r.humidity_avg);
-  const humidityMin = humidityValues.length > 0 ? Math.min(...humidityValues) : 0;
-  const humidityMax = humidityValues.length > 0 ? Math.max(...humidityValues) : 100;
+    const tempValues = validSamples.map((r) => celsiusToFahrenheit(r.temperature_avg));
+    const tempMin = tempValues.length > 0 ? Math.min(...tempValues) : 0;
+    const tempMax = tempValues.length > 0 ? Math.max(...tempValues) : 100;
+    const humidityValues = validSamples.map((r) => r.humidity_avg);
+    const humidityMin = humidityValues.length > 0 ? Math.min(...humidityValues) : 0;
+    const humidityMax = humidityValues.length > 0 ? Math.max(...humidityValues) : 100;
 
-  // Normalize humidity to temperature scale for dual-axis display
-  const normalizeHumidity = (h: number) => {
-    if (humidityMax === humidityMin) return tempMin;
-    return tempMin + ((h - humidityMin) / (humidityMax - humidityMin)) * (tempMax - tempMin);
-  };
+    const normalizeHumidity = (h: number) => {
+      if (humidityMax === humidityMin) return tempMin;
+      return tempMin + ((h - humidityMin) / (humidityMax - humidityMin)) * (tempMax - tempMin);
+    };
 
-  type ChartPoint = {
-    x: Date;
-    y: number;
-    rawValue?: number;
-    unit?: string;
-  };
+    const compactPoints = (points: Array<ChartPoint | null>): ChartPoint[] =>
+      points.filter((point): point is ChartPoint => point !== null);
 
-  const compactPoints = (points: Array<ChartPoint | null>): ChartPoint[] =>
-    points.filter((point): point is ChartPoint => point !== null);
+    const makePoint = (
+      bucketTs: string,
+      y: number,
+      extras?: { rawValue?: number; unit?: string }
+    ): ChartPoint | null => {
+      const x = new Date(bucketTs);
+      if (Number.isNaN(x.getTime()) || !Number.isFinite(y)) return null;
+      return { x, y, ...extras };
+    };
 
-  const makePoint = (
-    bucketTs: string,
-    y: number,
-    extras?: { rawValue?: number; unit?: string }
-  ): ChartPoint | null => {
-    const x = new Date(bucketTs);
-    if (Number.isNaN(x.getTime()) || !Number.isFinite(y)) return null;
-    return { x, y, ...extras };
-  };
-
-  const buildChartData = () => {
     const activeDevices = deviceFilter
       ? devices.filter(d => d.id === deviceFilter)
       : devices;
 
+    let series;
     if (metric === 'both') {
-      return activeDevices.flatMap(device => {
+      series = activeDevices.flatMap(device => {
         const deviceSamples = validSamples.filter(r => r.device_id === device.id);
         return [
           {
@@ -198,45 +301,45 @@ export default function ChartsPage() {
           },
         ];
       });
+    } else {
+      series = activeDevices.map(device => ({
+        id: device.id,
+        label: device.display_name,
+        color: device.color,
+        data: compactPoints(
+          validSamples
+            .filter(r => r.device_id === device.id)
+            .map(r => makePoint(
+              r.bucket_ts,
+              metric === 'temperature' ? celsiusToFahrenheit(r.temperature_avg) : r.humidity_avg
+            ))
+        ),
+      }));
     }
 
-    return activeDevices.map(device => ({
-      id: device.id,
-      label: device.display_name,
-      color: device.color,
-      data: compactPoints(
-        validSamples
-          .filter(r => r.device_id === device.id)
-          .map(r => makePoint(
-            r.bucket_ts,
-            metric === 'temperature' ? celsiusToFahrenheit(r.temperature_avg) : r.humidity_avg
-          ))
-      ),
-    }));
-  };
+    const data = series.filter((s) => s.data.length > 0);
+    const has = data.some((s) => s.data.length > 0);
+    const yMin = has
+      ? Math.min(...data.flatMap(s => s.data.map(d => d.y as number)))
+      : 0;
 
-  const chartData = buildChartData().filter((series) => series.data.length > 0);
-  const hasData = chartData.some((series) => series.data.length > 0);
-
-  // Compute area baseline from actual chart data so the fill doesn't extend below the chart
-  const chartYMin = hasData
-    ? Math.min(...chartData.flatMap(s => s.data.map(d => d.y as number)))
-    : 0;
+    return { chartData: data, hasData: has, chartYMin: yMin, tempMin, tempMax, humidityMin, humidityMax };
+  }, [samples, metric, devices, deviceFilter]);
 
   return (
     <PageLayout title="Charts" subtitle="Historical data visualization">
         <FilterToolbar timeRange={timeRange} deployments={deployments}>
           <div className="glass-card p-2 flex gap-1">
-            <button onClick={() => setMetric('temperature')}
-              className={`px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'temperature' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
+            <button onClick={() => setMetric('temperature')} data-label="Temp"
+              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'temperature' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Temp
             </button>
-            <button onClick={() => setMetric('humidity')}
-              className={`px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'humidity' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
+            <button onClick={() => setMetric('humidity')} data-label="Humidity"
+              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'humidity' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Humidity
             </button>
-            <button onClick={() => setMetric('both')}
-              className={`px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'both' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
+            <button onClick={() => setMetric('both')} data-label="Both"
+              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'both' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Both
             </button>
           </div>
@@ -269,82 +372,16 @@ export default function ChartsPage() {
               </div>
             </div>
           ) : (
-            <div className="h-[360px] sm:h-[500px] fade-in">
-              <ResponsiveLine
-                data={chartData}
-                margin={isMobile
-                  ? { top: 20, right: metric === 'both' ? 50 : 12, bottom: 44, left: 40 }
-                  : { top: 30, right: metric === 'both' ? 70 : 30, bottom: 60, left: 70 }
-                }
-                xScale={{ type: 'time' }}
-                yScale={{ type: 'linear', min: 'auto', max: 'auto', stacked: false }}
-                axisBottom={{ format: '%H:%M', tickRotation: -45, legend: isMobile ? undefined : 'Time', legendOffset: 50, legendPosition: 'middle' }}
-                axisLeft={{
-                  legend: isMobile ? undefined : (metric === 'both' ? '°F (Temp)' : metric === 'temperature' ? '°F' : '%'),
-                  legendOffset: -55,
-                  legendPosition: 'middle'
-                }}
-                axisRight={metric === 'both' ? {
-                  legend: isMobile ? undefined : '% (Humidity)',
-                  legendOffset: 55,
-                  legendPosition: 'middle',
-                  format: (v) => {
-                    // Convert normalized value back to humidity
-                    if (tempMax === tempMin) return humidityMin.toFixed(0);
-                    const h = humidityMin + ((Number(v) - tempMin) / (tempMax - tempMin)) * (humidityMax - humidityMin);
-                    return h.toFixed(0);
-                  },
-                } : undefined}
-                colors={({ id }) => {
-                  const series = chartData.find(s => s.id === id);
-                  return series?.color || 'var(--chart-line)';
-                }}
-                lineWidth={isMobile ? 2 : 3}
-                pointSize={isMobile ? 4 : 6}
-                pointColor="var(--background-main)"
-                pointBorderWidth={2}
-                pointBorderColor={{ from: 'seriesColor' }}
-                enableArea={metric !== 'both'}
-                areaBaselineValue={chartYMin}
-                areaOpacity={0.1}
-                enableSlices="x"
-                sliceTooltip={({ slice }) => (
-                  <div className="glass-card px-4 py-3 !rounded-xl">
-                    <p className="text-xs text-[var(--foreground-muted)] mb-2">
-                      {slice.points[0]?.data.x instanceof Date ? slice.points[0].data.x.toLocaleString() : ''}
-                    </p>
-                    {slice.points.map((point) => {
-                      const data = point.data as { rawValue?: number; unit?: string; y: number };
-                      const value = data.rawValue ?? data.y;
-                      const unit = data.unit ?? (metric === 'temperature' ? '°F' : '%');
-                      return (
-                        <div key={point.id} className="flex items-center gap-2 text-sm">
-                          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: point.seriesColor }} />
-                          <span className="font-semibold text-[var(--foreground)]">{chartData.find(s => s.id === point.seriesId)?.label ?? point.seriesId}:</span>
-                          <span className="text-[var(--foreground-muted)]">
-                            {typeof value === 'number' ? value.toFixed(1) : String(value)}{unit}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                legends={isMobile ? [] : [{
-                  anchor: 'top-right',
-                  direction: 'row',
-                  translateY: -25,
-                  itemWidth: metric === 'both' ? 110 : 80,
-                  itemHeight: 20,
-                  symbolSize: 12,
-                  symbolShape: 'circle',
-                  itemTextColor: 'var(--chart-text)',
-                  data: chartData.map(s => ({ id: s.id, label: s.label ?? s.id, color: s.color })),
-                }]}
-                theme={{
-                  axis: { ticks: { text: { fill: 'var(--chart-text)', fontSize: isMobile ? 10 : 12 } }, legend: { text: { fill: 'var(--chart-text)', fontSize: isMobile ? 11 : 13, fontWeight: 600 } } },
-                  grid: { line: { stroke: 'var(--chart-grid)' } },
-                  crosshair: { line: { stroke: 'var(--chart-text)', strokeWidth: 1, strokeOpacity: 0.5 } },
-                }}
+            <div className={`h-[360px] sm:h-[500px] transition-opacity duration-150 ${isFetching ? 'opacity-40' : 'opacity-100'}`}>
+              <NivoChart
+                chartData={chartData}
+                metric={metric}
+                isMobile={isMobile}
+                chartYMin={chartYMin}
+                tempMin={tempMin}
+                tempMax={tempMax}
+                humidityMin={humidityMin}
+                humidityMax={humidityMax}
               />
             </div>
           )}

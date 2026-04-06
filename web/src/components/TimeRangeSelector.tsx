@@ -29,7 +29,8 @@ export function TimeRangeSelector({
         <button
           key={range.hours}
           onClick={() => onRangeChange(range.hours)}
-          className={`px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
+          data-label={range.label}
+          className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
             selectedRange === range.hours
               ? 'nav-active text-[var(--foreground)] font-semibold'
               : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'

@@ -42,6 +42,7 @@ describe('useTimeRange', () => {
       start: '2026-02-10T00:00:00.000Z',
       end: '2026-02-20T00:00:00.000Z',
       scopedDeviceId: 'node2',
+      deployment: expect.objectContaining({ id: 7, device_id: 'node2' }),
     });
   });
 
@@ -71,6 +72,7 @@ describe('useTimeRange', () => {
       start: '2026-01-14T12:00:00.000Z',
       end: '2026-01-15T12:00:00.000Z',
       scopedDeviceId: 'node1',
+      deployment: expect.objectContaining({ id: 9, device_id: 'node1' }),
     });
   });
 
@@ -100,6 +102,7 @@ describe('useTimeRange', () => {
       start: '2026-01-01T00:00:00.000Z',
       end: '2026-03-01T00:00:00.000Z',
       scopedDeviceId: 'node2',
+      deployment: expect.objectContaining({ id: 12, device_id: 'node2' }),
     });
   });
 

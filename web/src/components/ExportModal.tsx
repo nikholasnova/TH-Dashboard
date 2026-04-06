@@ -144,7 +144,7 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
 
   const inputClass = 'bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full';
   const toggleClass = (active: boolean) =>
-    `px-4 py-2 text-sm rounded-xl transition-all ${active ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`;
+    `nav-pill px-4 py-2 text-sm rounded-xl transition-all ${active ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -184,10 +184,10 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
             <div>
               <label className="text-sm font-medium text-[var(--foreground-secondary)] mb-2 block">Data Mode</label>
               <div className="glass-card p-2 flex gap-1">
-                <button onClick={() => setDataMode('raw')} className={toggleClass(dataMode === 'raw')}>
+                <button onClick={() => setDataMode('raw')} data-label="Raw Readings" className={toggleClass(dataMode === 'raw')}>
                   Raw Readings
                 </button>
-                <button onClick={() => setDataMode('aggregated')} className={toggleClass(dataMode === 'aggregated')}>
+                <button onClick={() => setDataMode('aggregated')} data-label="Aggregated" className={toggleClass(dataMode === 'aggregated')}>
                   Aggregated
                 </button>
               </div>

@@ -81,7 +81,8 @@ export function Navbar({ onManageNodes }: NavbarProps) {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`px-6 py-3 text-sm font-medium rounded-xl transition-colors ${
+                  data-label={link.label === 'Deploy' ? 'Deployments' : link.label}
+                  className={`nav-pill px-6 py-3 text-sm font-medium rounded-xl transition-colors ${
                     isActive(link.href)
                       ? 'nav-active font-semibold'
                       : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'

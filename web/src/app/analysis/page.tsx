@@ -264,10 +264,10 @@ export default function AnalysisPage() {
                       key={dep.id}
                       onClick={() => toggleDeployment(dep.id)}
                       disabled={!pyodideReady}
-                      className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
+                      className={`nav-pill px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
                         selectedDeployments.includes(dep.id)
                           ? 'nav-active text-[var(--foreground)] font-semibold'
-                          : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)] border border-[var(--divider)]'
+                          : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
                       } ${!pyodideReady ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
                       {dep.name}{' '}
@@ -292,7 +292,8 @@ export default function AnalysisPage() {
                         key={range.hours}
                         onClick={() => setSelectedRange(range.hours)}
                         disabled={!pyodideReady}
-                        className={`px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
+                        data-label={range.label}
+                        className={`nav-pill px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
                           selectedRange === range.hours
                             ? 'nav-active text-[var(--foreground)] font-semibold'
                             : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
@@ -347,10 +348,11 @@ export default function AnalysisPage() {
                       key={type.id}
                       onClick={() => toggleAnalysis(type.id)}
                       disabled={!pyodideReady}
-                      className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
+                      data-label={type.label}
+                      className={`nav-pill px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
                         selectedAnalyses.includes(type.id)
                           ? 'nav-active text-[var(--foreground)] font-semibold'
-                          : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)] border border-[var(--divider)]'
+                          : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
                       } ${!pyodideReady ? 'opacity-40 cursor-not-allowed' : ''}`}
                     >
                       {type.label}

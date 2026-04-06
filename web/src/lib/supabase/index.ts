@@ -27,6 +27,7 @@ export {
   endDeployment,
   deleteDeployment,
   getActiveDeployment,
+  getActiveDeployments,
   getDeploymentStats,
   getDeploymentReadings,
   getDistinctLocations,

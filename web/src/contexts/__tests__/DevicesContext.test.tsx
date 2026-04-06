@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 
 const mockGetDevices = vi.fn();
 
@@ -78,18 +78,17 @@ describe('DevicesContext', () => {
       expect(screen.getByTestId('loading').textContent).toBe('false');
     });
 
-    mockGetDevices.mockClear();
     const updatedDevices = [
       ...devices,
       { id: 'node2', display_name: 'Node 2', color: '#fff', is_active: true, monitor_enabled: true, sort_order: 2, created_at: '', updated_at: '' },
     ];
     mockGetDevices.mockResolvedValue(updatedDevices);
 
-    await act(async () => {
-      screen.getByText('Refresh').click();
-    });
+    screen.getByText('Refresh').click();
 
-    expect(screen.getByTestId('count').textContent).toBe('2');
+    await waitFor(() => {
+      expect(screen.getByTestId('count').textContent).toBe('2');
+    });
   });
 
   it('handles getDevices failure gracefully', async () => {

@@ -12,6 +12,10 @@ type ForecastState =
   | { status: 'no-data' }
   | { status: 'error'; message: string };
 
+// Module-level cache: survives client-side navigation, clears on hard refresh
+let forecastCache: Record<string, ForecastState> = {};
+export function clearForecastCache() { forecastCache = {}; }
+
 const SCROLL_COL_W = 56;
 const FLUID_MIN_W = 32;
 const CHART_H = 64;
@@ -60,6 +64,10 @@ function HourlyStrip({ points }: { points: HourlyForecast[] }) {
   const polyPoints = points
     .map((p, i) => `${i * columnW + columnW / 2},${yFor(p.temp_f)}`)
     .join(' ');
+
+  if (containerWidth === 0) {
+    return <div ref={ref} className="-mx-4 sm:-mx-6 px-4 sm:px-6" style={{ height: SVG_H + 44 }} />;
+  }
 
   return (
     <div ref={ref} className="overflow-x-auto -mx-4 sm:-mx-6 px-4 sm:px-6 scrollbar-thin">
@@ -154,7 +162,10 @@ function SkeletonStrip() {
 export function DashboardForecast() {
   const { devices, isLoading: devicesLoading } = useDevices();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [forecastState, setForecastState] = useState<ForecastState | null>(null);
+  const resolvedDeviceId = (devices.find(d => d.id === selectedId) ?? devices[0])?.id ?? null;
+  const [forecastState, setForecastState] = useState<ForecastState | null>(
+    () => (resolvedDeviceId && forecastCache[resolvedDeviceId]) || null
+  );
 
   const selectedDevice = useMemo(
     () => devices.find(d => d.id === selectedId) ?? devices[0] ?? null,
@@ -187,13 +198,19 @@ export function DashboardForecast() {
         if (cancelled) return;
 
         if (points.length === 0) {
-          setForecastState({ status: 'no-data' });
+          const state: ForecastState = { status: 'no-data' };
+          forecastCache[deviceId] = state;
+          setForecastState(state);
         } else {
-          setForecastState({ status: 'ready', points });
+          const state: ForecastState = { status: 'ready', points };
+          forecastCache[deviceId] = state;
+          setForecastState(state);
         }
       } catch (err) {
         if (!cancelled) {
-          setForecastState({ status: 'error', message: String(err) });
+          const state: ForecastState = { status: 'error', message: String(err) };
+          forecastCache[deviceId] = state;
+          setForecastState(state);
         }
       }
     }
@@ -207,15 +224,15 @@ export function DashboardForecast() {
     <div className="glass-card p-4 sm:p-6 mt-8">
       <div className="flex items-center justify-between mb-4 gap-2">
         <div className="min-w-0">
-          <h3 className="text-base sm:text-lg font-semibold text-[var(--foreground)]">24-Hour Forecast</h3>
-          <p className="text-[11px] sm:text-xs text-[var(--foreground-muted)] truncate">Holt-Winters exponential smoothing</p>
+          <h3 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)]">24-Hour Forecast</h3>
+          <p className="text-sm sm:text-base text-[var(--foreground-muted)] truncate">Holt-Winters exponential smoothing</p>
         </div>
         <div className="relative flex rounded-xl overflow-hidden border border-[var(--glass-border)] bg-[var(--card-highlight)] shrink-0">
           {devices.map((device) => (
             <button
               key={device.id}
-              onClick={() => { setSelectedId(device.id); setForecastState(null); }}
-              className={`relative px-3 py-2 sm:py-1.5 text-xs font-medium transition-colors z-10 ${
+              onClick={() => { setSelectedId(device.id); setForecastState(forecastCache[device.id] || null); }}
+              className={`relative px-4 py-2.5 sm:py-2 text-base font-medium transition-colors z-10 ${
                 deviceId === device.id
                   ? 'text-[var(--background-main)]'
                   : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
@@ -234,50 +251,43 @@ export function DashboardForecast() {
         </div>
       </div>
 
-      {noDevices && (
-        <div className="text-center py-8">
-          <p className="text-sm text-[var(--foreground-secondary)]">No active devices</p>
-          <p className="text-xs text-[var(--foreground-muted)] mt-1">Add a device to see forecasts</p>
+      <div className="flex items-center justify-center" style={{ minHeight: 140 }}>
+      {noDevices ? (
+        <div className="text-center">
+          <p className="text-base text-[var(--foreground-secondary)]">No active devices</p>
+          <p className="text-sm text-[var(--foreground-muted)] mt-1">Add a device to see forecasts</p>
         </div>
-      )}
-
-      {!noDevices && forecastState === null && (
-        <div className="text-center py-8">
-          <p className="text-xs text-[var(--foreground-muted)] mb-3">Loads Pyodide runtime (~10s on first run)</p>
+      ) : forecastState === null ? (
+        <div className="text-center">
+          <p className="text-base text-[var(--foreground-muted)] mb-3">Loads Pyodide runtime (~10s on first run)</p>
           <button
             onClick={runForecast}
-            className="px-4 py-2 text-sm font-medium btn-glass text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
+            className="px-5 py-2.5 text-base font-medium btn-glass text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
           >
             Run Forecast
           </button>
         </div>
-      )}
-
-      {!noDevices && forecastState !== null && forecastState.status === 'loading' && (
-        <div>
+      ) : forecastState.status === 'loading' ? (
+        <div className="w-full">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-2 h-2 bg-[var(--foreground-secondary)] rounded-full" style={{ animation: 'dotPulse 1.4s ease-in-out infinite' }} />
-            <span className="text-xs text-[var(--foreground-muted)]">{forecastState.message}</span>
+            <span className="text-base text-[var(--foreground-muted)]">{forecastState.message}</span>
           </div>
           <SkeletonStrip />
         </div>
-      )}
-
-      {forecastState?.status === 'ready' && (
-        <HourlyStrip points={forecastState.points} />
-      )}
-
-      {forecastState?.status === 'no-data' && (
-        <div className="text-center py-8">
-          <p className="text-sm text-[var(--foreground-secondary)]">Not enough data for forecasting</p>
-          <p className="text-xs text-[var(--foreground-muted)] mt-1">Need at least 2 days of continuous readings</p>
+      ) : forecastState.status === 'ready' ? (
+        <div className="w-full">
+          <HourlyStrip points={forecastState.points} />
         </div>
-      )}
-
-      {forecastState?.status === 'error' && (
-        <div className="text-center py-8">
-          <p className="text-sm text-[var(--error)]">Forecast unavailable</p>
-          <p className="text-xs text-[var(--foreground-muted)] mt-1">{forecastState.message}</p>
+      ) : forecastState.status === 'no-data' ? (
+        <div className="text-center">
+          <p className="text-base text-[var(--foreground-secondary)]">Not enough data for forecasting</p>
+          <p className="text-sm text-[var(--foreground-muted)] mt-1">Need at least 2 days of continuous readings</p>
+        </div>
+      ) : forecastState.status === 'error' ? (
+        <div className="text-center">
+          <p className="text-base text-[var(--error)]">Forecast unavailable</p>
+          <p className="text-sm text-[var(--foreground-muted)] mt-1">{forecastState.message}</p>
           <button
             onClick={() => setForecastState(null)}
             className="mt-3 px-3 py-1.5 text-xs bg-[var(--hover-bg)] hover:bg-[var(--active-bg)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)] rounded-lg transition-colors"
@@ -285,7 +295,8 @@ export function DashboardForecast() {
             Retry
           </button>
         </div>
-      )}
+      ) : null}
+      </div>
     </div>
   );
 }

@@ -18,7 +18,7 @@ export function FilterToolbar({
   children,
 }: FilterToolbarProps) {
   return (
-    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 mb-6 sm:mb-8">
+    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 mb-4 sm:mb-6">
       <TimeRangeSelector
         selectedRange={timeRange.selectedRange}
         onRangeChange={timeRange.setSelectedRange}

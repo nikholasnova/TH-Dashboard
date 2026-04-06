@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { getDeployment } from '@/lib/supabase';
+import { getDeployment, type Deployment } from '@/lib/supabase';
 import { DEPLOYMENT_ALL_TIME_HOURS } from '@/lib/constants';
 
 export interface TimeRangeBounds {
   start: string;
   end: string;
   scopedDeviceId?: string;
+  deployment?: Deployment | null;
 }
 
 export interface UseTimeRangeOptions {
@@ -46,6 +47,7 @@ export function useTimeRange(options: UseTimeRangeOptions = {}) {
           start: new Date(Math.max(customStartMs, depStartMs)).toISOString(),
           end: new Date(Math.min(customEndMs, depEndMs)).toISOString(),
           scopedDeviceId: dep.device_id,
+          deployment: dep,
         };
       }
 
@@ -62,6 +64,7 @@ export function useTimeRange(options: UseTimeRangeOptions = {}) {
           start: dep.started_at,
           end: dep.ended_at || new Date().toISOString(),
           scopedDeviceId: dep.device_id,
+          deployment: dep,
         };
       }
 
@@ -71,6 +74,7 @@ export function useTimeRange(options: UseTimeRangeOptions = {}) {
         start: new Date(Math.max(relativeStart.getTime(), new Date(dep.started_at).getTime())).toISOString(),
         end: depEnd.toISOString(),
         scopedDeviceId: dep.device_id,
+        deployment: dep,
       };
     }
 

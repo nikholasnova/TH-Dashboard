@@ -1,36 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { DeviceStats, getDeviceStats, celsiusToFahrenheit } from '@/lib/supabase';
+import { DeviceStats, celsiusToFahrenheit } from '@/lib/supabase';
 import { safeC2F, formatPercent } from '@/lib/format';
 import { computePercentError } from '@/lib/weatherCompare';
-import { REFRESH_INTERVAL } from '@/lib/constants';
 import { useDevices } from '@/contexts/DevicesContext';
 
-export function DashboardStats() {
-  const { devices } = useDevices();
-  const [stats, setStats] = useState<DeviceStats[]>([]);
-  const [loading, setLoading] = useState(true);
+interface DashboardStatsProps {
+  stats: DeviceStats[];
+  loading: boolean;
+}
 
-  useEffect(() => {
-    async function fetchStats() {
-      const now = new Date().toISOString();
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const data = await getDeviceStats({ start: twentyFourHoursAgo, end: now });
-      setStats(data);
-      setLoading(false);
-    }
-    void fetchStats();
-    const interval = setInterval(() => void fetchStats(), REFRESH_INTERVAL);
-    return () => clearInterval(interval);
-  }, []);
+export function DashboardStats({ stats, loading }: DashboardStatsProps) {
+  const { devices } = useDevices();
 
   if (loading) {
     return (
-      <div className="glass-card p-6 mt-8">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-[var(--foreground-secondary)] rounded-full" style={{ animation: 'dotPulse 1.4s ease-in-out infinite' }} />
-          <span className="text-sm text-[var(--foreground-muted)]">Loading 24h stats...</span>
+      <div className="glass-card p-3 sm:p-6 mt-8 animate-pulse">
+        <p className="section-label">Last 24 Hours</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--divider)]">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="lg:px-6 first:lg:pl-0 last:lg:pr-0">
+              <div className="h-[3px] w-8 bg-[var(--hover-bg)] rounded-full mb-3" />
+              <div className="h-4 w-24 bg-[var(--hover-bg)] rounded mb-2 opacity-50" />
+              <div className="h-6 w-20 bg-[var(--hover-bg)] rounded opacity-50" />
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -63,12 +57,12 @@ export function DashboardStats() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--divider)]">
         <div className="lg:px-6 first:lg:pl-0 last:lg:pr-0">
           <div className="h-[3px] w-8 bg-[var(--primary)] rounded-full mb-3" />
-          <p className="text-xs text-[var(--foreground-muted)] mb-1">Avg Temperature</p>
+          <p className="text-lg text-[var(--foreground-muted)] mb-1">Avg Temperature</p>
           <div className="space-y-0.5">
             {sensorStats.map(s => {
               const dev = devices.find(d => d.id === s.device_id);
               return s.temp_avg != null ? (
-                <p key={s.device_id} className="text-base sm:text-lg text-[var(--foreground)] font-medium truncate" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <p key={s.device_id} className="text-lg sm:text-xl text-[var(--foreground)] font-medium truncate" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   <span className="hidden sm:inline">{dev?.display_name ?? s.device_id}: </span>{celsiusToFahrenheit(s.temp_avg).toFixed(1)}°F
                 </p>
               ) : null;
@@ -78,32 +72,32 @@ export function DashboardStats() {
 
         <div className="lg:px-6">
           <div className="h-[3px] w-8 bg-[var(--foreground-secondary)] rounded-full mb-3" />
-          <p className="text-xs text-[var(--foreground-muted)] mb-1">High / Low</p>
+          <p className="text-lg text-[var(--foreground-muted)] mb-1">High / Low</p>
           {highF !== null && lowF !== null ? (
-            <p className="text-lg text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <p className="text-xl text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
               <span className="text-[var(--warning)]">{highF.toFixed(1)}°</span>
               {' / '}
               <span className="text-[var(--info)]">{lowF.toFixed(1)}°</span>
             </p>
           ) : (
-            <p className="text-sm text-[var(--foreground-muted)]">--</p>
+            <p className="text-base text-[var(--foreground-muted)]">--</p>
           )}
         </div>
 
         <div className="lg:px-6">
           <div className="h-[3px] w-8 bg-[var(--foreground-muted)] rounded-full mb-3" />
-          <p className="text-xs text-[var(--foreground-muted)] mb-1">Readings</p>
-          <p className="text-lg text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          <p className="text-lg text-[var(--foreground-muted)] mb-1">Readings</p>
+          <p className="text-xl text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
             {totalReadings.toLocaleString()}
           </p>
         </div>
 
         <div className="lg:px-6 last:lg:pr-0">
           <div className="h-[3px] w-8 bg-[var(--foreground-muted)] rounded-full mb-3" />
-          <p className="text-xs text-[var(--foreground-muted)] mb-1">Sensor Accuracy</p>
+          <p className="text-lg text-[var(--foreground-muted)] mb-1">Sensor Accuracy</p>
           {avgPctError !== null ? (
             <div>
-              <p className="text-lg font-medium" style={{ color: avgPctError < 3 ? 'var(--success)' : avgPctError < 5 ? 'var(--warning)' : 'var(--error)', fontVariantNumeric: 'tabular-nums' }}>
+              <p className="text-xl font-medium" style={{ color: avgPctError < 3 ? 'var(--success)' : avgPctError < 5 ? 'var(--warning)' : 'var(--error)', fontVariantNumeric: 'tabular-nums' }}>
                 {formatPercent(avgPctError)} Error
               </p>
               <div className="mt-2 h-1.5 w-full bg-[var(--hover-bg)] rounded-full overflow-hidden">
@@ -117,7 +111,7 @@ export function DashboardStats() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-[var(--foreground-muted)]">No weather data</p>
+            <p className="text-base text-[var(--foreground-muted)]">No weather data</p>
           )}
         </div>
       </div>

@@ -56,7 +56,7 @@ describe('LiveReadingCard', () => {
   });
 
   it('renders loading state when no reading and loading', () => {
-    render(
+    const { container } = render(
       <LiveReadingCard
         deviceId="node1"
         deviceName="Node 1"
@@ -65,7 +65,7 @@ describe('LiveReadingCard', () => {
       />
     );
 
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 
   it('shows Live badge when reading is fresh', () => {

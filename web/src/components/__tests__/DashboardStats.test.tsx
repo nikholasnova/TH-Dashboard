@@ -1,10 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-
-const mockGetDeviceStats = vi.fn();
+import { render, screen } from '@testing-library/react';
+import type { DeviceStats } from '@/lib/supabase';
 
 vi.mock('@/lib/supabase', () => ({
-  getDeviceStats: (...args: unknown[]) => mockGetDeviceStats(...args),
   celsiusToFahrenheit: (c: number) => c * 9 / 5 + 32,
   DeviceStats: {},
 }));
@@ -21,10 +19,6 @@ vi.mock('@/lib/weatherCompare', () => ({
   },
 }));
 
-vi.mock('@/lib/constants', () => ({
-  REFRESH_INTERVAL: 999999,
-}));
-
 vi.mock('@/contexts/DevicesContext', () => ({
   useDevices: () => ({
     devices: [
@@ -35,71 +29,55 @@ vi.mock('@/contexts/DevicesContext', () => ({
 
 import { DashboardStats } from '../DashboardStats';
 
+const baseStat: DeviceStats = {
+  device_id: 'node1',
+  temp_avg: 20,
+  temp_min: 18,
+  temp_max: 22,
+  reading_count: 100,
+  humidity_avg: 50,
+  humidity_min: 40,
+  humidity_max: 60,
+  temp_stddev: 1,
+  humidity_stddev: 2,
+};
+
 describe('DashboardStats', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('shows loading state initially', () => {
-    mockGetDeviceStats.mockReturnValue(new Promise(() => {}));
-    render(<DashboardStats />);
-    expect(screen.getByText('Loading 24h stats...')).toBeInTheDocument();
+  it('shows loading state when loading prop is true', () => {
+    const { container } = render(<DashboardStats stats={[]} loading={true} />);
+    expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 
-  it('renders temperature stats after loading', async () => {
-    mockGetDeviceStats.mockResolvedValue([
-      { device_id: 'node1', temp_avg: 20, temp_min: 18, temp_max: 22, reading_count: 100, humidity_avg: 50, humidity_min: 40, humidity_max: 60, temp_stddev: 1, humidity_stddev: 2 },
-    ]);
-
-    render(<DashboardStats />);
-    await waitFor(() => {
-      expect(screen.getByText(/68\.0°F/)).toBeInTheDocument();
-    });
+  it('renders temperature stats after loading', () => {
+    render(<DashboardStats stats={[baseStat]} loading={false} />);
+    expect(screen.getByText(/68\.0°F/)).toBeInTheDocument();
   });
 
-  it('renders high/low temperatures', async () => {
-    mockGetDeviceStats.mockResolvedValue([
-      { device_id: 'node1', temp_avg: 20, temp_min: 15, temp_max: 25, reading_count: 50, humidity_avg: 45, humidity_min: 40, humidity_max: 50, temp_stddev: 1, humidity_stddev: 2 },
-    ]);
-
-    render(<DashboardStats />);
-    await waitFor(() => {
-      expect(screen.getByText('77.0°')).toBeInTheDocument();
-      expect(screen.getByText('59.0°')).toBeInTheDocument();
-    });
+  it('renders high/low temperatures', () => {
+    const stat = { ...baseStat, temp_min: 15, temp_max: 25, reading_count: 50 };
+    render(<DashboardStats stats={[stat]} loading={false} />);
+    expect(screen.getByText('77.0°')).toBeInTheDocument();
+    expect(screen.getByText('59.0°')).toBeInTheDocument();
   });
 
-  it('renders reading count', async () => {
-    mockGetDeviceStats.mockResolvedValue([
-      { device_id: 'node1', temp_avg: 20, temp_min: 18, temp_max: 22, reading_count: 1234, humidity_avg: 50, humidity_min: 40, humidity_max: 60, temp_stddev: 1, humidity_stddev: 2 },
-    ]);
-
-    render(<DashboardStats />);
-    await waitFor(() => {
-      expect(screen.getByText('1,234')).toBeInTheDocument();
-    });
+  it('renders reading count', () => {
+    const stat = { ...baseStat, reading_count: 1234 };
+    render(<DashboardStats stats={[stat]} loading={false} />);
+    expect(screen.getByText('1,234')).toBeInTheDocument();
   });
 
-  it('shows "No weather data" when no weather stats', async () => {
-    mockGetDeviceStats.mockResolvedValue([
-      { device_id: 'node1', temp_avg: 20, temp_min: 18, temp_max: 22, reading_count: 10, humidity_avg: 50, humidity_min: 40, humidity_max: 60, temp_stddev: 1, humidity_stddev: 2 },
-    ]);
-
-    render(<DashboardStats />);
-    await waitFor(() => {
-      expect(screen.getByText('No weather data')).toBeInTheDocument();
-    });
+  it('shows "No weather data" when no weather stats', () => {
+    render(<DashboardStats stats={[baseStat]} loading={false} />);
+    expect(screen.getByText('No weather data')).toBeInTheDocument();
   });
 
-  it('returns null when no sensor stats match devices', async () => {
-    mockGetDeviceStats.mockResolvedValue([
-      { device_id: 'other_device', temp_avg: 20, reading_count: 10 },
-    ]);
-
-    const { container } = render(<DashboardStats />);
-    await waitFor(() => {
-      expect(screen.queryByText('Loading 24h stats...')).not.toBeInTheDocument();
-    });
+  it('returns null when no sensor stats match devices', () => {
+    const otherStat = { ...baseStat, device_id: 'other_device' };
+    const { container } = render(<DashboardStats stats={[otherStat]} loading={false} />);
     expect(container.querySelector('.section-label')).not.toBeInTheDocument();
   });
 });

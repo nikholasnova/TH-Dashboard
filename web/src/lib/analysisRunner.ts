@@ -108,6 +108,7 @@ interface ReadingWithContext {
 interface AnalysisFetchOptions {
   useDeploymentBounds?: boolean;
   maxRows?: number;
+  deploymentsById?: Map<number, DeploymentWithCount>;
 }
 
 async function fetchReadingsForAnalysis(
@@ -116,10 +117,13 @@ async function fetchReadingsForAnalysis(
   end: string,
   options: AnalysisFetchOptions = {}
 ): Promise<ReadingWithContext[]> {
-  const allDeployments = await getDeployments();
-  const deploymentsById = new Map<number, DeploymentWithCount>();
-  for (const d of allDeployments) {
-    deploymentsById.set(d.id, d);
+  let deploymentsById = options.deploymentsById;
+  if (!deploymentsById) {
+    const allDeployments = await getDeployments();
+    deploymentsById = new Map<number, DeploymentWithCount>();
+    for (const d of allDeployments) {
+      deploymentsById.set(d.id, d);
+    }
   }
 
   const combined: ReadingWithContext[] = [];
@@ -491,6 +495,12 @@ export async function runAnalyses(
   const includeForecasting = params.analyses.includes('forecasting');
   const includeRangeAnalyses = params.analyses.some((a) => a !== 'forecasting');
 
+  const allDeployments = await getDeployments();
+  const deploymentsById = new Map<number, DeploymentWithCount>();
+  for (const d of allDeployments) {
+    deploymentsById.set(d.id, d);
+  }
+
   let rangeReadings: ReadingWithContext[] = [];
   if (includeRangeAnalyses) {
     onProgress?.('Fetching sensor data...');
@@ -498,7 +508,7 @@ export async function runAnalyses(
       params.deploymentIds,
       params.start,
       params.end,
-      { maxRows: 5000 }
+      { maxRows: 5000, deploymentsById }
     );
   }
 
@@ -509,12 +519,11 @@ export async function runAnalyses(
       params.deploymentIds,
       params.start,
       new Date().toISOString(),
-      { useDeploymentBounds: true }
+      { useDeploymentBounds: true, deploymentsById }
     );
   }
 
-  const deployments = await getDeployments();
-  const selectedDeployments = deployments.filter((d) =>
+  const selectedDeployments = allDeployments.filter((d) =>
     params.deploymentIds.includes(d.id)
   );
 
