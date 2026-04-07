@@ -170,7 +170,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-center py-32">
           <div className="flex items-center gap-3">
             <div className="w-2.5 h-2.5 bg-[var(--foreground-secondary)] rounded-full" style={{ animation: 'dotPulse 1.4s ease-in-out infinite' }} />
-            <span className="text-lg text-[var(--foreground-muted)]">Loading dashboard...</span>
+            <span className="text-sm sm:text-lg text-[var(--foreground-muted)]">Loading dashboard...</span>
           </div>
         </div>
       ) : (
@@ -178,7 +178,7 @@ export default function Dashboard() {
       <div className="hidden sm:flex justify-end mb-4">
         <button
           onClick={() => setShowDeviceManager(true)}
-          className="btn-glass px-5 py-2.5 text-lg text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-2.5"
+          className="btn-glass px-3 py-1.5 sm:px-5 sm:py-2.5 text-xs sm:text-lg text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-1.5 sm:gap-2.5"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />

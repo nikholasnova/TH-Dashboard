@@ -57,12 +57,12 @@ export function DashboardStats({ stats, loading }: DashboardStatsProps) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--divider)]">
         <div className="lg:px-6 first:lg:pl-0 last:lg:pr-0">
           <div className="h-[3px] w-8 bg-[var(--primary)] rounded-full mb-3" />
-          <p className="text-lg text-[var(--foreground-muted)] mb-1">Avg Temperature</p>
+          <p className="text-xs sm:text-lg text-[var(--foreground-muted)] mb-1">Avg Temperature</p>
           <div className="space-y-0.5">
             {sensorStats.map(s => {
               const dev = devices.find(d => d.id === s.device_id);
               return s.temp_avg != null ? (
-                <p key={s.device_id} className="text-lg sm:text-xl text-[var(--foreground)] font-medium truncate" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <p key={s.device_id} className="text-base sm:text-xl text-[var(--foreground)] font-medium truncate" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   <span className="hidden sm:inline">{dev?.display_name ?? s.device_id}: </span>{celsiusToFahrenheit(s.temp_avg).toFixed(1)}°F
                 </p>
               ) : null;
@@ -72,32 +72,32 @@ export function DashboardStats({ stats, loading }: DashboardStatsProps) {
 
         <div className="lg:px-6">
           <div className="h-[3px] w-8 bg-[var(--foreground-secondary)] rounded-full mb-3" />
-          <p className="text-lg text-[var(--foreground-muted)] mb-1">High / Low</p>
+          <p className="text-xs sm:text-lg text-[var(--foreground-muted)] mb-1">High / Low</p>
           {highF !== null && lowF !== null ? (
-            <p className="text-xl text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <p className="text-lg sm:text-xl text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
               <span className="text-[var(--warning)]">{highF.toFixed(1)}°</span>
               {' / '}
               <span className="text-[var(--info)]">{lowF.toFixed(1)}°</span>
             </p>
           ) : (
-            <p className="text-base text-[var(--foreground-muted)]">--</p>
+            <p className="text-sm sm:text-base text-[var(--foreground-muted)]">--</p>
           )}
         </div>
 
         <div className="lg:px-6">
           <div className="h-[3px] w-8 bg-[var(--foreground-muted)] rounded-full mb-3" />
-          <p className="text-lg text-[var(--foreground-muted)] mb-1">Readings</p>
-          <p className="text-xl text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          <p className="text-xs sm:text-lg text-[var(--foreground-muted)] mb-1">Readings</p>
+          <p className="text-lg sm:text-xl text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
             {totalReadings.toLocaleString()}
           </p>
         </div>
 
         <div className="lg:px-6 last:lg:pr-0">
           <div className="h-[3px] w-8 bg-[var(--foreground-muted)] rounded-full mb-3" />
-          <p className="text-lg text-[var(--foreground-muted)] mb-1">Sensor Accuracy</p>
+          <p className="text-xs sm:text-lg text-[var(--foreground-muted)] mb-1">Sensor Accuracy</p>
           {avgPctError !== null ? (
             <div>
-              <p className="text-xl font-medium" style={{ color: avgPctError < 3 ? 'var(--success)' : avgPctError < 5 ? 'var(--warning)' : 'var(--error)', fontVariantNumeric: 'tabular-nums' }}>
+              <p className="text-lg sm:text-xl font-medium" style={{ color: avgPctError < 3 ? 'var(--success)' : avgPctError < 5 ? 'var(--warning)' : 'var(--error)', fontVariantNumeric: 'tabular-nums' }}>
                 {formatPercent(avgPctError)} Error
               </p>
               <div className="mt-2 h-1.5 w-full bg-[var(--hover-bg)] rounded-full overflow-hidden">
@@ -111,7 +111,7 @@ export function DashboardStats({ stats, loading }: DashboardStatsProps) {
               </div>
             </div>
           ) : (
-            <p className="text-base text-[var(--foreground-muted)]">No weather data</p>
+            <p className="text-sm sm:text-base text-[var(--foreground-muted)]">No weather data</p>
           )}
         </div>
       </div>

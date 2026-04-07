@@ -232,7 +232,7 @@ export function DashboardForecast() {
             <button
               key={device.id}
               onClick={() => { setSelectedId(device.id); setForecastState(forecastCache[device.id] || null); }}
-              className={`relative px-4 py-2.5 sm:py-2 text-base font-medium transition-colors z-10 ${
+              className={`relative px-3 py-2 sm:px-4 sm:py-2.5 sm:py-2 text-xs sm:text-base font-medium transition-colors z-10 ${
                 deviceId === device.id
                   ? 'text-[var(--background-main)]'
                   : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)]'
@@ -254,15 +254,15 @@ export function DashboardForecast() {
       <div className="flex items-center justify-center" style={{ minHeight: 140 }}>
       {noDevices ? (
         <div className="text-center">
-          <p className="text-base text-[var(--foreground-secondary)]">No active devices</p>
-          <p className="text-sm text-[var(--foreground-muted)] mt-1">Add a device to see forecasts</p>
+          <p className="text-sm sm:text-base text-[var(--foreground-secondary)]">No active devices</p>
+          <p className="text-xs sm:text-sm text-[var(--foreground-muted)] mt-1">Add a device to see forecasts</p>
         </div>
       ) : forecastState === null ? (
         <div className="text-center">
-          <p className="text-base text-[var(--foreground-muted)] mb-3">Loads Pyodide runtime (~10s on first run)</p>
+          <p className="text-xs sm:text-base text-[var(--foreground-muted)] mb-3">Loads Pyodide runtime (~10s on first run)</p>
           <button
             onClick={runForecast}
-            className="px-5 py-2.5 text-base font-medium btn-glass text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
+            className="px-4 py-2 sm:px-5 sm:py-2.5 text-sm sm:text-base font-medium btn-glass text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
           >
             Run Forecast
           </button>
@@ -271,7 +271,7 @@ export function DashboardForecast() {
         <div className="w-full">
           <div className="flex items-center gap-2 mb-4">
             <div className="w-2 h-2 bg-[var(--foreground-secondary)] rounded-full" style={{ animation: 'dotPulse 1.4s ease-in-out infinite' }} />
-            <span className="text-base text-[var(--foreground-muted)]">{forecastState.message}</span>
+            <span className="text-xs sm:text-base text-[var(--foreground-muted)]">{forecastState.message}</span>
           </div>
           <SkeletonStrip />
         </div>
@@ -281,13 +281,13 @@ export function DashboardForecast() {
         </div>
       ) : forecastState.status === 'no-data' ? (
         <div className="text-center">
-          <p className="text-base text-[var(--foreground-secondary)]">Not enough data for forecasting</p>
-          <p className="text-sm text-[var(--foreground-muted)] mt-1">Need at least 2 days of continuous readings</p>
+          <p className="text-sm sm:text-base text-[var(--foreground-secondary)]">Not enough data for forecasting</p>
+          <p className="text-xs sm:text-sm text-[var(--foreground-muted)] mt-1">Need at least 2 days of continuous readings</p>
         </div>
       ) : forecastState.status === 'error' ? (
         <div className="text-center">
-          <p className="text-base text-[var(--error)]">Forecast unavailable</p>
-          <p className="text-sm text-[var(--foreground-muted)] mt-1">{forecastState.message}</p>
+          <p className="text-sm sm:text-base text-[var(--error)]">Forecast unavailable</p>
+          <p className="text-xs sm:text-sm text-[var(--foreground-muted)] mt-1">{forecastState.message}</p>
           <button
             onClick={() => setForecastState(null)}
             className="mt-3 px-3 py-1.5 text-xs bg-[var(--hover-bg)] hover:bg-[var(--active-bg)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)] rounded-lg transition-colors"

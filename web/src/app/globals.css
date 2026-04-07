@@ -132,7 +132,14 @@
 
 html, body {
   overflow-x: hidden;
-  overflow-y: scroll;
+}
+
+/* Force visible scrollbar on desktop to prevent layout shift —
+   must NOT be on body or iOS Safari breaks position:fixed (tab bar). */
+@media (min-width: 640px) {
+  html {
+    overflow-y: scroll;
+  }
 }
 
 body {
@@ -274,7 +281,7 @@ nav.glass-card {
 
 /* Stat value large text */
 .stat-value {
-  font-size: 2.25rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: var(--foreground);
   font-variant-numeric: tabular-nums;
@@ -425,7 +432,7 @@ nav.glass-card {
 
 /* Section labels */
 .section-label {
-  font-size: 1.5rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -433,6 +440,12 @@ nav.glass-card {
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--divider);
   margin-bottom: 1rem;
+}
+
+@media (min-width: 640px) {
+  .section-label {
+    font-size: 1.5rem;
+  }
 }
 
 /* Scroll-linked floating navbar (mobile only) */
