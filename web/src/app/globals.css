@@ -134,6 +134,13 @@ html, body {
   overflow-x: hidden;
 }
 
+/* Prevent iOS rubber-band overscroll from bouncing content over the tab bar */
+@media (max-width: 639px) {
+  html {
+    overscroll-behavior-y: none;
+  }
+}
+
 /* Force visible scrollbar on desktop to prevent layout shift —
    must NOT be on body or iOS Safari breaks position:fixed (tab bar). */
 @media (min-width: 640px) {
@@ -515,6 +522,8 @@ nav.glass-card {
   border-top: 1px solid var(--glass-border);
   padding: 10px 0;
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  /* Force own compositing layer so iOS overscroll can't paint over it */
+  transform: translateZ(0);
 }
 
 .mobile-tab-item {
