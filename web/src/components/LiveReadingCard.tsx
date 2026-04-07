@@ -80,7 +80,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
 
   return (
     <div
-      className={`glass-card p-4 sm:p-8 card-reading ${onClick ? 'cursor-pointer hover:border-[var(--btn-border-hover)] transition-all' : ''}`}
+      className={`glass-card p-4 sm:p-8 card-reading h-full flex flex-col ${onClick ? 'cursor-pointer hover:border-[var(--btn-border-hover)] transition-all' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">
@@ -235,7 +235,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
           </div>
         </div>
       ) : (
-        <div className="flex flex-col justify-center flex-1 min-h-[140px]">
+        <div className="flex flex-col justify-center items-center flex-1">
           <p className="text-base sm:text-xl text-[var(--foreground-secondary)] font-medium text-center">No data available</p>
           <p className="text-sm text-[var(--foreground-muted)] mt-2 text-center">Waiting for sensor...</p>
         </div>
