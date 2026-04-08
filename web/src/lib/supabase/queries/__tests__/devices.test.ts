@@ -4,7 +4,7 @@ let mockSupabase: ReturnType<typeof createMockSupabase> | null;
 
 function createMockChain(resolveWith: { data: unknown; error: unknown }) {
   const chain: Record<string, unknown> = {};
-  const handler = (..._args: unknown[]) => chain;
+  const handler = () => chain;
   for (const m of ['select', 'insert', 'update', 'delete', 'eq', 'order', 'single', 'maybeSingle', 'limit']) {
     chain[m] = vi.fn(handler);
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserMenu } from './UserMenu';
@@ -41,11 +41,7 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
-interface NavbarProps {
-  onManageNodes?: () => void;
-}
-
-export function Navbar({ onManageNodes }: NavbarProps) {
+export function Navbar() {
   const pathname = usePathname();
   const wrapperRef = useRef<HTMLDivElement>(null);
 

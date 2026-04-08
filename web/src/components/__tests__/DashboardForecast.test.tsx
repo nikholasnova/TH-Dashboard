@@ -24,8 +24,8 @@ vi.mock('@/contexts/DevicesContext', () => ({
 
 vi.mock('framer-motion', () => ({
   motion: {
-    div: ({ children, ...props }: Record<string, unknown>) => {
-      const { initial: _i, animate: _a, transition: _t, layoutId: _l, ...rest } = props;
+    div: ({ children, initial, animate, transition, layoutId, ...rest }: Record<string, unknown>) => {
+      void initial; void animate; void transition; void layoutId;
       return <div {...rest}>{children as React.ReactNode}</div>;
     },
   },

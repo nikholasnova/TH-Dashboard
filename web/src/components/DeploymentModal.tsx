@@ -19,6 +19,7 @@ interface DeploymentModalProps {
   reading?: Reading | null;
   isDeviceConnected?: boolean;
   existingDeployment?: Deployment | null; // If provided, manage this specific deployment
+  createOnly?: boolean; // If true, skip loading existing deployment and show create form only
   isOpen: boolean;
   onClose: () => void;
   onDeploymentChange: () => void;
@@ -53,6 +54,7 @@ export function DeploymentModal({
   reading,
   isDeviceConnected: isDeviceConnectedProp,
   existingDeployment,
+  createOnly,
   isOpen,
   onClose,
   onDeploymentChange,
@@ -73,6 +75,11 @@ export function DeploymentModal({
 
   const fetchDeployment = useCallback(async () => {
     setIsLoading(true);
+    if (createOnly) {
+      setCurrentDeployment(null);
+      setIsLoading(false);
+      return;
+    }
     if (existingDeployment) {
       setCurrentDeployment(existingDeployment);
       setEditFormData({
@@ -99,7 +106,7 @@ export function DeploymentModal({
       });
     }
     setIsLoading(false);
-  }, [deviceId, existingDeployment]);
+  }, [deviceId, existingDeployment, createOnly]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -262,7 +269,7 @@ export function DeploymentModal({
         <div className="p-8 overflow-y-auto scrollbar-thin">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-[var(--foreground)]">Manage Deployment</h2>
+            <h2 className="text-2xl font-bold text-[var(--foreground)]">{createOnly ? 'New Deployment' : 'Manage Deployment'}</h2>
             <p className="text-sm text-[var(--foreground-muted)]">{deviceName} ({deviceId})</p>
           </div>
           <button onClick={onClose} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors p-2">

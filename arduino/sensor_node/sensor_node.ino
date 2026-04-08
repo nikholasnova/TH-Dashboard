@@ -15,7 +15,7 @@
 #include "DFRobot_DHT20.h"
 #include "secrets.h"
 
-#define DEVICE_ID "node1"
+#define DEVICE_ID "node2"
 #define READ_INTERVAL_MS 15000
 #define SEND_INTERVAL_MS 180000
 

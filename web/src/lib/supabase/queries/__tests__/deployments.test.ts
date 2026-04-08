@@ -5,7 +5,7 @@ let resolveQueue: Array<{ data: unknown; error: unknown }>;
 
 function createMockChain() {
   const chain: Record<string, unknown> = {};
-  const handler = (..._args: unknown[]) => chain;
+  const handler = () => chain;
   for (const m of [
     'select', 'insert', 'update', 'delete', 'eq', 'neq', 'gte', 'lte',
     'is', 'order', 'limit', 'single', 'maybeSingle', 'range',

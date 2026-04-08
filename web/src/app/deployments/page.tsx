@@ -179,6 +179,7 @@ export default function DeploymentsPage() {
         <DeploymentModal
           deviceId={devices[0]?.id || ''}
           deviceName={devices[0]?.display_name || 'Device'}
+          createOnly
           isOpen={showNewModal}
           onClose={() => setShowNewModal(false)}
           onDeploymentChange={fetchData}

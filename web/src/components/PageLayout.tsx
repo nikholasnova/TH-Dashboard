@@ -38,7 +38,7 @@ export function PageLayout({ title, children, onManageNodes }: PageLayoutProps) 
             </div>
           </div>
 
-          <Navbar onManageNodes={onManageNodes} />
+          <Navbar />
           {children}
         </div>
       </div>

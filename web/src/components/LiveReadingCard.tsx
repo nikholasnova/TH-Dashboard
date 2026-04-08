@@ -63,6 +63,17 @@ function Sparkline({ data }: { data: ChartSample[] }) {
 }
 
 const WEATHER_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours
+const WEATHER_WARN_MS = 16 * 60 * 1000; // 16 minutes (cron runs every 15m, 1m grace)
+
+function WeatherStatus({ weatherReading, referenceMs, activeDeployment }: { weatherReading?: Reading | null; referenceMs: number | null; activeDeployment?: Deployment | null }) {
+  if (!activeDeployment?.zip_code) return null;
+  if (!weatherReading || !referenceMs) {
+    return <span style={{ color: 'var(--error)' }}>Weather: No data</span>;
+  }
+  const ageMs = referenceMs - new Date(weatherReading.created_at).getTime();
+  const color = ageMs < WEATHER_WARN_MS ? 'var(--foreground-muted)' : ageMs < WEATHER_STALE_MS ? 'var(--warning)' : 'var(--error)';
+  return <span style={{ color }}>Weather: {getTimeAgo(weatherReading.created_at)}</span>;
+}
 
 export function LiveReadingCard({ deviceId, deviceName, reading, activeDeployment, isLoading, onClick, onRefresh, lastRefresh, weatherReading, sparklineData }: LiveReadingCardProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -207,6 +218,11 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
           <div className="text-sm sm:text-lg text-[var(--foreground-muted)]">
             {formatDate(reading.created_at)} at {formatTime(reading.created_at)}
           </div>
+          {activeDeployment?.zip_code && (
+            <div className="text-xs sm:text-base mt-1">
+              <WeatherStatus weatherReading={weatherReading} referenceMs={referenceTimestampMs} activeDeployment={activeDeployment} />
+            </div>
+          )}
         </>
       ) : reading && isStale ? (
         <div className="flex flex-col justify-center items-center flex-1 min-h-[140px]">
@@ -223,6 +239,11 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
           </div>
           <p className="text-lg sm:text-2xl font-medium text-[var(--error)] mb-1">Device Offline</p>
           <p className="text-sm sm:text-lg text-[var(--foreground-muted)]">Last seen {getTimeAgo(reading.created_at)}</p>
+          {activeDeployment?.zip_code && (
+            <p className="text-xs sm:text-base mt-1">
+              <WeatherStatus weatherReading={weatherReading} referenceMs={referenceTimestampMs} activeDeployment={activeDeployment} />
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-6 mt-5 w-full opacity-50">
             <div className="text-center">
               <p className="text-xs sm:text-base text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Last Temp</p>
