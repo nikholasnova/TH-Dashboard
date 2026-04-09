@@ -403,6 +403,47 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.delete_deployment_cascade(BIGINT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.delete_deployment_cascade(BIGINT) TO authenticated, service_role;
 
+-- Scoped deletion of readings by device and time range.
+-- Used by the Data Cleanup UI on the deployments page.
+-- SECURITY DEFINER so it bypasses RLS (readings DELETE is service_role only).
+CREATE OR REPLACE FUNCTION delete_readings_range(
+  p_device_id TEXT,
+  p_start TIMESTAMPTZ,
+  p_end TIMESTAMPTZ,
+  p_include_weather BOOLEAN DEFAULT TRUE
+)
+RETURNS BIGINT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_count BIGINT := 0;
+  v_sub BIGINT;
+BEGIN
+  DELETE FROM public.readings
+    WHERE device_id = p_device_id
+      AND created_at >= p_start
+      AND created_at <= p_end;
+  GET DIAGNOSTICS v_sub = ROW_COUNT;
+  v_count := v_count + v_sub;
+
+  IF p_include_weather THEN
+    DELETE FROM public.readings
+      WHERE device_id = 'weather_' || p_device_id
+        AND created_at >= p_start
+        AND created_at <= p_end;
+    GET DIAGNOSTICS v_sub = ROW_COUNT;
+    v_count := v_count + v_sub;
+  END IF;
+
+  RETURN v_count;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.delete_readings_range(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, BOOLEAN) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.delete_readings_range(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, BOOLEAN) TO authenticated;
+
 -- Guardrail: one active deployment per device when data allows it.
 DO $$
 BEGIN

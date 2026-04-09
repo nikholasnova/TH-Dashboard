@@ -9,6 +9,7 @@ export type {
   DeploymentWithCount,
   DeploymentStats,
   Device,
+  DeviceAlertState,
 } from './types';
 
 export {
@@ -36,5 +37,6 @@ export {
   updateDevice,
   deactivateDevice,
   getDashboardLive,
+  getDeviceAlertStates,
 } from './queries/index';
 export type { DashboardLiveData } from './queries/index';

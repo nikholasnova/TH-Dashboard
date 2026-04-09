@@ -105,6 +105,7 @@ function MetricBlock({ result }: MetricBlockProps) {
           <StatRow label="Mean" value={fmt(result.mean)} />
           <StatRow label="Median" value={fmt(result.median)} />
           <StatRow label="Std Dev" value={fmt(result.std)} />
+          <StatRow label="Std Error" value={fmt(result.standard_error)} />
           <StatRow label="Min" value={fmt(result.min)} />
           <StatRow label="Max" value={fmt(result.max)} />
           <StatRow label="Q25 (25th)" value={fmt(result.q25)} />

@@ -11,6 +11,7 @@ import {
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { useDevices } from '@/contexts/DevicesContext';
+import { DataCleanupModal } from '@/components/DataCleanupModal';
 
 type StatusFilter = 'all' | 'active' | 'ended';
 
@@ -26,6 +27,7 @@ export default function DeploymentsPage() {
 
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentWithCount | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -105,12 +107,20 @@ export default function DeploymentsPage() {
             </select>
           </div>
 
-          <button
-            onClick={() => setShowNewModal(true)}
-            className="btn-glass px-5 py-3 text-sm font-semibold text-[var(--foreground)] w-full sm:w-auto"
-          >
-            + New Deployment
-          </button>
+          <div className="flex gap-3 w-full sm:w-auto">
+            <button
+              onClick={() => setShowCleanupModal(true)}
+              className="btn-glass px-5 py-3 text-sm text-[var(--foreground-muted)] hover:text-[var(--error)] transition-colors w-full sm:w-auto"
+            >
+              Clean Up Data
+            </button>
+            <button
+              onClick={() => setShowNewModal(true)}
+              className="btn-glass px-5 py-3 text-sm font-semibold text-[var(--foreground)] w-full sm:w-auto"
+            >
+              + New Deployment
+            </button>
+          </div>
         </div>
 
         {isLoading ? (
@@ -185,6 +195,11 @@ export default function DeploymentsPage() {
           onDeploymentChange={fetchData}
         />
       )}
+      <DataCleanupModal
+        isOpen={showCleanupModal}
+        onClose={() => setShowCleanupModal(false)}
+        onComplete={fetchData}
+      />
     </PageLayout>
   );
 }

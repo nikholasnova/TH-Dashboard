@@ -5,9 +5,9 @@ import { motion } from 'framer-motion';
 import { LiveReadingCard } from '@/components/LiveReadingCard';
 import { DeploymentModal } from '@/components/DeploymentModal';
 import { DeviceManager } from '@/components/DeviceManager';
-import { Reading, Deployment, ChartSample, DeviceStats, getActiveDeployments, getDashboardLive, getDeviceStats } from '@/lib/supabase';
+import { Reading, Deployment, ChartSample, DeviceStats, DeviceAlertState, getActiveDeployments, getDashboardLive, getDeviceStats, getDeviceAlertStates } from '@/lib/supabase';
 import { DashboardStats } from '@/components/DashboardStats';
-import { DashboardForecast } from '@/components/DashboardForecast';
+
 import { useSetChatPageContext } from '@/lib/chatContext';
 import { REFRESH_INTERVAL, STALE_THRESHOLD_MS } from '@/lib/constants';
 import { useDevices } from '@/contexts/DevicesContext';
@@ -48,6 +48,8 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(!dashboardCache);
   const [stats, setStats] = useState<DeviceStats[]>(dashboardCache?.stats ?? []);
   const [statsLoading, setStatsLoading] = useState(!dashboardCache);
+  const [alertStates, setAlertStates] = useState<DeviceAlertState[]>([]);
+  const [alertDismissed, setAlertDismissed] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<{ id: string; name: string } | null>(null);
   const [showDeviceManager, setShowDeviceManager] = useState(false);
 
@@ -101,14 +103,16 @@ export default function Dashboard() {
     const now = new Date().toISOString();
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const [liveResult, statsResult, deploymentsResult] = await Promise.allSettled([
+    const [liveResult, statsResult, deploymentsResult, alertResult] = await Promise.allSettled([
       getDashboardLive(ids, sixHoursAgo, 15),
       getDeviceStats({ start: twentyFourHoursAgo, end: now }),
       getActiveDeployments(ids),
+      getDeviceAlertStates(ids),
     ]);
 
     const live = liveResult.status === 'fulfilled' ? liveResult.value : null;
     const deployments = deploymentsResult.status === 'fulfilled' ? deploymentsResult.value : {};
+    if (alertResult.status === 'fulfilled') setAlertStates(alertResult.value);
 
     setDeviceData(() => {
       const next: Record<string, DeviceData> = {};
@@ -175,10 +179,10 @@ export default function Dashboard() {
         </div>
       ) : (
       <>
-      <div className="hidden sm:flex justify-end mb-4">
+      <div className="hidden sm:flex justify-end mb-2">
         <button
           onClick={() => setShowDeviceManager(true)}
-          className="btn-glass px-3 py-1.5 sm:px-5 sm:py-2.5 text-xs sm:text-lg text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-1.5 sm:gap-2.5"
+          className="btn-glass px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-1.5 sm:gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -188,7 +192,44 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {!alertDismissed && (() => {
+        const problems = alertStates.filter(a => a.status !== 'ok');
+        if (problems.length === 0) return null;
+        const deviceNames = problems.map(p => {
+          const dev = devices.find(d => d.id === p.device_id);
+          return dev?.display_name ?? p.device_id;
+        });
+        return (
+          <div className="glass-card p-3 sm:p-4 mb-4 flex items-center justify-between" style={{ borderLeft: '4px solid var(--error)' }}>
+            <div className="flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--error)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span className="text-sm text-[var(--foreground)]">
+                {problems.length === 1
+                  ? `${deviceNames[0]} needs attention (${problems[0].status})`
+                  : `${problems.length} devices need attention: ${deviceNames.join(', ')}`}
+              </span>
+            </div>
+            <button onClick={() => setAlertDismissed(true)} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] p-1">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+        );
+      })()}
       <p className="section-label">Live Readings</p>
+      {devices.length === 0 ? (
+        <div className="glass-card p-8 text-center max-w-lg mx-auto">
+          <p className="text-[var(--foreground-muted)] mb-4">No devices configured yet.</p>
+          <button
+            onClick={() => setShowDeviceManager(true)}
+            className="btn-glass px-6 py-2"
+          >
+            Add Your First Node
+          </button>
+        </div>
+      ) : (
       <div className={`grid ${getGridClasses(devices.length)} gap-4 sm:gap-8`}>
         {devices.map((device) => (
           <motion.div
@@ -212,16 +253,13 @@ export default function Dashboard() {
           </motion.div>
         ))}
       </div>
+      )}
 
-      <div className="mt-10">
+      <div className="mt-6">
         <p className="section-label">24h Overview</p>
-        <DashboardStats stats={stats} loading={statsLoading} />
+        <DashboardStats stats={stats} loading={statsLoading} deployments={Object.fromEntries(devices.map(d => [d.id, deviceData[d.id]?.deployment ?? null]))} />
       </div>
 
-      <div className="mt-10">
-        <p className="section-label">Forecast</p>
-        <DashboardForecast />
-      </div>
 
       </>
       )}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getAllReadingsRange, getChartSamples, celsiusToFahrenheit } from '@/lib/supabase';
+import { getAllReadingsRange, getChartSamples, celsiusToFahrenheit, getDeployments, Deployment } from '@/lib/supabase';
 import { useDevices } from '@/contexts/DevicesContext';
 
 interface ExportModalProps {
@@ -42,6 +42,8 @@ function downloadCsv(csv: string, filename: string) {
 export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, defaultDeviceId }: ExportModalProps) {
   const { devices } = useDevices();
 
+  const [deploymentList, setDeploymentList] = useState<Deployment[]>([]);
+  const [selectedDeploymentId, setSelectedDeploymentId] = useState<string>('');
   const [start, setStart] = useState(defaultStart);
   const [end, setEnd] = useState(defaultEnd);
   const [dataMode, setDataMode] = useState<'raw' | 'aggregated'>('raw');
@@ -51,14 +53,27 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
+  const selectedDeployment = deploymentList.find(d => String(d.id) === selectedDeploymentId) ?? null;
+
   useEffect(() => {
     if (!isOpen) return;
     setStart(defaultStart);
     setEnd(defaultEnd);
     setSelectedDeviceId(defaultDeviceId);
+    setSelectedDeploymentId('');
     setExportError(null);
     setIsExporting(false);
+    getDeployments().then(setDeploymentList).catch(() => {});
   }, [isOpen, defaultStart, defaultEnd, defaultDeviceId]);
+
+  useEffect(() => {
+    if (!selectedDeployment) return;
+    const depStart = new Date(selectedDeployment.started_at);
+    const depEnd = selectedDeployment.ended_at ? new Date(selectedDeployment.ended_at) : new Date();
+    setStart(depStart.toISOString().slice(0, 16));
+    setEnd(depEnd.toISOString().slice(0, 16));
+    setSelectedDeviceId(selectedDeployment.device_id);
+  }, [selectedDeployment]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -125,11 +140,27 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
         csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
       }
 
+      if (selectedDeployment) {
+        const meta = [
+          `# Deployment: ${selectedDeployment.name}`,
+          `# Device: ${selectedDeployment.device_id}`,
+          selectedDeployment.location ? `# Location: ${selectedDeployment.location}` : null,
+          selectedDeployment.zip_code ? `# ZIP: ${selectedDeployment.zip_code}` : null,
+          `# Period: ${new Date(selectedDeployment.started_at).toLocaleDateString()} to ${selectedDeployment.ended_at ? new Date(selectedDeployment.ended_at).toLocaleDateString() : 'ongoing'}`,
+          `# Export date: ${new Date().toISOString()}`,
+          '#',
+        ].filter(Boolean).join('\n');
+        csv = meta + '\n' + csv;
+      }
+
       const deviceLabel = selectedDeviceId || 'all';
       const startDate = start.split('T')[0];
       const endDate = end.split('T')[0];
       const modeLabel = dataMode === 'raw' ? 'raw' : `agg-${BUCKET_OPTIONS.find(b => b.seconds === bucketSeconds)?.label.replace(/\s/g, '') ?? bucketSeconds}`;
-      const filename = `readings-${modeLabel}-${deviceLabel}-${startDate}_to_${endDate}.csv`;
+      const depLabel = selectedDeployment ? selectedDeployment.name.replace(/\s+/g, '-').toLowerCase() : null;
+      const filename = depLabel
+        ? `${depLabel}-${modeLabel}-${startDate}_to_${endDate}.csv`
+        : `readings-${modeLabel}-${deviceLabel}-${startDate}_to_${endDate}.csv`;
 
       downloadCsv(csv, filename);
       onClose();
@@ -154,7 +185,7 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
         <div className="p-6 sm:p-8 overflow-y-auto scrollbar-thin">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)]">Export Data</h2>
-            <button onClick={onClose} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors p-2">
+            <button onClick={onClose} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors p-2" aria-label="Close export modal">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -162,17 +193,48 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
           </div>
 
           <div className="space-y-5">
+            {/* Deployment selector */}
+            {deploymentList.length > 0 && (
+              <div>
+                <label className="text-sm font-medium text-[var(--foreground-secondary)] mb-2 block">Deployment</label>
+                <select
+                  value={selectedDeploymentId}
+                  onChange={e => {
+                    setSelectedDeploymentId(e.target.value);
+                    if (!e.target.value) {
+                      setStart(defaultStart);
+                      setEnd(defaultEnd);
+                      setSelectedDeviceId(defaultDeviceId);
+                    }
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">None (manual range)</option>
+                  {deploymentList.map(d => (
+                    <option key={d.id} value={String(d.id)}>
+                      {d.name} ({d.device_id}{d.location ? ` — ${d.location}` : ''})
+                    </option>
+                  ))}
+                </select>
+                {selectedDeployment && (
+                  <p className="text-xs text-[var(--foreground-muted)] mt-1">
+                    {selectedDeployment.location}{selectedDeployment.zip_code ? ` (${selectedDeployment.zip_code})` : ''} — dates and device auto-filled below
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Date range */}
             <div>
               <label className="text-sm font-medium text-[var(--foreground-secondary)] mb-2 block">Date Range</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <span className="text-xs text-[var(--foreground-muted)] mb-1 block">Start</span>
-                  <input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} className={inputClass} />
+                  <input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} className={inputClass} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined} />
                 </div>
                 <div>
                   <span className="text-xs text-[var(--foreground-muted)] mb-1 block">End</span>
-                  <input type="datetime-local" value={end} onChange={e => setEnd(e.target.value)} className={inputClass} />
+                  <input type="datetime-local" value={end} onChange={e => setEnd(e.target.value)} className={inputClass} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined} />
                 </div>
               </div>
               {!isRangeValid && start && end && (
@@ -216,6 +278,8 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
                 value={selectedDeviceId}
                 onChange={e => setSelectedDeviceId(e.target.value)}
                 className={inputClass}
+                disabled={!!selectedDeployment}
+                style={selectedDeployment ? { opacity: 0.6 } : undefined}
               >
                 <option value="">All Devices</option>
                 {devices.map(d => (

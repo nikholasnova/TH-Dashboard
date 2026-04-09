@@ -20,6 +20,7 @@ export interface AnalysisResults {
   descriptive?: DescriptiveResult[] | { error: string };
   correlation?: CorrelationResult[] | { error: string };
   hypothesis_test?: HypothesisTestResult[] | { error: string };
+  anova?: AnovaResult[] | { error: string };
   seasonal_decomposition?: SeasonalResult[] | { error: string };
   forecasting?: ForecastResult[] | { error: string };
 }
@@ -39,6 +40,7 @@ export interface DescriptiveResult {
   q75: number;
   skewness: number;
   kurtosis: number;
+  standard_error: number;
   histogram: { counts: number[]; bin_edges: number[] };
 }
 
@@ -69,6 +71,8 @@ export interface HypothesisTestResult {
   p_value: number;
   significant: boolean;
   effect_size: number;
+  ci_lower: number;
+  ci_upper: number;
 }
 
 export interface SeasonalResult {
@@ -93,6 +97,17 @@ export interface ForecastResult {
   historical: { timestamps: string[]; values: number[] };
   forecast: { timestamps: string[]; values: number[] };
   model_params: { alpha: number; beta: number; gamma: number; aic: number };
+}
+
+export interface AnovaResult {
+  metric: 'temperature' | 'humidity';
+  f_statistic: number;
+  p_value: number;
+  significant: boolean;
+  df_between: number;
+  df_within: number;
+  groups: { deployment_id: number; name: string; mean: number; std: number; n: number }[];
+  tukey_results?: { group_a: string; group_b: string; mean_diff: number; p_adj: number; reject: boolean }[];
 }
 
 interface ReadingWithContext {
@@ -252,6 +267,7 @@ for (deployment_id, name, location), group in df.groupby(
             'q75': safe_float(values.quantile(0.75), 0.0),
             'skewness': skew_val,
             'kurtosis': kurtosis_val,
+            'standard_error': safe_float(std_val / (count ** 0.5), 0.0) if count > 0 else 0.0,
             'histogram': {
                 'counts': hist_counts.tolist(),
                 'bin_edges': hist_edges.tolist(),
@@ -344,6 +360,22 @@ for dep_a, dep_b in deployment_pairs:
             pooled_std = safe_float(((std_a**2 + std_b**2) / 2)**0.5, 0.0)
             effect = safe_float(abs(mean_a - mean_b) / pooled_std, 0.0) if pooled_std > 0 else 0.0
 
+            # Welch-Satterthwaite degrees of freedom + 95% CI for difference in means
+            n_a_val = int(len(a_vals))
+            n_b_val = int(len(b_vals))
+            se_diff = ((std_a**2 / n_a_val) + (std_b**2 / n_b_val))**0.5 if n_a_val > 0 and n_b_val > 0 else 0.0
+            if se_diff > 0 and n_a_val > 1 and n_b_val > 1:
+                num = (std_a**2 / n_a_val + std_b**2 / n_b_val)**2
+                denom = (std_a**2 / n_a_val)**2 / (n_a_val - 1) + (std_b**2 / n_b_val)**2 / (n_b_val - 1)
+                df_welch = num / denom if denom > 0 else 1.0
+                from scipy.stats import t as t_dist
+                ci_low, ci_high = t_dist.interval(0.95, df_welch, loc=mean_a - mean_b, scale=se_diff)
+                ci_lower = safe_float(ci_low, 0.0)
+                ci_upper = safe_float(ci_high, 0.0)
+            else:
+                ci_lower = 0.0
+                ci_upper = 0.0
+
             results.append({
                 'deployment_a': {'id': int(dep_a), 'name': dep_meta.get(dep_a, {}).get('name', str(dep_a))},
                 'deployment_b': {'id': int(dep_b), 'name': dep_meta.get(dep_b, {}).get('name', str(dep_b))},
@@ -352,12 +384,14 @@ for dep_a, dep_b in deployment_pairs:
                 'mean_b': mean_b,
                 'std_a': std_a,
                 'std_b': std_b,
-                'n_a': int(len(a_vals)),
-                'n_b': int(len(b_vals)),
+                'n_a': n_a_val,
+                'n_b': n_b_val,
                 't_statistic': t_stat,
                 'p_value': p_value,
                 'significant': bool(p_value < 0.05),
                 'effect_size': effect,
+                'ci_lower': ci_lower,
+                'ci_upper': ci_upper,
             })
 
 result_json = dumps_json_safe(results)
@@ -487,6 +521,78 @@ result_json = dumps_json_safe(results)
 `,
 };
 
+const ANOVA_SCRIPT = `
+from scipy import stats as scipy_stats
+
+results = []
+groups = df.groupby('deployment_id')
+dep_meta = {}
+for _, row in df.drop_duplicates('deployment_id').iterrows():
+    dep_meta[row['deployment_id']] = {
+        'id': int(row['deployment_id']),
+        'name': row['deployment_name'],
+    }
+
+if len(groups) >= 3:
+    for metric, col in [('temperature', 'temperature_f'), ('humidity', 'humidity')]:
+        group_data = []
+        group_info = []
+        for dep_id, group in groups:
+            vals = group[col].dropna()
+            if len(vals) > 1:
+                group_data.append(vals.values)
+                group_info.append({
+                    'deployment_id': int(dep_id),
+                    'name': dep_meta.get(dep_id, {}).get('name', str(dep_id)),
+                    'mean': safe_float(vals.mean(), 0.0),
+                    'std': safe_float(vals.std(), 0.0),
+                    'n': int(len(vals)),
+                })
+
+        if len(group_data) >= 3:
+            f_stat_raw, p_value_raw = scipy_stats.f_oneway(*group_data)
+            f_stat = safe_float(f_stat_raw, 0.0)
+            p_value = safe_p_value(p_value_raw)
+            n_total = sum(len(g) for g in group_data)
+            k = len(group_data)
+
+            entry = {
+                'metric': metric,
+                'f_statistic': f_stat,
+                'p_value': p_value,
+                'significant': bool(p_value < 0.05),
+                'df_between': k - 1,
+                'df_within': n_total - k,
+                'groups': group_info,
+            }
+
+            if p_value < 0.05:
+                try:
+                    from statsmodels.stats.multicomp import pairwise_tukeyhsd
+                    import numpy as _np
+                    all_vals = _np.concatenate(group_data)
+                    labels = []
+                    for i, g in enumerate(group_data):
+                        labels.extend([group_info[i]['name']] * len(g))
+                    tukey = pairwise_tukeyhsd(all_vals, labels, alpha=0.05)
+                    tukey_results = []
+                    for row in tukey.summary().data[1:]:
+                        tukey_results.append({
+                            'group_a': str(row[0]),
+                            'group_b': str(row[1]),
+                            'mean_diff': safe_float(float(row[2]), 0.0),
+                            'p_adj': safe_p_value(float(row[3])),
+                            'reject': bool(row[4] if len(row) > 4 else float(row[3]) < 0.05),
+                        })
+                    entry['tukey_results'] = tukey_results
+                except Exception:
+                    pass
+
+            results.append(entry)
+
+result_json = dumps_json_safe(results)
+`;
+
 export async function runAnalyses(
   pyodide: PyodideInterface,
   params: AnalysisParams,
@@ -544,6 +650,21 @@ export async function runAnalyses(
       results[analysis] = JSON.parse(resultJson);
     } catch (error) {
       results[analysis] = { error: String(error) };
+    }
+  }
+
+  // Auto-run ANOVA when hypothesis_test is selected and 3+ deployments
+  if (params.analyses.includes('hypothesis_test') && params.deploymentIds.length >= 3) {
+    onProgress?.('Running ANOVA...');
+    try {
+      pyodide.globals.set('readings_json', JSON.stringify(rangeReadings));
+      pyodide.globals.set('deployments_json', JSON.stringify(selectedDeployments));
+      await pyodide.runPythonAsync(SETUP_SCRIPT);
+      await pyodide.runPythonAsync(ANOVA_SCRIPT);
+      const resultJson: string = pyodide.globals.get('result_json');
+      results.anova = JSON.parse(resultJson);
+    } catch (error) {
+      results.anova = { error: String(error) };
     }
   }
 
@@ -651,7 +772,6 @@ export async function runHourlyForecast(
 ): Promise<HourlyForecast[]> {
   const now = new Date();
   const activeDeployment = await getActiveDeployment(deviceId);
-  console.log('[Forecast] activeDeployment:', activeDeployment ? { id: activeDeployment.id, started_at: activeDeployment.started_at, ended_at: activeDeployment.ended_at } : null);
   if (!activeDeployment) return [];
   const deploymentStartMs = new Date(activeDeployment.started_at).getTime();
   const lookbackStartMs =
@@ -661,7 +781,6 @@ export async function runHourlyForecast(
     : lookbackStartMs;
   const start = new Date(effectiveStartMs).toISOString();
   const end = now.toISOString();
-  console.log('[Forecast] query window:', { start, end, deviceId });
 
   const samples = await getChartSamples({
     start,
@@ -670,7 +789,6 @@ export async function runHourlyForecast(
     device_id: deviceId,
     maxRows: DASHBOARD_FORECAST_MAX_ROWS,
   });
-  console.log('[Forecast] samples returned:', samples.length);
 
   if (samples.length < 48) return [];
 

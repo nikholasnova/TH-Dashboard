@@ -16,6 +16,7 @@ import { useTimeRange } from '@/hooks/useTimeRange';
 import { useDeployments } from '@/hooks/useDeployments';
 import { useDevices } from '@/contexts/DevicesContext';
 import { ExportModal } from '@/components/ExportModal';
+import { svgContainerToPng } from '@/lib/exportChart';
 
 const ResponsiveLine = dynamic(
   () => import('@nivo/line').then((m) => m.ResponsiveLine),
@@ -187,12 +188,13 @@ export default function ChartsPage() {
 
   const pickBucketSeconds = (rangeMs: number) => {
     const rangeSeconds = rangeMs / 1000;
-    const targetPoints = 200;
+    const targetPoints = 100;
     const idealBucketSeconds = rangeSeconds / targetPoints;
     const bucketOptions = [300, 600, 900, 1800, 3600, 7200, 10800, 14400, 21600, 43200, 86400];
     return bucketOptions.find((bucket) => bucket >= idealBucketSeconds) || bucketOptions[bucketOptions.length - 1];
   };
 
+  const chartContainerRef = useRef<HTMLDivElement>(null);
   const hasDataRef = useRef(false);
 
   const fetchData = useCallback(async () => {
@@ -355,11 +357,29 @@ export default function ChartsPage() {
             <span className="text-sm text-[var(--foreground)]">
               Showing: {deployments.find(d => d.id.toString() === deploymentFilter)?.name}
             </span>
-            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]">✕</button>
+            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]" aria-label="Clear deployment filter">✕</button>
           </div>
         )}
 
-        <div className="glass-card p-3 sm:p-8">
+        {hasData && !isLoading && (
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={() => {
+                if (!chartContainerRef.current) return;
+                const rangeLabel = selectedRange === -1 ? 'custom' : String(selectedRange);
+                svgContainerToPng(chartContainerRef.current, `chart-${metric}-${rangeLabel}-${new Date().toISOString().slice(0, 10)}.png`);
+              }}
+              className="btn-glass px-3 py-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-1.5"
+              title="Download chart as PNG"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Save PNG
+            </button>
+          </div>
+        )}
+        <div className="glass-card p-3 sm:p-8" ref={chartContainerRef}>
           {isLoading ? (
             <div className="h-[360px] sm:h-[500px]">
               <LoadingSpinner message="Loading chart data..." className="h-full" />

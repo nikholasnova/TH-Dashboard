@@ -51,11 +51,11 @@ flowchart TB
 
 | Route | Purpose |
 |-------|---------|
-| `/` | Live readings per device, deployment context, 24h stats, 7-day forecast, device management |
-| `/charts` | Historical trends with time range selector + CSV export |
+| `/` | Live readings per device, deployment context, 24h stats, device management |
+| `/charts` | Historical trends with time range selector, CSV export, Save PNG |
 | `/compare` | Side-by-side stats per device, weather reference, `% Error` |
 | `/deployments` | Manage placement windows and ZIP codes |
-| `/analysis` | In-browser Python stats and forecasting (Pyodide) |
+| `/analysis` | In-browser Python stats, ANOVA, confidence intervals, forecasting (Pyodide) |
 | `/api/chat` | AI chat backend (floating chat shell available on every page) |
 
 ## Tech Stack
@@ -91,12 +91,22 @@ High-coverage areas: Supabase query layer (devices, readings, deployments), API 
 | [SETUP.md](SETUP.md) | Local dev, Vercel deploy, env vars, Arduino setup, troubleshooting |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Data flow, schema, RPC functions, trust boundaries, failure modes |
 | [arduino/sensor_node/README.md](arduino/sensor_node/README.md) | Firmware, wiring, hardware notes |
+| [DESIGN.md](DESIGN.md) | Design decisions, rationale, challenges, retrospective |
+| [TESTING.md](TESTING.md) | Test suite, running tests, coverage |
 
 ## Hardware
 
-<!-- Add your own photos below -->
-<!-- ![Node photo](docs/images/node1-circuit.jpg) -->
-<!-- ![Deployment](docs/images/measurement-setting.jpg) -->
+Arduino Uno R4 WiFi with DHT20 sensor (I2C) and 16x2 LCD on a breadboard. The LCD displays live temperature and humidity; the board uploads 3-minute averaged readings to Supabase over HTTPS.
+
+![Sensor node on breadboard](docs/images/IMG_7599.jpg)
+
+![Close-up: LCD showing live readings](docs/images/IMG_7600.jpg)
+
+## Screenshots
+
+![Dashboard — live readings, 24h stats, sparklines](docs/images/Screenshot%202026-02-20%20at%2010.07.28.png)
+
+![Charts — 24h temperature trend with time-range and device filters](docs/images/Screenshot%202026-02-20%20at%2010.08.02.png)
 
 ## License
 

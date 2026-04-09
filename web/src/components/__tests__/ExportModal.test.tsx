@@ -8,6 +8,7 @@ const mockGetChartSamples = vi.fn();
 vi.mock('@/lib/supabase', () => ({
   getAllReadingsRange: (...args: unknown[]) => mockGetAllReadingsRange(...args),
   getChartSamples: (...args: unknown[]) => mockGetChartSamples(...args),
+  getDeployments: vi.fn(async () => []),
   celsiusToFahrenheit: (c: number) => c * 9 / 5 + 32,
 }));
 

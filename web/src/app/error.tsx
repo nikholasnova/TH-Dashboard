@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
 
 export default function Error({
   error,
@@ -20,12 +21,17 @@ export default function Error({
         <p className="text-sm text-[var(--foreground-muted)] mb-6">
           {error.message || 'An unexpected error occurred.'}
         </p>
-        <button
-          onClick={reset}
-          className="btn-glass px-6 py-2"
-        >
-          Try again
-        </button>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={reset}
+            className="btn-glass px-6 py-2"
+          >
+            Try again
+          </button>
+          <Link href="/" className="btn-glass px-6 py-2 no-underline text-[var(--foreground)]">
+            Go home
+          </Link>
+        </div>
       </div>
     </div>
   );

@@ -68,7 +68,7 @@ export function Navbar() {
       {/* Desktop nav — unchanged */}
       <div
         ref={wrapperRef}
-        className="navbar-sticky-wrapper mb-10 hidden sm:block"
+        className="navbar-sticky-wrapper mb-6 hidden sm:block"
       >
         <nav className="flex items-center justify-between gap-4 relative">
           <div className="flex items-center gap-4">

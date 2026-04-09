@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ChatShell } from '../ChatShell';
 import { useSession } from '../AuthProvider';
@@ -12,6 +12,22 @@ vi.mock('../AIChat', () => ({
   AIChat: () => (
     <div data-testid="ai-chat">AI Chat</div>
   ),
+}));
+
+vi.mock('framer-motion', () => ({
+  motion: {
+    div: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => {
+      const filtered = { ...props };
+      delete filtered.initial; delete filtered.animate; delete filtered.exit; delete filtered.transition;
+      return <div {...filtered}>{children}</div>;
+    },
+    button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => {
+      const filtered = { ...props };
+      delete filtered.initial; delete filtered.animate; delete filtered.exit; delete filtered.transition;
+      return <button {...filtered}>{children}</button>;
+    },
+  },
+  AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
 }));
 
 describe('ChatShell', () => {
@@ -46,7 +62,7 @@ describe('ChatShell', () => {
     expect(screen.getByTitle('Close chat')).toBeInTheDocument();
 
     await user.click(screen.getByTitle('Close chat'));
-    expect(screen.getByTestId('ai-chat').parentElement!.closest('.hidden')).toBeTruthy();
+    await waitFor(() => expect(screen.queryByTestId('ai-chat')).not.toBeInTheDocument());
     expect(screen.getByTitle('Open Kelvin AI')).toBeInTheDocument();
   });
 

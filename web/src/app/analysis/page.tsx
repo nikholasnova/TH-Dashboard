@@ -9,14 +9,33 @@ import {
   runAnalyses,
   AnalysisType,
   AnalysisResults,
+  DescriptiveResult,
+  CorrelationResult,
+  HypothesisTestResult,
+  AnovaResult,
+  SeasonalResult,
+  ForecastResult,
 } from '@/lib/analysisRunner';
 import { DescriptiveResults } from '@/components/analysis/DescriptiveResults';
 import { CorrelationResults } from '@/components/analysis/CorrelationResults';
 import { HypothesisTestResults } from '@/components/analysis/HypothesisTestResults';
 import { SeasonalResults } from '@/components/analysis/SeasonalResults';
 import { ForecastResults } from '@/components/analysis/ForecastResults';
+import { AnovaResults } from '@/components/analysis/AnovaResults';
+import { exportDescriptive, exportCorrelation, exportHypothesisTest, exportSeasonal, exportForecast } from '@/lib/exportAnalysis';
 import { TIME_RANGES } from '@/lib/constants';
 import { BounceDots } from '@/components/LoadingSpinner';
+
+function CsvDownloadBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="btn-glass px-3 py-1 text-xs text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-1.5" title="Download as CSV">
+      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+      </svg>
+      CSV
+    </button>
+  );
+}
 
 const ANALYSIS_TYPES = [
   { id: 'descriptive', label: 'Descriptive Stats' },
@@ -35,6 +54,7 @@ function areAllResultsEmpty(r: AnalysisResults): boolean {
     'descriptive',
     'correlation',
     'hypothesis_test',
+    'anova',
     'seasonal_decomposition',
     'forecasting',
   ];
@@ -432,7 +452,10 @@ export default function AnalysisPage() {
               <div className="space-y-8">
                 {results.descriptive && (
                   <section>
-                    <h3 className="text-md font-semibold text-[var(--foreground)] mb-3">Descriptive Statistics</h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-md font-semibold text-[var(--foreground)]">Descriptive Statistics</h3>
+                      {!isError(results.descriptive) && <CsvDownloadBtn onClick={() => exportDescriptive(results.descriptive as DescriptiveResult[])} />}
+                    </div>
                     {isError(results.descriptive) ? (
                       <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
                         <p className="text-[var(--warning)] text-sm">{results.descriptive.error}</p>
@@ -445,7 +468,10 @@ export default function AnalysisPage() {
 
                 {results.correlation && (
                   <section>
-                    <h3 className="text-md font-semibold text-[var(--foreground)] mb-3">Correlation Analysis</h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-md font-semibold text-[var(--foreground)]">Correlation Analysis</h3>
+                      {!isError(results.correlation) && <CsvDownloadBtn onClick={() => exportCorrelation(results.correlation as CorrelationResult[])} />}
+                    </div>
                     {isError(results.correlation) ? (
                       <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
                         <p className="text-[var(--warning)] text-sm">{results.correlation.error}</p>
@@ -458,7 +484,10 @@ export default function AnalysisPage() {
 
                 {results.hypothesis_test && (
                   <section>
-                    <h3 className="text-md font-semibold text-[var(--foreground)] mb-3">Hypothesis Testing</h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-md font-semibold text-[var(--foreground)]">Hypothesis Testing</h3>
+                      {!isError(results.hypothesis_test) && <CsvDownloadBtn onClick={() => exportHypothesisTest(results.hypothesis_test as HypothesisTestResult[])} />}
+                    </div>
                     {isError(results.hypothesis_test) ? (
                       <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
                         <p className="text-[var(--warning)] text-sm">{results.hypothesis_test.error}</p>
@@ -469,9 +498,27 @@ export default function AnalysisPage() {
                   </section>
                 )}
 
+                {results.anova && (
+                  <section>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-md font-semibold text-[var(--foreground)]">ANOVA (3+ Groups)</h3>
+                    </div>
+                    {isError(results.anova) ? (
+                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
+                        <p className="text-[var(--warning)] text-sm">{(results.anova as { error: string }).error}</p>
+                      </div>
+                    ) : (
+                      <AnovaResults results={results.anova as AnovaResult[]} />
+                    )}
+                  </section>
+                )}
+
                 {results.seasonal_decomposition && (
                   <section>
-                    <h3 className="text-md font-semibold text-[var(--foreground)] mb-3">Seasonal Decomposition</h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-md font-semibold text-[var(--foreground)]">Seasonal Decomposition</h3>
+                      {!isError(results.seasonal_decomposition) && <CsvDownloadBtn onClick={() => exportSeasonal(results.seasonal_decomposition as SeasonalResult[])} />}
+                    </div>
                     {isError(results.seasonal_decomposition) ? (
                       <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
                         <p className="text-[var(--warning)] text-sm">{results.seasonal_decomposition.error}</p>
@@ -484,7 +531,10 @@ export default function AnalysisPage() {
 
                 {results.forecasting && (
                   <section>
-                    <h3 className="text-md font-semibold text-[var(--foreground)] mb-3">Forecasting</h3>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-md font-semibold text-[var(--foreground)]">Forecasting</h3>
+                      {!isError(results.forecasting) && <CsvDownloadBtn onClick={() => exportForecast(results.forecasting as ForecastResult[])} />}
+                    </div>
                     {isError(results.forecasting) ? (
                       <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
                         <p className="text-[var(--warning)] text-sm">{results.forecasting.error}</p>

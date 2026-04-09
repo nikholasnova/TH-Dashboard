@@ -179,6 +179,10 @@ function HypothesisCard({ result }: HypothesisCardProps) {
                 value={effectInfo.label}
                 valueClassName={effectInfo.color}
               />
+              <StatRow
+                label="95% CI"
+                value={`[${result.ci_lower.toFixed(2)}, ${result.ci_upper.toFixed(2)}]`}
+              />
             </tbody>
           </table>
 

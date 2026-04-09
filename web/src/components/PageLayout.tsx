@@ -39,7 +39,7 @@ export function PageLayout({ title, children, onManageNodes }: PageLayoutProps) 
           </div>
 
           <Navbar />
-          {children}
+          <div id="main-content">{children}</div>
         </div>
       </div>
     </AuthGate>

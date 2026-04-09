@@ -107,8 +107,70 @@ RLS enabled on all tables.
 | `get_deployments_with_counts(device_id?, active_only?)` | Deployments with reading counts |
 | `get_dashboard_live(device_ids[], sparkline_start, bucket_min?)` | Batched latest readings + sparkline per N devices |
 | `delete_deployment_cascade(deployment_id)` | Cascade-delete deployment and its readings |
+| `delete_readings_range(device_id, start, end, include_weather?)` | Scoped deletion of readings by device and time range |
 
 Weather data lives in `readings`, so all RPCs work with weather device IDs (e.g., `weather_node1`).
+
+### 4.4 Schema Diagram
+
+```mermaid
+erDiagram
+    devices {
+        TEXT id PK
+        TEXT display_name
+        TEXT color
+        BOOLEAN is_active
+        BOOLEAN monitor_enabled
+        INT sort_order
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+
+    deployments {
+        BIGSERIAL id PK
+        TEXT device_id
+        TEXT name
+        TEXT location
+        TEXT notes
+        TIMESTAMPTZ started_at
+        TIMESTAMPTZ ended_at
+        TEXT zip_code
+        TIMESTAMPTZ created_at
+    }
+
+    readings {
+        BIGSERIAL id PK
+        TEXT device_id
+        REAL temperature
+        REAL humidity
+        TEXT source
+        BIGINT deployment_id FK
+        TEXT zip_code
+        TIMESTAMPTZ observed_at
+        TIMESTAMPTZ created_at
+    }
+
+    device_alert_state {
+        TEXT device_id PK
+        TEXT status
+        TIMESTAMPTZ last_seen_at
+        TEXT last_alert_type
+        TIMESTAMPTZ last_alert_sent_at
+        TIMESTAMPTZ last_recovery_sent_at
+        TIMESTAMPTZ updated_at
+    }
+
+    app_settings {
+        TEXT key PK
+        TEXT value
+        TIMESTAMPTZ updated_at
+    }
+
+    devices ||--o{ deployments : "has"
+    devices ||--o{ readings : "produces"
+    deployments ||--o{ readings : "scopes"
+    devices ||--o| device_alert_state : "monitored by"
+```
 
 ## 5) Web Application
 
@@ -118,16 +180,17 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 
 - Polls every 30s using `get_dashboard_live` RPC (batched query for all active devices).
 - Renders live cards per device with deployment context, weather comparison, and 6h sparklines.
-- `DashboardStats`: 24h aggregates (avg temp, high/low, reading count, sensor accuracy vs weather).
-- `DashboardForecast`: 7-day Holt-Winters forecast per device (runs via Pyodide client-side).
+- `DashboardStats`: 24h aggregates (avg temp, high/low, uptime %, sensor accuracy vs weather). Uptime is computed per device based on active deployment start time.
+- Offline notification banner: queries `device_alert_state` table and shows a warning when any device is stale/missing/anomaly. Dismissible per session.
 - Device Manager modal: add/edit/deactivate devices, toggle monitoring, assign colors.
 - Floating `ChatShell` available on all pages (mounted in root layout).
 
 ### 5.2 Charts (`/charts`)
 
 - Time range: preset, custom, or deployment window.
-- Bucket size by span: 3min (<=6h), 6min (<=24h), 30min (<=7d), 60min (>7d).
-- CSV export fetches raw readings, excludes `weather_*` rows.
+- Bucket size dynamically chosen targeting ~100 data points: 5min for short ranges, 15min for 24h, 2-3h for 7d.
+- CSV export fetches raw readings, excludes `weather_*` rows. Export modal supports deployment selection (auto-fills dates/device, prepends CSV metadata headers).
+- Save PNG button exports the chart as a 2x resolution PNG image for reports.
 
 ### 5.3 Compare (`/compare`)
 
@@ -142,13 +205,15 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 - Device filter populated from the `devices` table.
 - Optional ZIP code (`12345` or `12345-6789`) for weather lookups.
 - Deletion removes associated readings in the deployment time window.
+- Clean Up Data modal: scoped deletion of readings by device + time range with password re-entry confirmation. Uses `delete_readings_range` RPC.
 
 ### 5.5 Analysis (`/analysis`)
 
 - Pyodide runtime loaded from CDN (singleton, cached after first load).
 - Packages: `numpy`, `pandas`, `scipy`, `statsmodels`.
 - Selected deployment readings fetched via Supabase, capped at 5000 rows per deployment.
-- Analyses: descriptive stats, correlation, hypothesis testing, seasonal decomposition, forecasting.
+- Analyses: descriptive stats (with standard error), correlation, hypothesis testing (95% CI for difference in means), ANOVA with Tukey HSD post-hoc (auto-runs for 3+ deployments), seasonal decomposition, forecasting.
+- Per-section CSV download buttons for all analysis results.
 - All computation runs client-side.
 
 ### 5.6 AI Chat (`POST /api/chat`)
@@ -156,12 +221,17 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 - Authenticated route using Gemini 2.5 Flash with function-calling.
 - 7 tools: `get_deployments`, `get_deployment_stats`, `get_readings`, `get_device_stats`, `get_chart_data`, `get_report_data`, `get_weather`.
 - Tools execute via `aiTools.ts` with service-role Supabase client.
-- Tool loop bounded at 10 iterations; streaming via `TransformStream` with `__STATUS__` markers.
+- Tool result payloads capped at 30KB to prevent overwhelming model context; large arrays are truncated with guidance to use aggregate tools.
+- Tool loop bounded at 10 iterations; on exhaustion, model is prompted to summarize gathered data rather than failing silently.
+- `get_device_stats` has optional `start`/`end` (defaults to last 30 days) to reduce unnecessary tool calls.
+- `get_readings` supports `order_by` (`created_at`, `temperature`, `humidity`) and `ascending` params for finding extreme values across full datasets.
+- System prompt includes efficiency rules prioritizing single-call patterns (e.g., one `get_device_stats` call for device comparisons).
+- Streaming via `TransformStream` with `__STATUS__` markers for tool-call progress.
+- Client-side word drip renders streamed text at ~48 words/sec for smooth token-by-token display.
 - In-memory rate limiting: 30 requests per 15 min per user (resets on deploy).
 - Page context injected into system prompt from `ChatPageContextProvider`.
 - Returns Fahrenheit fields and `America/Phoenix` local time.
-- System prompt includes weather device IDs for sensor-vs-weather comparisons.
-- Accessed via floating `ChatShell` component (layout-level, available on every page).
+- Accessed via floating `ChatShell` component with open/close animation, auto-scroll, and scroll-for-more indicator.
 
 ### 5.7 Keepalive (`GET /api/keepalive`)
 
@@ -179,6 +249,14 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 - Writes one weather row per tracked device with `source = weather`, `deployment_id`, `zip_code`, `observed_at`.
 - Idempotent per device per 15-minute UTC bucket.
 - Returns: `fetched_count`, `inserted_count`, `skipped_existing_count`, `invalid_zip_count`, errors.
+
+### 5.9 API Reference
+
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/api/chat` | POST | Supabase session | AI chat with Gemini 2.5 Flash. Accepts `{ message, history }`. Streams response with `__STATUS__` markers for tool-call progress. Rate-limited to 30 req/15 min per user. |
+| `/api/keepalive` | GET | `CRON_SECRET` header | Device health monitor. Classifies devices as ok/missing/stale/anomaly. Sends email alerts on state transitions via Resend. Returns per-device status summary. |
+| `/api/weather` | GET | `CRON_SECRET` header | Weather ingestion cron. Fetches current conditions from WeatherAPI.com for each active deployment ZIP. Writes `source=weather` rows. Idempotent per 15-min UTC bucket. Returns fetch/insert/skip counts. |
 
 ## 6) Data Semantics
 
@@ -234,4 +312,4 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 | Keepalive | `web/src/app/api/keepalive/route.ts` |
 | Weather | `web/src/app/api/weather/route.ts`, `web/src/lib/weatherZip.ts`, `web/src/lib/weatherCompare.ts` |
 | Analysis | `web/src/lib/pyodide.ts`, `web/src/lib/analysisRunner.ts` |
-| Dashboard extras | `web/src/components/DashboardStats.tsx`, `web/src/components/DashboardForecast.tsx` |
+| Dashboard extras | `web/src/components/DashboardStats.tsx` |

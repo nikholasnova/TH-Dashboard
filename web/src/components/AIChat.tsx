@@ -3,11 +3,13 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getDeployments } from '@/lib/supabase';
 import { useChatPageContext } from '@/lib/chatContext';
 import { BounceDots } from './LoadingSpinner';
 
 interface Message {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
 }
@@ -99,11 +101,20 @@ const ChatMessage = memo(function ChatMessage({
   onDownload: (content: string) => void;
 }) {
   return (
-    <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[80%] ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-        <p className="text-xs text-[var(--foreground-muted)] mb-1">{msg.role === 'user' ? 'You' : 'Kelvin'}</p>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+    >
+      <div className={`max-w-[80%] ${msg.role === 'user' ? 'text-right' : 'text-left'} group`}>
+        {msg.role === 'assistant' && (
+          <p className="text-xs text-[var(--foreground-muted)] mb-1">Kelvin</p>
+        )}
         {msg.role === 'user' ? (
-          <p className="text-base text-[var(--foreground)] whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+          <div className="bg-[var(--primary)] text-white dark:text-[var(--background-main)] px-4 py-2.5 rounded-2xl rounded-br-sm inline-block text-left">
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+          </div>
         ) : (
           <div className="text-base text-[var(--foreground)] leading-relaxed prose prose-sm max-w-none prose-headings:text-[var(--foreground)] prose-headings:font-bold prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-1 prose-p:my-1 prose-li:my-0 prose-strong:text-[var(--foreground)] prose-code:text-[var(--foreground-muted)] prose-pre:bg-[var(--hover-bg)] prose-pre:border prose-pre:border-[var(--divider)]">
             <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MD_COMPONENTS}>
@@ -112,7 +123,9 @@ const ChatMessage = memo(function ChatMessage({
           </div>
         )}
         {msg.role === 'assistant' && msg.content && (
-          <div className="mt-2 flex items-center gap-3">
+          <div className={`mt-2 flex items-center gap-3 transition-opacity duration-200 ${
+            copiedIndex === index ? 'opacity-100' : 'sm:opacity-0 sm:group-hover:opacity-100'
+          }`}>
             <button
               onClick={() => onCopy(msg.content, index)}
               className="flex items-center gap-1 text-xs text-[var(--foreground-muted)]/50 hover:text-[var(--foreground-muted)] transition-colors"
@@ -143,7 +156,7 @@ const ChatMessage = memo(function ChatMessage({
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 });
 
@@ -164,11 +177,10 @@ const MessageList = memo(function MessageList({
 }) {
   return (
     <>
-      <div className="flex-1" />
       <div className="space-y-4">
         {messages.map((msg, i) => (
           <ChatMessage
-            key={i}
+            key={msg.id}
             msg={msg}
             index={i}
             copiedIndex={copiedIndex}
@@ -176,16 +188,24 @@ const MessageList = memo(function MessageList({
             onDownload={onDownload}
           />
         ))}
-        {isLoading && !messages[messages.length - 1]?.content && (
-          <div className="flex justify-start mt-1 pl-1">
-            <div className="flex items-center gap-2">
-              <BounceDots size="sm" />
-              <span className={`text-xs animate-pulse transition-opacity duration-200 ${toolStatus ? 'text-[var(--foreground-muted)]/60 opacity-100' : 'opacity-0'}`}>
-                {toolStatus ? `${toolStatus}...` : '\u00A0'}
-              </span>
-            </div>
-          </div>
-        )}
+        <AnimatePresence>
+          {isLoading && !messages[messages.length - 1]?.content && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex justify-start mt-1 pl-1"
+            >
+              <div className="flex items-center gap-2">
+                <BounceDots size="sm" />
+                <span className={`text-xs animate-pulse transition-opacity duration-200 ${toolStatus ? 'text-[var(--foreground-muted)]/60 opacity-100' : 'opacity-0'}`}>
+                  {toolStatus ? `${toolStatus}...` : '\u00A0'}
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </>
   );
@@ -199,9 +219,14 @@ export function AIChat() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [deploymentNames, setDeploymentNames] = useState<{ name: string; location: string }[] | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollAnimRef = useRef<number>(0);
+  const scrollTargetIndexRef = useRef<number | null>(null);
+  const [showScrollHint, setShowScrollHint] = useState(false);
 
   useEffect(() => {
     async function loadDeployments() {
@@ -213,6 +238,32 @@ export function AIChat() {
       }
     }
     loadDeployments();
+  }, []);
+
+  // Track whether content extends below the visible scroll area
+  const updateScrollHint = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    setShowScrollHint(!atBottom);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', updateScrollHint, { passive: true });
+    return () => el.removeEventListener('scroll', updateScrollHint);
+  }, [updateScrollHint]);
+
+  // Re-check when content changes
+  useEffect(() => {
+    updateScrollHint();
+  }, [messages, updateScrollHint]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, []);
 
   const copyToClipboard = useCallback(async (text: string, index: number) => {
@@ -253,21 +304,60 @@ export function AIChat() {
     URL.revokeObjectURL(url);
   }, []);
 
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // Animate scroll until the target user message is pinned at the top of the
+  // scroll container, then stop. Runs every frame during streaming so it can't
+  // be cancelled by DOM changes (unlike scrollTo with behavior:'smooth').
+  const startScrollAnimation = useCallback((index: number) => {
+    scrollTargetIndexRef.current = index;
+    cancelAnimationFrame(scrollAnimRef.current);
 
-  useEffect(() => {
-    const el = scrollContainerRef.current;
-    if (el) {
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [messages]);
+    const tick = () => {
+      const targetIdx = scrollTargetIndexRef.current;
+      if (targetIdx == null) return;
 
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      const wrapper = container.querySelector('.space-y-4');
+      if (!wrapper) return;
+      const msgEl = wrapper.children[targetIdx] as HTMLElement | undefined;
+      if (!msgEl) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const msgRect = msgEl.getBoundingClientRect();
+      const distance = msgRect.top - containerRect.top;
+
+      if (distance <= 1 && distance >= -1) {
+        // Close enough -- pinned at top, stop
+        scrollTargetIndexRef.current = null;
+        return;
+      }
+
+      // Ease toward target: move 18% of remaining distance each frame
+      container.scrollTop += distance * 0.18;
+      scrollAnimRef.current = requestAnimationFrame(tick);
+    };
+
+    // Wait for React to commit the new DOM nodes before starting
+    setTimeout(() => {
+      scrollAnimRef.current = requestAnimationFrame(tick);
+    }, 30);
+  }, []);
+
+  // Stop scroll animation on unmount
   useEffect(() => {
     return () => {
+      cancelAnimationFrame(scrollAnimRef.current);
       abortControllerRef.current?.abort();
       readerRef.current?.cancel();
       readerRef.current = null;
     };
+  }, []);
+
+  const resizeTextarea = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 128) + 'px';
   }, []);
 
   const sendMessage = async (message: string) => {
@@ -275,7 +365,19 @@ export function AIChat() {
 
     setInput('');
     setToolStatus(null);
-    setMessages((prev) => [...prev, { role: 'user', content: message }, { role: 'assistant', content: '' }]);
+    // Reset textarea height after clearing input
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) el.style.height = 'auto';
+    });
+
+    const scrollTarget = messages.length; // index where the new user message will be
+    setMessages((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), role: 'user', content: message },
+      { id: crypto.randomUUID(), role: 'assistant', content: '' },
+    ]);
+    startScrollAnimation(scrollTarget);
     setIsLoading(true);
 
     abortControllerRef.current = new AbortController();
@@ -307,68 +409,122 @@ export function AIChat() {
 
       const reader = response.body?.getReader();
       readerRef.current = reader || null;
-      let assistantContent = '';
-      let buffer = '';
-      let pendingUpdate: string | null = null;
-      let rafId = 0;
+      let rawAccumulated = '';
+      let targetContent = ''; // full cleaned text received so far
+      let displayedLen = 0;  // how many chars we've shown
+      let dripRafId = 0;
+      let streamDone = false;
 
-      const flushUpdate = () => {
-        if (pendingUpdate !== null) {
-          const content = pendingUpdate;
-          pendingUpdate = null;
-          setMessages((prev) => {
-            const updated = [...prev];
-            updated[updated.length - 1] = { role: 'assistant', content };
-            return updated;
-          });
+      // Drip loop: feeds words to React at a steady rate, decoupled from
+      // network chunk sizes. Time-based so it's frame-rate independent.
+      const WORDS_PER_SEC = 48;
+      let lastDripTime = 0;
+      let wordDebt = 0;
+
+      const dripLoop = (timestamp: number) => {
+        if (displayedLen >= targetContent.length) {
+          if (!streamDone) dripRafId = requestAnimationFrame(dripLoop);
+          return;
         }
+
+        if (!lastDripTime) lastDripTime = timestamp;
+        const dt = timestamp - lastDripTime;
+        lastDripTime = timestamp;
+        wordDebt += (dt / 1000) * WORDS_PER_SEC;
+
+        const wordsToRelease = Math.floor(wordDebt);
+        if (wordsToRelease < 1) {
+          dripRafId = requestAnimationFrame(dripLoop);
+          return;
+        }
+        wordDebt -= wordsToRelease;
+
+        let end = displayedLen;
+        let words = 0;
+        while (end < targetContent.length && words < wordsToRelease) {
+          end++;
+          if (end < targetContent.length && (targetContent[end] === ' ' || targetContent[end] === '\n')) {
+            words++;
+          }
+        }
+        // If nearly caught up, show the rest to avoid lingering partial words
+        if (targetContent.length - end < 15) end = targetContent.length;
+
+        displayedLen = end;
+        const displayText = targetContent.slice(0, displayedLen);
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { ...updated[updated.length - 1], content: displayText };
+          return updated;
+        });
+
+        dripRafId = requestAnimationFrame(dripLoop);
       };
 
       if (reader) {
+        // Start the drip loop
+        dripRafId = requestAnimationFrame(dripLoop);
+
         const decoder = new TextDecoder();
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
+          rawAccumulated += decoder.decode(value, { stream: true });
 
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
+          // Extract complete __STATUS__ lines
+          const statusRegex = /__STATUS__(.+?)\n/g;
+          let statusMatch;
+          while ((statusMatch = statusRegex.exec(rawAccumulated)) !== null) {
+            setToolStatus(statusMatch[1]);
+          }
 
-          for (const line of lines) {
-            if (line.startsWith('__STATUS__')) {
-              setToolStatus(line.slice('__STATUS__'.length));
-            } else {
-              assistantContent += line + '\n';
+          // Build display content: strip complete status lines
+          let displayContent = rawAccumulated.replace(/__STATUS__.+?\n/g, '');
+
+          // Hide any trailing partial __STATUS__ marker
+          const partialIdx = displayContent.lastIndexOf('__STATUS__');
+          if (partialIdx !== -1 && !displayContent.substring(partialIdx).includes('\n')) {
+            displayContent = displayContent.substring(0, partialIdx);
+          }
+
+          // Feed to the drip loop (it will release word-by-word)
+          targetContent = displayContent;
+        }
+
+        // Stream finished -- let drip loop drain remaining text
+        streamDone = true;
+
+        // Wait for drip to finish, then do final cleanup
+        await new Promise<void>((resolve) => {
+          const waitForDrip = () => {
+            if (displayedLen >= targetContent.length) {
+              cancelAnimationFrame(dripRafId);
+              resolve();
+              return;
             }
-          }
+            requestAnimationFrame(waitForDrip);
+          };
+          requestAnimationFrame(waitForDrip);
+        });
 
-          const displayBuffer = buffer.startsWith('__STATUS__') ? '' : buffer;
-          pendingUpdate = assistantContent + displayBuffer;
-          cancelAnimationFrame(rafId);
-          rafId = requestAnimationFrame(flushUpdate);
-        }
-        cancelAnimationFrame(rafId);
-
-        if (buffer) {
-          if (buffer.startsWith('__STATUS__')) {
-            setToolStatus(buffer.slice('__STATUS__'.length));
-          } else {
-            assistantContent += buffer;
-          }
+        // Final content
+        let finalContent = rawAccumulated.replace(/__STATUS__.+?\n/g, '');
+        const trailingStatus = finalContent.match(/__STATUS__(.+)$/);
+        if (trailingStatus) {
+          setToolStatus(trailingStatus[1]);
+          finalContent = finalContent.replace(/__STATUS__.+$/, '');
         }
 
-        // Final message update — fallback if stream ended with no content
-        const finalContent = assistantContent.trim() || 'Sorry, the response was empty. Please try again or rephrase your question.';
+        finalContent = finalContent.trim() || 'Sorry, the response was empty. Please try again or rephrase your question.';
         setMessages((prev) => {
           const updated = [...prev];
-          updated[updated.length - 1] = { role: 'assistant', content: finalContent };
+          updated[updated.length - 1] = { ...updated[updated.length - 1], content: finalContent };
           return updated;
         });
       }
     } catch (error) {
       if ((error as Error).name === 'AbortError') {
-        // Remove the empty placeholder assistant message left by abort
         setMessages((prev) => {
           if (prev.length > 0 && prev[prev.length - 1].role === 'assistant' && !prev[prev.length - 1].content) {
             return prev.slice(0, -1);
@@ -380,9 +536,9 @@ export function AIChat() {
         setMessages((prev) => {
           const updated = [...prev];
           if (updated.length > 0 && updated[updated.length - 1].role === 'assistant' && !updated[updated.length - 1].content) {
-            updated[updated.length - 1] = { role: 'assistant', content: errorMsg };
+            updated[updated.length - 1] = { ...updated[updated.length - 1], content: errorMsg };
           } else {
-            updated.push({ role: 'assistant', content: errorMsg });
+            updated.push({ id: crypto.randomUUID(), role: 'assistant', content: errorMsg });
           }
           return updated;
         });
@@ -390,6 +546,8 @@ export function AIChat() {
     } finally {
       setIsLoading(false);
       setToolStatus(null);
+      scrollTargetIndexRef.current = null;
+      cancelAnimationFrame(scrollAnimRef.current);
       abortControllerRef.current = null;
       readerRef.current = null;
     }
@@ -398,6 +556,13 @@ export function AIChat() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     sendMessage(input.trim());
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (input.trim() && !isLoading) sendMessage(input.trim());
+    }
   };
 
   const suggestedQuestions = useMemo(() => {
@@ -429,30 +594,34 @@ export function AIChat() {
   }, [deploymentNames]);
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 p-4 sm:p-6">
+    <div className="relative flex flex-col flex-1 min-h-0 p-4 sm:p-6">
       <div
         ref={scrollContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto mb-6 flex flex-col pr-3 scrollbar-thin scrollbar-hide-mobile"
+        className="flex-1 min-h-0 overflow-y-auto mb-0 flex flex-col pr-3 pb-6 scrollbar-thin scrollbar-hide-mobile"
         style={{
           scrollbarWidth: 'thin',
           scrollbarColor: 'rgba(0,0,0,0.15) transparent',
+          overscrollBehavior: 'contain',
         }}
       >
         {messages.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-4">
+          <div className="flex-1 flex flex-col items-center justify-center px-4 fade-in">
             <p className="text-[var(--foreground-muted)] mb-2 sm:mb-3 text-xl sm:text-3xl font-medium text-center">Ask about your data</p>
             <p className="text-[var(--foreground-muted)]/60 mb-6 sm:mb-8 text-xs sm:text-sm text-center max-w-md">
               Check live readings, validate sensor accuracy against official weather, spot trends, or generate a full report for your paper.
             </p>
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3 justify-center w-full sm:w-auto">
-              {suggestedQuestions ? suggestedQuestions.map((q) => (
-                <button
+              {suggestedQuestions ? suggestedQuestions.map((q, i) => (
+                <motion.button
                   key={q}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05, duration: 0.2 }}
                   onClick={() => sendMessage(q)}
                   className="text-xs sm:text-sm px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-[var(--hover-bg)] text-[var(--foreground-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--foreground)] transition-colors text-center"
                 >
                   {q}
-                </button>
+                </motion.button>
               )) : (
                 <>
                   {['w-64', 'w-72', 'w-80', 'w-56'].map((w, i) => (
@@ -463,34 +632,54 @@ export function AIChat() {
             </div>
           </div>
         ) : (
-          <>
-            <MessageList
-              messages={messages}
-              isLoading={isLoading}
-              toolStatus={toolStatus}
-              copiedIndex={copiedIndex}
-              onCopy={copyToClipboard}
-              onDownload={downloadReport}
-            />
-            <div ref={messagesEndRef} />
-          </>
+          <MessageList
+            messages={messages}
+            isLoading={isLoading}
+            toolStatus={toolStatus}
+            copiedIndex={copiedIndex}
+            onCopy={copyToClipboard}
+            onDownload={downloadReport}
+          />
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="flex gap-3">
-        <input
-          type="text"
+      {/* Bottom fade gradient -- text fades into the input area */}
+      <div className="pointer-events-none h-16 -mt-12 relative z-[1] shrink-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, var(--glass-bg-strong) 75%)' }} />
+
+      <AnimatePresence>
+        {showScrollHint && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.15 }}
+            onClick={scrollToBottom}
+            className="absolute left-1/2 -translate-x-1/2 bottom-20 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--glass-bg-strong)] border border-[var(--glass-border)] text-xs text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors shadow-md backdrop-blur-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            Scroll for more
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      <form onSubmit={handleSubmit} className="flex gap-3 items-end">
+        <textarea
+          ref={textareaRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => { setInput(e.target.value); resizeTextarea(); }}
+          onKeyDown={handleKeyDown}
           placeholder="Ask about your data..."
           disabled={isLoading}
-          className="flex-1 px-6 py-3 rounded-full bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] transition-colors disabled:opacity-50"
+          rows={1}
+          className="flex-1 px-5 py-3 rounded-2xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] transition-colors disabled:opacity-50 resize-none max-h-32 leading-relaxed"
         />
         {isLoading ? (
           <button
             type="button"
             onClick={() => abortControllerRef.current?.abort()}
-            className="btn-glass px-6 py-3 text-sm font-semibold text-red-400"
+            className="btn-glass px-6 py-3 text-sm font-semibold text-red-400 shrink-0"
             style={{ borderColor: 'rgba(248, 113, 113, 0.3)' }}
           >
             Stop
@@ -499,7 +688,7 @@ export function AIChat() {
           <button
             type="submit"
             disabled={!input.trim()}
-            className="btn-glass px-6 py-3 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-glass px-6 py-3 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             Ask
           </button>

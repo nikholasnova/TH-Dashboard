@@ -25,6 +25,11 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Temp & Humidity Dashboard",
   description: "Real-time IoT temperature and humidity monitoring",
+  openGraph: {
+    title: "Temp & Humidity Dashboard",
+    description: "Real-time IoT temperature and humidity monitoring",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
@@ -44,6 +49,9 @@ export default function RootLayout({
       <body
         className={`${jetbrainsMono.variable} antialiased`}
       >
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-[var(--glass-bg)] focus:text-[var(--foreground)]">
+          Skip to main content
+        </a>
         <ThemeProvider>
           <AuthProvider>
             <DevicesProvider>

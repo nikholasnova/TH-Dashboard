@@ -167,8 +167,8 @@ body::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 80% 60% at 15% 20%, var(--orb-warm) 0%, transparent 70%),
-    radial-gradient(ellipse 70% 50% at 85% 80%, var(--orb-cool) 0%, transparent 70%);
+    radial-gradient(ellipse 110% 80% at 10% 15%, var(--orb-warm) 0%, transparent 50%),
+    radial-gradient(ellipse 100% 70% at 90% 85%, var(--orb-cool) 0%, transparent 50%);
   transition: background 0.3s ease;
 }
 
@@ -203,6 +203,9 @@ body::before {
 .btn-glass:active {
   transform: translateY(0);
   transition: all 0.1s ease;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.03);
 }
 
 /* Reserve space for bold text so buttons don't shift on active toggle */
@@ -240,6 +243,7 @@ body::before {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   border-color: var(--btn-border-hover);
+  border-bottom-color: var(--primary);
   background: var(--active-bg);
 }
 
@@ -296,7 +300,7 @@ nav.glass-card {
 
 @media (min-width: 640px) {
   .stat-value {
-    font-size: 3.25rem;
+    font-size: 2.25rem;
   }
 }
 
@@ -391,7 +395,7 @@ nav.glass-card {
 }
 
 .card-stats {
-  min-height: 320px;
+  min-height: 160px;
 }
 
 /* Breathing glow for live indicators */
@@ -425,6 +429,27 @@ nav.glass-card {
   animation: sparkline-draw 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
+/* Area chart fade-in */
+@keyframes area-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.area-fade-in {
+  animation: area-fade 0.8s 0.6s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* End-dot pulse */
+@keyframes dot-pulse {
+  0%, 100% { opacity: 0.7; r: 4; }
+  50% { opacity: 1; r: 5; }
+}
+
+.sparkline-end-dot {
+  animation: dot-pulse 2s ease-in-out infinite;
+  animation-delay: 1.2s;
+}
+
 /* Loading dot pulse animation */
 @keyframes dotPulse {
   0%, 80%, 100% {
@@ -451,7 +476,7 @@ nav.glass-card {
 
 @media (min-width: 640px) {
   .section-label {
-    font-size: 1.5rem;
+    font-size: 1rem;
   }
 }
 

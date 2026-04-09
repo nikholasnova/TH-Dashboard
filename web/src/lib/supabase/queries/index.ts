@@ -27,4 +27,5 @@ export {
   createDevice,
   updateDevice,
   deactivateDevice,
+  getDeviceAlertStates,
 } from './devices';

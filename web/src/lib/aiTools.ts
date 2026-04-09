@@ -104,9 +104,14 @@ export async function executeGetDeploymentStats(params: {
   return { stats: data || [], truncated };
 }
 
+const VALID_ORDER_BY = ['created_at', 'temperature', 'humidity'] as const;
+type OrderByField = typeof VALID_ORDER_BY[number];
+
 export async function executeGetReadings(params: {
   deployment_id: number;
   limit?: number;
+  order_by?: string;
+  ascending?: boolean;
 }): Promise<Reading[]> {
   const supabase = getServerClient();
 
@@ -124,12 +129,17 @@ export async function executeGetReadings(params: {
     throw new Error(`Deployment ${params.deployment_id} not found`);
   }
 
+  const orderField: OrderByField = VALID_ORDER_BY.includes(params.order_by as OrderByField)
+    ? (params.order_by as OrderByField)
+    : 'created_at';
+  const ascending = params.ascending ?? (orderField === 'created_at' ? false : true);
+
   let query = supabase
     .from('readings')
     .select('*')
     .eq('device_id', deployment.device_id)
     .gte('created_at', deployment.started_at)
-    .order('created_at', { ascending: false });
+    .order(orderField, { ascending });
 
   if (deployment.ended_at) {
     query = query.lte('created_at', deployment.ended_at);
@@ -148,15 +158,18 @@ export async function executeGetReadings(params: {
 }
 
 export async function executeGetDeviceStats(params: {
-  start: string;
-  end: string;
+  start?: string;
+  end?: string;
   device_id?: string;
 }): Promise<DeviceStats[]> {
   const supabase = getServerClient();
 
+  const end = params.end || new Date().toISOString();
+  const start = params.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
   const { data, error } = await supabase.rpc('get_device_stats', {
-    p_start: params.start,
-    p_end: params.end,
+    p_start: start,
+    p_end: end,
     p_device_id: params.device_id || null,
   });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
 import { Reading, Deployment, ChartSample, celsiusToFahrenheit } from '@/lib/supabase';
 import { STALE_THRESHOLD_MS } from '@/lib/constants';
 import { formatTime, formatDate, getTimeAgo, formatPercent } from '@/lib/format';
@@ -19,8 +19,47 @@ interface LiveReadingCardProps {
   sparklineData?: ChartSample[];
 }
 
+function monotoneCubicPaths(xs: number[], ys: number[]): string {
+  const n = xs.length;
+  if (n < 2) return '';
+  if (n === 2) return `M${xs[0].toFixed(1)},${ys[0].toFixed(1)} L${xs[1].toFixed(1)},${ys[1].toFixed(1)}`;
+
+  const dx: number[] = [];
+  const dy: number[] = [];
+  const m: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(xs[i + 1] - xs[i]);
+    dy.push(ys[i + 1] - ys[i]);
+    m.push(dy[i] / dx[i]);
+  }
+
+  const tangents: number[] = [m[0]];
+  for (let i = 1; i < n - 1; i++) {
+    if (m[i - 1] * m[i] <= 0) {
+      tangents.push(0);
+    } else {
+      tangents.push(2 / (1 / m[i - 1] + 1 / m[i]));
+    }
+  }
+  tangents.push(m[n - 2]);
+
+  let path = `M${xs[0].toFixed(1)},${ys[0].toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const seg = dx[i] / 3;
+    const cp1x = xs[i] + seg;
+    const cp1y = ys[i] + tangents[i] * seg;
+    const cp2x = xs[i + 1] - seg;
+    const cp2y = ys[i + 1] - tangents[i + 1] * seg;
+    path += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${xs[i + 1].toFixed(1)},${ys[i + 1].toFixed(1)}`;
+  }
+  return path;
+}
+
 function Sparkline({ data }: { data: ChartSample[] }) {
   const pathRef = useRef<SVGPathElement>(null);
+  const uid = useId();
+  const areaGradId = `${uid}-area`;
+  const strokeGradId = `${uid}-stroke`;
 
   useEffect(() => {
     const el = pathRef.current;
@@ -35,26 +74,48 @@ function Sparkline({ data }: { data: ChartSample[] }) {
   const max = Math.max(...values);
   const range = max - min || 1;
   const w = 1000;
-  const h = 40;
-  const pad = 2;
+  const h = 52;
+  const padY = 10;
+  const padX = 8;
 
-  let path = '';
+  const xs: number[] = [];
+  const ys: number[] = [];
   for (let i = 0; i < values.length; i++) {
-    const x = (i / (values.length - 1)) * w;
-    const y = h - pad - ((values[i] - min) / range) * (h - pad * 2);
-    path += i === 0 ? `M${x.toFixed(1)},${y.toFixed(1)}` : ` L${x.toFixed(1)},${y.toFixed(1)}`;
+    xs.push(padX + (i / (values.length - 1)) * (w - padX * 2));
+    ys.push(h - padY - ((values[i] - min) / range) * (h - padY * 2));
   }
 
+  const linePath = monotoneCubicPaths(xs, ys);
+  const areaPath = `${linePath} L${xs[xs.length - 1]},${h} L${xs[0]},${h} Z`;
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full" style={{ height: 40 }}>
-      <line x1="0" y1={h / 2} x2={w} y2={h / 2} stroke="var(--chart-grid)" strokeWidth="1" />
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full" style={{ height: 52 }}>
+      <defs>
+        {/* Vertical fade-out for area fill (strong at top, transparent at bottom) */}
+        <linearGradient id={areaGradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--chart-line)" stopOpacity="0.25" />
+          <stop offset="100%" stopColor="var(--chart-line)" stopOpacity="0" />
+        </linearGradient>
+        {/* Horizontal stroke gradient (fades in from left to right) */}
+        <linearGradient id={strokeGradId} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="var(--chart-line)" stopOpacity="0" />
+          <stop offset="30%" stopColor="var(--chart-line)" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="var(--chart-line)" stopOpacity="0.8" />
+        </linearGradient>
+      </defs>
+      {/* Area fill with vertical fade */}
+      <path
+        d={areaPath}
+        fill={`url(#${areaGradId})`}
+        className="area-fade-in"
+      />
+      {/* Main line with left-to-right fade */}
       <path
         ref={pathRef}
-        d={path}
+        d={linePath}
         fill="none"
-        stroke="var(--chart-line)"
+        stroke={`url(#${strokeGradId})`}
         strokeWidth="2"
-        opacity={0.7}
         vectorEffect="non-scaling-stroke"
         className="sparkline-animate"
       />
@@ -91,20 +152,20 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
 
   return (
     <div
-      className={`glass-card p-4 sm:p-8 card-reading h-full flex flex-col ${onClick ? 'cursor-pointer hover:border-[var(--btn-border-hover)] transition-all' : ''}`}
+      className={`glass-card p-4 sm:p-5 card-reading h-full flex flex-col ${onClick ? 'cursor-pointer hover:border-[var(--btn-border-hover)] transition-all' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">
         <div>
           {activeDeployment ? (
             <>
-              <h2 className="text-2xl sm:text-3xl font-bold text-[var(--foreground)]">{activeDeployment.name}</h2>
-              <span className="text-sm sm:text-xl text-[var(--foreground-muted)]">{deviceName} &bull; Started {getTimeAgo(activeDeployment.started_at)}</span>
+              <h2 className="text-2xl sm:text-2xl font-bold text-[var(--foreground)]">{activeDeployment.name}</h2>
+              <span className="text-sm text-[var(--foreground-muted)]">{deviceName} &bull; Started {getTimeAgo(activeDeployment.started_at)}</span>
             </>
           ) : (
             <>
-              <h2 className="text-xl sm:text-2xl font-medium text-[var(--foreground-secondary)]">No Active Deployment</h2>
-              <span className="text-sm sm:text-xl text-[var(--foreground-muted)]">{deviceName} ({deviceId})</span>
+              <h2 className="text-xl sm:text-xl font-medium text-[var(--foreground-secondary)]">No Active Deployment</h2>
+              <span className="text-sm text-[var(--foreground-muted)]">{deviceName} ({deviceId})</span>
             </>
           )}
         </div>
@@ -112,13 +173,13 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
           {reading && !isStale && (
             <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[var(--success)]/8">
               <div className="w-2 h-2 rounded-full bg-[var(--success)] animate-breathe" />
-              <span className="text-xs sm:text-base font-medium text-[var(--success)]">Live</span>
+              <span className="text-sm font-medium text-[var(--success)]">Live</span>
             </div>
           )}
           {reading && isStale && (
             <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[var(--error)]/8">
               <div className="w-2 h-2 rounded-full bg-[var(--error)]" />
-              <span className="text-xs sm:text-base font-medium text-[var(--error)]">Offline</span>
+              <span className="text-sm font-medium text-[var(--error)]">Offline</span>
             </div>
           )}
           {onRefresh && (
@@ -131,6 +192,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
               }}
               disabled={isRefreshing}
               className="p-3 rounded-full bg-[var(--hover-bg)] hover:bg-[var(--active-bg)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors disabled:opacity-50"
+              aria-label="Refresh readings"
               title={lastRefresh ? `Last updated: ${lastRefresh.toLocaleTimeString()}` : 'Refresh'}
             >
               <svg
@@ -147,60 +209,62 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
 
       {isLoading && !reading ? (
         <div className="animate-pulse">
-          <div className="grid grid-cols-2 gap-3 sm:gap-8 mb-4 sm:mb-8">
-            <div className="rounded-xl p-3 sm:p-6 bg-[var(--hover-bg)]">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-4">
+            <div className="rounded-xl p-3 sm:p-4 bg-[var(--hover-bg)]">
               <div className="h-5 w-24 bg-[var(--hover-bg)] rounded mb-2 sm:mb-3 opacity-50" />
               <div className="h-10 sm:h-12 w-28 bg-[var(--hover-bg)] rounded mb-1 sm:mb-2 opacity-50" />
               <div className="h-5 w-16 bg-[var(--hover-bg)] rounded opacity-50" />
               <div className="hidden sm:block h-4 w-36 bg-[var(--hover-bg)] rounded mt-2 opacity-50" />
             </div>
-            <div className="rounded-xl p-3 sm:p-6 bg-[var(--card-highlight)]">
+            <div className="rounded-xl p-3 sm:p-4 bg-[var(--card-highlight)]">
               <div className="h-5 w-20 bg-[var(--hover-bg)] rounded mb-2 sm:mb-3 opacity-50" />
               <div className="h-10 sm:h-12 w-24 bg-[var(--hover-bg)] rounded mb-1 sm:mb-2 opacity-50" />
               <div className="hidden sm:block h-4 w-36 bg-[var(--hover-bg)] rounded mt-2 opacity-50" />
             </div>
           </div>
-          <div className="mb-4 -mx-2" style={{ height: 40 }}>
+          <div className="mb-4 -mx-2" style={{ height: 52 }}>
             <div className="h-full w-full bg-[var(--hover-bg)] rounded opacity-30" />
           </div>
           <div className="h-5 w-44 bg-[var(--hover-bg)] rounded opacity-50" />
         </div>
       ) : reading && !isStale ? (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:gap-8 mb-4 sm:mb-8">
-            <div className="rounded-xl p-3 sm:p-6 bg-[var(--hover-bg)]">
-              <p className="text-xs sm:text-xl text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sm:mb-3">Temperature</p>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-4">
+            <div className="rounded-xl p-3 sm:p-4 bg-[var(--hover-bg)] flex flex-col">
+              <p className="text-sm text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sm:mb-3">Temperature</p>
               <p className="stat-value">
                 {celsiusToFahrenheit(reading.temperature).toFixed(1)}
-                <span className="text-base sm:text-3xl text-[var(--foreground-muted)] font-normal ml-1">°F</span>
+                <span className="text-base sm:text-xl text-[var(--foreground-muted)] font-normal ml-1">°F</span>
               </p>
-              <p className="text-xs sm:text-xl text-[var(--foreground-muted)] mt-1 sm:mt-2">
+              <p className="text-sm text-[var(--foreground-muted)] mt-1 sm:mt-2">
                 {reading.temperature.toFixed(1)}°C
               </p>
+              <div className="flex-1" />
               {freshWeather && (() => {
                 const sensorF = celsiusToFahrenheit(reading.temperature);
                 const weatherF = celsiusToFahrenheit(freshWeather.temperature);
                 const pct = computePercentError(sensorF, weatherF);
                 const pctColor = pct != null ? (pct < 3 ? 'var(--success)' : pct < 5 ? 'var(--warning)' : 'var(--error)') : 'var(--foreground-muted)';
                 return (
-                  <p className="hidden sm:block text-xs sm:text-base mt-2 text-[var(--foreground-muted)]">
+                  <p className="hidden sm:block text-sm mt-2 text-[var(--foreground-muted)]">
                     vs Official: {weatherF.toFixed(1)}°F{' '}
                     <span style={{ color: pctColor }} className="font-medium">({pct != null ? `${formatPercent(pct)} Error` : '—'})</span>
                   </p>
                 );
               })()}
             </div>
-            <div className="rounded-xl p-3 sm:p-6 bg-[var(--card-highlight)]">
-              <p className="text-xs sm:text-xl text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sm:mb-3">Humidity</p>
+            <div className="rounded-xl p-3 sm:p-4 bg-[var(--card-highlight)] flex flex-col">
+              <p className="text-sm text-[var(--foreground-muted)] uppercase tracking-wider mb-2 sm:mb-3">Humidity</p>
               <p className="stat-value">
                 {reading.humidity.toFixed(1)}
-                <span className="text-base sm:text-3xl text-[var(--foreground-muted)] font-normal ml-1">%</span>
+                <span className="text-base sm:text-xl text-[var(--foreground-muted)] font-normal ml-1">%</span>
               </p>
+              <div className="flex-1" />
               {freshWeather && (() => {
                 const pct = computePercentError(reading.humidity, freshWeather.humidity);
                 const pctColor = pct != null ? (pct < 3 ? 'var(--success)' : pct < 5 ? 'var(--warning)' : 'var(--error)') : 'var(--foreground-muted)';
                 return (
-                  <p className="hidden sm:block text-xs sm:text-base mt-2 text-[var(--foreground-muted)]">
+                  <p className="hidden sm:block text-sm mt-2 text-[var(--foreground-muted)]">
                     vs Official: {freshWeather.humidity.toFixed(1)}%{' '}
                     <span style={{ color: pctColor }} className="font-medium">({pct != null ? `${formatPercent(pct)} Error` : '—'})</span>
                   </p>
@@ -209,17 +273,17 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
             </div>
           </div>
 
-          <div className="mb-4 -mx-2" style={{ height: 40 }}>
+          <div className="mb-4 -mx-2" style={{ height: 52 }}>
             {sparklineData && sparklineData.length >= 2 && (
               <Sparkline data={sparklineData} />
             )}
           </div>
 
-          <div className="text-sm sm:text-lg text-[var(--foreground-muted)]">
+          <div className="text-sm sm:text-sm text-[var(--foreground-muted)]">
             {formatDate(reading.created_at)} at {formatTime(reading.created_at)}
           </div>
           {activeDeployment?.zip_code && (
-            <div className="text-xs sm:text-base mt-1">
+            <div className="text-sm mt-1">
               <WeatherStatus weatherReading={weatherReading} referenceMs={referenceTimestampMs} activeDeployment={activeDeployment} />
             </div>
           )}
@@ -237,27 +301,27 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
               <line x1="12" y1="20" x2="12.01" y2="20" />
             </svg>
           </div>
-          <p className="text-lg sm:text-2xl font-medium text-[var(--error)] mb-1">Device Offline</p>
-          <p className="text-sm sm:text-lg text-[var(--foreground-muted)]">Last seen {getTimeAgo(reading.created_at)}</p>
+          <p className="text-lg sm:text-xl font-medium text-[var(--error)] mb-1">Device Offline</p>
+          <p className="text-sm sm:text-sm text-[var(--foreground-muted)]">Last seen {getTimeAgo(reading.created_at)}</p>
           {activeDeployment?.zip_code && (
-            <p className="text-xs sm:text-base mt-1">
+            <p className="text-sm mt-1">
               <WeatherStatus weatherReading={weatherReading} referenceMs={referenceTimestampMs} activeDeployment={activeDeployment} />
             </p>
           )}
           <div className="grid grid-cols-2 gap-6 mt-5 w-full opacity-50">
             <div className="text-center">
-              <p className="text-xs sm:text-base text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Last Temp</p>
-              <p className="text-base sm:text-xl text-[var(--foreground-secondary)]">{celsiusToFahrenheit(reading.temperature).toFixed(1)}°F</p>
+              <p className="text-sm text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Last Temp</p>
+              <p className="text-base sm:text-base text-[var(--foreground-secondary)]">{celsiusToFahrenheit(reading.temperature).toFixed(1)}°F</p>
             </div>
             <div className="text-center">
-              <p className="text-xs sm:text-base text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Last Humidity</p>
-              <p className="text-base sm:text-xl text-[var(--foreground-secondary)]">{reading.humidity.toFixed(1)}%</p>
+              <p className="text-sm text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Last Humidity</p>
+              <p className="text-base sm:text-base text-[var(--foreground-secondary)]">{reading.humidity.toFixed(1)}%</p>
             </div>
           </div>
         </div>
       ) : (
         <div className="flex flex-col justify-center items-center flex-1">
-          <p className="text-base sm:text-xl text-[var(--foreground-secondary)] font-medium text-center">No data available</p>
+          <p className="text-base sm:text-base text-[var(--foreground-secondary)] font-medium text-center">No data available</p>
           <p className="text-sm text-[var(--foreground-muted)] mt-2 text-center">Waiting for sensor...</p>
         </div>
       )}

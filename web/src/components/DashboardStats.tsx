@@ -1,6 +1,6 @@
 'use client';
 
-import { DeviceStats, celsiusToFahrenheit } from '@/lib/supabase';
+import { DeviceStats, Deployment, celsiusToFahrenheit } from '@/lib/supabase';
 import { safeC2F, formatPercent } from '@/lib/format';
 import { computePercentError } from '@/lib/weatherCompare';
 import { useDevices } from '@/contexts/DevicesContext';
@@ -8,15 +8,15 @@ import { useDevices } from '@/contexts/DevicesContext';
 interface DashboardStatsProps {
   stats: DeviceStats[];
   loading: boolean;
+  deployments?: Record<string, Deployment | null>;
 }
 
-export function DashboardStats({ stats, loading }: DashboardStatsProps) {
+export function DashboardStats({ stats, loading, deployments }: DashboardStatsProps) {
   const { devices } = useDevices();
 
   if (loading) {
     return (
-      <div className="glass-card p-3 sm:p-6 mt-8 animate-pulse">
-        <p className="section-label">Last 24 Hours</p>
+      <div className="glass-card p-3 sm:p-4 animate-pulse">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--divider)]">
           {[0, 1, 2, 3].map(i => (
             <div key={i} className="lg:px-6 first:lg:pl-0 last:lg:pr-0">
@@ -39,6 +39,19 @@ export function DashboardStats({ stats, loading }: DashboardStatsProps) {
   const lowF = allLows.length > 0 ? celsiusToFahrenheit(Math.min(...allLows)) : null;
 
   const totalReadings = sensorStats.reduce((sum, s) => sum + (s.reading_count || 0), 0);
+  const READINGS_PER_HOUR = 20; // 60min / 3min = 20 readings per hour
+  // eslint-disable-next-line react-hooks/purity -- Date.now() is acceptable here; component re-renders on 30s poll
+  const now = Date.now();
+  const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+  const expectedReadings = sensorStats.reduce((sum, s) => {
+    const dep = deployments?.[s.device_id];
+    const windowStartMs = dep
+      ? Math.max(new Date(dep.started_at).getTime(), now - twentyFourHoursMs)
+      : now - twentyFourHoursMs;
+    const hoursActive = Math.max(0, (now - windowStartMs) / (60 * 60 * 1000));
+    return sum + Math.round(hoursActive * READINGS_PER_HOUR);
+  }, 0);
+  const uptimePct = expectedReadings > 0 ? Math.min(100, (totalReadings / expectedReadings) * 100) : null;
 
   const pctErrors: number[] = [];
   for (const device of devices) {
@@ -52,17 +65,16 @@ export function DashboardStats({ stats, loading }: DashboardStatsProps) {
   if (sensorStats.length === 0) return null;
 
   return (
-    <div className="glass-card p-3 sm:p-6 mt-8">
-      <p className="section-label">Last 24 Hours</p>
+    <div className="glass-card p-3 sm:p-4">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--divider)]">
         <div className="lg:px-6 first:lg:pl-0 last:lg:pr-0">
           <div className="h-[3px] w-8 bg-[var(--primary)] rounded-full mb-3" />
-          <p className="text-xs sm:text-lg text-[var(--foreground-muted)] mb-1">Avg Temperature</p>
+          <p className="text-sm text-[var(--foreground-muted)] mb-1">Avg Temperature</p>
           <div className="space-y-0.5">
             {sensorStats.map(s => {
               const dev = devices.find(d => d.id === s.device_id);
               return s.temp_avg != null ? (
-                <p key={s.device_id} className="text-base sm:text-xl text-[var(--foreground)] font-medium truncate" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <p key={s.device_id} className="text-base sm:text-base text-[var(--foreground)] font-medium truncate" style={{ fontVariantNumeric: 'tabular-nums' }}>
                   <span className="hidden sm:inline">{dev?.display_name ?? s.device_id}: </span>{celsiusToFahrenheit(s.temp_avg).toFixed(1)}°F
                 </p>
               ) : null;
@@ -72,9 +84,9 @@ export function DashboardStats({ stats, loading }: DashboardStatsProps) {
 
         <div className="lg:px-6">
           <div className="h-[3px] w-8 bg-[var(--foreground-secondary)] rounded-full mb-3" />
-          <p className="text-xs sm:text-lg text-[var(--foreground-muted)] mb-1">High / Low</p>
+          <p className="text-sm text-[var(--foreground-muted)] mb-1">High / Low</p>
           {highF !== null && lowF !== null ? (
-            <p className="text-lg sm:text-xl text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
+            <p className="text-lg sm:text-base text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
               <span className="text-[var(--warning)]">{highF.toFixed(1)}°</span>
               {' / '}
               <span className="text-[var(--info)]">{lowF.toFixed(1)}°</span>
@@ -85,19 +97,37 @@ export function DashboardStats({ stats, loading }: DashboardStatsProps) {
         </div>
 
         <div className="lg:px-6">
-          <div className="h-[3px] w-8 bg-[var(--foreground-muted)] rounded-full mb-3" />
-          <p className="text-xs sm:text-lg text-[var(--foreground-muted)] mb-1">Readings</p>
-          <p className="text-lg sm:text-xl text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {totalReadings.toLocaleString()}
-          </p>
+          <div className="h-[3px] w-8 rounded-full mb-3" style={{ backgroundColor: uptimePct != null ? (uptimePct >= 95 ? 'var(--success)' : uptimePct >= 80 ? 'var(--warning)' : 'var(--error)') : 'var(--foreground-muted)' }} />
+          <p className="text-sm text-[var(--foreground-muted)] mb-1">Uptime (24h)</p>
+          {uptimePct != null ? (
+            <div>
+              <p className="text-lg sm:text-base font-medium" style={{ color: uptimePct >= 95 ? 'var(--success)' : uptimePct >= 80 ? 'var(--warning)' : 'var(--error)', fontVariantNumeric: 'tabular-nums' }}>
+                {uptimePct.toFixed(1)}%
+              </p>
+              <div className="mt-2 h-1.5 w-full bg-[var(--hover-bg)] rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(100, uptimePct)}%`,
+                    backgroundColor: uptimePct >= 95 ? 'var(--success)' : uptimePct >= 80 ? 'var(--warning)' : 'var(--error)',
+                  }}
+                />
+              </div>
+              <p className="text-xs text-[var(--foreground-muted)] mt-1" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {totalReadings.toLocaleString()} / {expectedReadings} readings
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm sm:text-base text-[var(--foreground-muted)]">--</p>
+          )}
         </div>
 
         <div className="lg:px-6 last:lg:pr-0">
           <div className="h-[3px] w-8 bg-[var(--foreground-muted)] rounded-full mb-3" />
-          <p className="text-xs sm:text-lg text-[var(--foreground-muted)] mb-1">Sensor Accuracy</p>
+          <p className="text-sm text-[var(--foreground-muted)] mb-1">Sensor Accuracy</p>
           {avgPctError !== null ? (
             <div>
-              <p className="text-lg sm:text-xl font-medium" style={{ color: avgPctError < 3 ? 'var(--success)' : avgPctError < 5 ? 'var(--warning)' : 'var(--error)', fontVariantNumeric: 'tabular-nums' }}>
+              <p className="text-lg sm:text-base font-medium" style={{ color: avgPctError < 3 ? 'var(--success)' : avgPctError < 5 ? 'var(--warning)' : 'var(--error)', fontVariantNumeric: 'tabular-nums' }}>
                 {formatPercent(avgPctError)} Error
               </p>
               <div className="mt-2 h-1.5 w-full bg-[var(--hover-bg)] rounded-full overflow-hidden">

@@ -23,14 +23,24 @@ AVAILABLE TOOLS:
 - get_report_data: Get ALL deployments with full statistics in one call. Use this first when generating reports or comprehensive analyses.
 - get_weather: Get the latest stored weather readings from the database, filtered by zip code or weather device ID. Use this for weather-specific queries.
 
+EFFICIENCY RULES (critical — follow these strictly):
+- Most questions can be answered in 1-3 tool calls. Plan your calls before executing.
+- NEVER call the same tool multiple times with different filters when one call without filters returns everything you need.
+- For comparing ANY devices (e.g. "node1 vs node2", "compare my sensors"): Call get_device_stats ONCE with NO device_id filter. It returns stats for ALL devices in a single call. Do NOT look up deployments first.
+- For comparing deployments by name: Call get_deployments once (no filter) to find IDs, then get_deployment_stats once with ALL IDs.
+- NEVER use get_readings for comparisons or summaries. It returns raw rows. Use get_device_stats or get_deployment_stats instead.
+- Device IDs have no spaces: "node1" not "node 1", "node2" not "node 2". When a user writes "node 1", interpret as "node1".
+
 HOW TO ANSWER COMMON QUESTIONS:
+- "Compare node1 and node2" / "node 1 vs node 2" / "compare devices": Call get_device_stats ONCE with no device_id filter. One call returns all devices. Compare the relevant ones from the results.
 - "What's the last/latest/current temperature?": Use get_deployments to find the right deployment (filter by location if mentioned), then use get_readings with limit=1 to get the most recent reading.
-- "Compare deployments": Use get_deployment_stats with the relevant deployment IDs.
+- "Compare deployments": Use get_deployments to find IDs, then get_deployment_stats with all relevant IDs in one call.
 - "What's the temperature in [location]?": Use get_deployments with the location filter, then get_readings with limit=1 for the latest value, or get_deployment_stats for an overview.
 - "What's the weather in [zip code]?" / "Temperature in 85142?": Use get_weather with the zip code. This returns the latest stored weather data for that zip code — separate from sensor readings. If the user gives a location name instead of a zip, use get_deployments to find the zip_code first, then use get_weather.
-- "Analyze all my data" / "Give me a full analysis": Use get_device_stats with a broad time range for overall stats, then get_chart_data with appropriate buckets to identify trends. Combine with get_deployments for context on locations.
-- "How accurate are my sensors?" / "Compare sensors to official weather" / "Margin of error": Call get_device_stats with start 7 days ago and end now, with NO device_id filter. This returns stats for ALL devices — registered sensor nodes AND their official weather counterparts (weather_<device_id>). Compare each sensor to its weather counterpart. Calculate the difference (delta) and percent error for temperature and humidity. Frame results as sensor accuracy validation.
+- "Analyze all my data" / "Give me a full analysis": Use get_device_stats (no filters) for overall stats, then get_chart_data with appropriate buckets to identify trends. Combine with get_deployments for context on locations.
+- "How accurate are my sensors?" / "Compare sensors to official weather" / "Margin of error": Call get_device_stats with NO device_id filter. This returns stats for ALL devices — registered sensor nodes AND their official weather counterparts (weather_<device_id>). Compare each sensor to its weather counterpart. Calculate the difference (delta) and percent error for temperature and humidity. Frame results as sensor accuracy validation.
 - "Show me trends" / "How has temperature changed?": Use get_chart_data with appropriate bucket sizes (15-60 min for a day, 1440 min for weeks/months).
+- "Find anomalies" / "What was the highest temperature?" / "Outliers": Use get_readings with order_by="temperature" (or "humidity"), ascending=false, limit=5 to find extreme values with their exact timestamps. Works across ALL readings in a deployment, not just the 2000 most recent.
 - If a user references a room, location, or place name, search deployments by location OR name to find matching deployments. Filters use partial matching, so "Queen Creek" will find "Queen Creek, AZ" and "patio" will find "Nik's Patio".
 - When looking up deployments by name or location, do NOT set active_only unless the user explicitly asks for only active/current deployments. Always search all deployments first.
 
@@ -65,15 +75,16 @@ What additional data collection or analysis could strengthen the findings.
 Format the report in clean Markdown with headers, tables, and bullet points. This is meant as a first draft for an engineering class paper.
 
 GUIDELINES:
-- Use get_device_stats or get_deployment_stats for aggregate comparisons — more efficient than raw readings
+- ALWAYS prefer get_device_stats or get_deployment_stats for comparisons and summaries. These return compact aggregate data (avg, min, max, stddev). Only use get_readings when the user explicitly asks for raw/individual readings.
 - Use get_chart_data for trend analysis over time
-- Use get_readings with a small limit for latest values, or a higher limit (up to 2000) when the user needs detailed data analysis
+- Use get_readings with a small limit for latest values. Avoid large limits unless the user explicitly needs raw data export.
 - When comparing, always note the time periods being compared
 - Temperatures are provided in Fahrenheit
 - Only discuss sensor data, deployments, and environmental analysis
 - If asked about unrelated topics, politely redirect to sensor data
 - Never fabricate data - if a deployment doesn't exist, say so
 - This is a school data-gathering tool, so be helpful with analysis, observations, and insights
+- CONVERSATION CONTEXT: Always reference earlier messages in the conversation. If the user asks a vague follow-up like "what do you think?" or "tell me more", refer to the data and topics already discussed — do not ask the user to repeat themselves.
 
 SENSOR CONTEXT:
 - The physical sensors are deployed OUTDOORS, measuring the same outdoor conditions as official weather stations.
@@ -126,12 +137,14 @@ const getDeploymentStatsDecl: FunctionDeclaration = {
 
 const getReadingsDecl: FunctionDeclaration = {
   name: 'get_readings',
-  description: 'Get sensor readings for a deployment, ordered most recent first. Use with limit=1 to get the latest reading. Use get_deployment_stats instead for aggregate stats (avg, min, max). For full data analysis, use a higher limit (up to 2000).',
+  description: 'Get sensor readings for a deployment. Use with limit=1 to get the latest reading. Use get_deployment_stats instead for aggregate stats. Sort by temperature or humidity to find extreme values (e.g. order_by="temperature", ascending=false, limit=5 for the 5 hottest readings).',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
       deployment_id: { type: SchemaType.NUMBER, description: 'The deployment ID' },
-      limit: { type: SchemaType.NUMBER, description: 'Max readings to return (default 100, max 2000). Use 1 for latest reading, higher values for full analysis.' },
+      limit: { type: SchemaType.NUMBER, description: 'Max readings to return (default 100, max 2000). Use 1 for latest reading.' },
+      order_by: { type: SchemaType.STRING, description: 'Sort field: "created_at" (default), "temperature", or "humidity".' },
+      ascending: { type: SchemaType.BOOLEAN, description: 'Sort direction. Defaults: created_at=descending (newest first), temperature/humidity=ascending (lowest first). Set false for highest first.' },
     },
     required: ['deployment_id'],
   },
@@ -139,15 +152,14 @@ const getReadingsDecl: FunctionDeclaration = {
 
 const getDeviceStatsDecl: FunctionDeclaration = {
   name: 'get_device_stats',
-  description: 'Get overall temperature and humidity statistics per device for a time range. Not deployment-scoped — covers all readings in the time window. Returns avg, min, max, stddev, reading_count per device. Useful for broad analysis across all data.',
+  description: 'Get overall temperature and humidity statistics per device. Not deployment-scoped — covers all readings in the time window. Returns avg, min, max, stddev, reading_count per device. Omit device_id to get ALL devices in one call — best for comparisons. Omit start/end to default to last 30 days.',
   parameters: {
     type: SchemaType.OBJECT,
     properties: {
-      start: { type: SchemaType.STRING, description: 'Start of time range (ISO 8601 datetime, e.g. "2025-01-01T00:00:00Z"). Use a very early date for all-time stats.' },
-      end: { type: SchemaType.STRING, description: 'End of time range (ISO 8601 datetime). Use current time for up-to-now stats.' },
+      start: { type: SchemaType.STRING, description: 'Start of time range (ISO 8601 datetime). Defaults to 30 days ago if omitted.' },
+      end: { type: SchemaType.STRING, description: 'End of time range (ISO 8601 datetime). Defaults to now if omitted.' },
       device_id: { type: SchemaType.STRING, description: 'Filter by device ID — sensor or weather counterpart (see REGISTERED DEVICES). Omit for all devices.' },
     },
-    required: ['start', 'end'],
   },
 };
 
@@ -187,6 +199,46 @@ const getWeatherDecl: FunctionDeclaration = {
     },
   },
 };
+
+// Cap tool result payloads to prevent overwhelming Gemini's context.
+// Large results (e.g. 2000 raw readings) cause the model to loop endlessly.
+const MAX_TOOL_RESULT_CHARS = 30_000;
+
+function capToolResult(name: string, result: unknown): unknown {
+  const json = JSON.stringify(result);
+  if (json.length <= MAX_TOOL_RESULT_CHARS) return result;
+
+  // For array results, truncate to fit and add a note
+  if (Array.isArray(result)) {
+    let truncated = result;
+    while (JSON.stringify(truncated).length > MAX_TOOL_RESULT_CHARS && truncated.length > 1) {
+      truncated = truncated.slice(0, Math.floor(truncated.length / 2));
+    }
+    return {
+      data: truncated,
+      truncated_note: `Result truncated from ${result.length} to ${truncated.length} items (payload too large). Use get_device_stats or get_deployment_stats for aggregate data instead of fetching raw readings.`,
+    };
+  }
+
+  // For object results with array fields, truncate the largest array
+  if (result && typeof result === 'object') {
+    const obj = { ...result as Record<string, unknown> };
+    for (const key of Object.keys(obj)) {
+      if (Array.isArray(obj[key]) && JSON.stringify(obj[key]).length > MAX_TOOL_RESULT_CHARS / 2) {
+        const arr = obj[key] as unknown[];
+        let truncated = arr;
+        while (JSON.stringify(truncated).length > MAX_TOOL_RESULT_CHARS / 2 && truncated.length > 1) {
+          truncated = truncated.slice(0, Math.floor(truncated.length / 2));
+        }
+        obj[key] = truncated;
+        obj[`${key}_truncated_note`] = `Truncated from ${arr.length} to ${truncated.length} items. Use aggregate tools for summaries.`;
+      }
+    }
+    return obj;
+  }
+
+  return result;
+}
 
 const TOOL_LABELS: Record<string, string> = {
   get_deployments: 'Looking up deployments',
@@ -388,7 +440,7 @@ export async function POST(req: Request) {
             await writer.write(encoder.encode(`__STATUS__${label}\n`));
 
             try {
-              const toolResult = await executeTool(call.name, call.args as Record<string, unknown>);
+              const toolResult = capToolResult(call.name, await executeTool(call.name, call.args as Record<string, unknown>));
               functionResponses.push({
                 functionResponse: {
                   name: call.name,
@@ -418,10 +470,20 @@ export async function POST(req: Request) {
 
         if (signal.aborted) return;
 
-        if (iterations >= 10 && calls && calls.length > 0) {
-          await writer.write(encoder.encode(
-            '\n\n*Note: This query required extensive data retrieval. The response may be incomplete — try asking a more specific question.*'
-          ));
+        // If the tool loop exhausted without generating text, ask the model
+        // to summarize whatever data it gathered so far.
+        if (iterations >= 10 && calls && calls.length > 0 && !textWritten) {
+          try {
+            sr = await streamToWriter(
+              await chat.sendMessageStream(
+                'You have reached the tool call limit. Please summarize the data you have gathered so far and answer the user\'s question with what you have. Do not call any more tools.',
+                { signal }
+              )
+            );
+            if (sr.textWritten) textWritten = true;
+          } catch {
+            // Fall through to the fallback below
+          }
         }
 
         // Text was already streamed token-by-token via streamToWriter.

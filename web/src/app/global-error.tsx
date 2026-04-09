@@ -39,20 +39,37 @@ export default function GlobalError({
             <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
               {error.message || 'A critical error occurred.'}
             </p>
-            <button
-              onClick={reset}
-              style={{
-                background: 'rgba(0,0,0,0.05)',
-                border: '1px solid rgba(0,0,0,0.1)',
-                borderRadius: '0.75rem',
-                color: '#0f172a',
-                padding: '0.5rem 1.5rem',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-              }}
-            >
-              Try again
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem' }}>
+              <button
+                onClick={reset}
+                style={{
+                  background: 'rgba(0,0,0,0.05)',
+                  border: '1px solid rgba(0,0,0,0.1)',
+                  borderRadius: '0.75rem',
+                  color: '#0f172a',
+                  padding: '0.5rem 1.5rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                }}
+              >
+                Try again
+              </button>
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- global-error renders outside the Next.js app shell, Link is unavailable */}
+              <a
+                href="/"
+                style={{
+                  background: 'rgba(0,0,0,0.05)',
+                  border: '1px solid rgba(0,0,0,0.1)',
+                  borderRadius: '0.75rem',
+                  color: '#0f172a',
+                  padding: '0.5rem 1.5rem',
+                  textDecoration: 'none',
+                  fontSize: '0.875rem',
+                }}
+              >
+                Go home
+              </a>
+            </div>
           </div>
         </div>
       </body>

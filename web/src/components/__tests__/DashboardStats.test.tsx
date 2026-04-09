@@ -67,7 +67,7 @@ describe('DashboardStats', () => {
   it('renders reading count', () => {
     const stat = { ...baseStat, reading_count: 1234 };
     render(<DashboardStats stats={[stat]} loading={false} />);
-    expect(screen.getByText('1,234')).toBeInTheDocument();
+    expect(screen.getByText(/1,234/)).toBeInTheDocument();
   });
 
   it('shows "No weather data" when no weather stats', () => {

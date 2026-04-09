@@ -56,7 +56,7 @@ describe('AIChat', () => {
 
     expect(await screen.findByText('Hello from Kelvin')).toBeInTheDocument();
     expect(screen.queryByText(/__STATUS__/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Fetching readings/)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(/Fetching readings/)).not.toBeInTheDocument());
   });
 
   it('shows friendly error text for 429 responses', async () => {

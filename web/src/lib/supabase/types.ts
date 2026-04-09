@@ -58,6 +58,13 @@ export interface Device {
   updated_at: string;
 }
 
+export interface DeviceAlertState {
+  device_id: string;
+  status: 'ok' | 'missing' | 'stale' | 'anomaly';
+  last_seen_at: string | null;
+  updated_at: string;
+}
+
 export interface DeploymentStats {
   deployment_id: number;
   deployment_name?: string;

@@ -1,5 +1,5 @@
 import { supabase } from '../client';
-import type { Device } from '../types';
+import type { Device, DeviceAlertState } from '../types';
 
 export async function getDevices(activeOnly = true): Promise<Device[]> {
   if (!supabase) return [];
@@ -53,6 +53,19 @@ export async function updateDevice(
     throw error;
   }
   return data;
+}
+
+export async function getDeviceAlertStates(deviceIds: string[]): Promise<DeviceAlertState[]> {
+  if (!supabase || deviceIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('device_alert_state')
+    .select('device_id, status, last_seen_at, updated_at')
+    .in('device_id', deviceIds);
+  if (error) {
+    console.error('Error fetching device alert states:', error);
+    return [];
+  }
+  return data || [];
 }
 
 export async function deactivateDevice(id: string): Promise<boolean> {

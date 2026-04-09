@@ -164,7 +164,7 @@ export default function ComparePage() {
             <span className="text-sm text-[var(--foreground)]">
               Showing: {activeDeployment.name} ({activeDeployment.location})
             </span>
-            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]">✕</button>
+            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]" aria-label="Clear deployment filter">✕</button>
           </div>
         )}
 
