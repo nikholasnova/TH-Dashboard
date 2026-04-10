@@ -8,7 +8,7 @@
 
 A full-stack IoT platform for collecting temperature and humidity from Arduino sensor nodes, comparing readings against local weather references, and analyzing the data through charts, statistics, and AI. Built as an educational project for an intro engineering class.
 
-Arduino Uno R4 WiFi nodes with DHT20 sensors post averaged readings to Supabase every 3 minutes. The system supports any number of sensor nodes — devices are registered and managed through the web dashboard, so adding a new node is just flashing a sketch and clicking "Add Device." A Vercel cron fetches weather every 15 minutes from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, deployment management, in-browser Python analysis via Pyodide, and an AI chat powered by Gemini.
+Arduino Uno R4 WiFi nodes (system is microcontroller agnostic, any wifi capable dev board will work) with DHT20 sensors post averaged readings to Supabase every 3 minutes. The system supports any number of sensor nodes — devices are registered and managed through the web dashboard, so adding a new node is just flashing a sketch and clicking "Add Device." A Vercel cron fetches weather every 15 minutes from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, deployment management, in-browser Python analysis via Pyodide, and an AI chat powered by Gemini.
 
 ## Architecture
 
@@ -88,19 +88,11 @@ High-coverage areas: Supabase query layer (devices, readings, deployments), API 
 
 | Doc | Contents |
 |-----|----------|
-| [SETUP.md](SETUP.md) | Local dev, Vercel deploy, env vars, Arduino setup, troubleshooting |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Data flow, schema, RPC functions, trust boundaries, failure modes |
+| [SETUP.md](docs/SETUP.md) | Local dev, Vercel deploy, env vars, Arduino setup, troubleshooting |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Data flow, schema, RPC functions, trust boundaries, failure modes |
 | [arduino/sensor_node/README.md](arduino/sensor_node/README.md) | Firmware, wiring, hardware notes |
-| [DESIGN.md](DESIGN.md) | Design decisions, rationale, challenges, retrospective |
-| [TESTING.md](TESTING.md) | Test suite, running tests, coverage |
-
-## Hardware
-
-Arduino Uno R4 WiFi with DHT20 sensor (I2C) and 16x2 LCD on a breadboard. The LCD displays live temperature and humidity; the board uploads 3-minute averaged readings to Supabase over HTTPS.
-
-![Sensor node on breadboard](docs/images/IMG_7599.jpg)
-
-![Close-up: LCD showing live readings](docs/images/IMG_7600.jpg)
+| [DESIGN.md](docs/DESIGN.md) | Design decisions, rationale, challenges, retrospective |
+| [TESTING.md](docs/TESTING.md) | Test suite, running tests, coverage |
 
 ## Screenshots
 
