@@ -13,6 +13,7 @@ const POSTHOG_HOST =
 if (typeof window !== 'undefined' && POSTHOG_KEY) {
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
+    ui_host: 'https://us.posthog.com',
     capture_pageview: false, // we handle this manually for App Router
     capture_pageleave: true,
     autocapture: true,
