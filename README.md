@@ -104,9 +104,21 @@ Arduino Uno R4 WiFi with DHT20 sensor (I2C) and 16x2 LCD on a breadboard. The LC
 
 ## Screenshots
 
-![Dashboard — live readings, 24h stats, sparklines](docs/images/Screenshot%202026-02-20%20at%2010.07.28.png)
+![Dashboard — live readings with 3 nodes, 24h stats, sparklines](docs/images/Screenshot%202026-04-10%20at%2009.49.33%201.png)
 
-![Charts — 24h temperature trend with time-range and device filters](docs/images/Screenshot%202026-02-20%20at%2010.08.02.png)
+![Charts — 24h temperature trend with time-range and device filters](docs/images/Screenshot%202026-04-10%20at%2009.49.48.png)
+
+![Compare — side-by-side device stats, weather % error](docs/images/Screenshot%202026-04-10%20at%2009.50.00.png)
+
+![Analysis — descriptive statistics and distribution histograms via Pyodide](docs/images/Screenshot%202026-04-10%20at%2009.50.30.png)
+
+![Deployments — manage placement windows, locations, and ZIP codes](docs/images/Screenshot%202026-04-10%20at%2009.50.42.png)
+
+![AI Chat — Kelvin AI open with suggested prompts](docs/images/Screenshot%202026-04-10%20at%2009.50.57.png)
+
+![AI Chat — streaming response with live data comparison](docs/images/Screenshot%202026-04-10%20at%2009.51.04.png)
+
+![AI Chat — completed comparison response with stats breakdown](docs/images/Screenshot%202026-04-10%20at%2009.51.16.png)
 
 ## License
 
