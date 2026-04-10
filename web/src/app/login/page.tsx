@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isInvite] = useState(() => {
+  const [hasInviteHash] = useState(() => {
     if (typeof window === 'undefined') return false;
     const hash = window.location.hash;
     return hash.includes('type=invite') || hash.includes('type=recovery');
@@ -25,11 +25,15 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordSet, setPasswordSet] = useState(false);
 
-  // When landing with an invite hash, the Supabase singleton may have
-  // already initialized before the hash appeared in the URL. Manually
-  // extract the tokens and establish the session.
+  // User needs to set password if they arrived via invite hash OR
+  // they have a session but haven't set a password yet
+  const needsPassword =
+    hasInviteHash || (!loading && session && !session.user?.user_metadata?.password_set);
+
+  // When landing with an invite hash, manually extract tokens
+  // and establish the session (Supabase singleton may have missed them)
   useEffect(() => {
-    if (!isInvite || !supabase) return;
+    if (!hasInviteHash || !supabase) return;
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
     const accessToken = params.get('access_token');
@@ -37,13 +41,13 @@ export default function LoginPage() {
     if (accessToken && refreshToken) {
       supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
     }
-  }, [isInvite]);
+  }, [hasInviteHash]);
 
   useEffect(() => {
-    if (!loading && session && !isInvite) {
+    if (!loading && session && !needsPassword) {
       router.push('/');
     }
-  }, [session, loading, router, isInvite]);
+  }, [session, loading, router, needsPassword]);
 
   const handleSetPassword = async (e: FormEvent) => {
     e.preventDefault();
@@ -61,6 +65,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     const { error: updateError } = await supabase!.auth.updateUser({
       password: newPassword,
+      data: { password_set: true },
     });
 
     if (updateError) {
@@ -100,11 +105,11 @@ export default function LoginPage() {
     );
   }
 
-  if (session && !isInvite) {
+  if (session && !needsPassword) {
     return null;
   }
 
-  if (isInvite) {
+  if (needsPassword) {
     const sessionReady = !loading && !!session;
 
     return (
