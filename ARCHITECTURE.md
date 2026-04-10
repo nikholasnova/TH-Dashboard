@@ -10,14 +10,16 @@ Full data path from sensor read to dashboard consumption.
 
 ## 2) Component Topology
 
-```text
-[DHT20] --I2C--> [Arduino nodeX] --HTTPS POST--> [Supabase Postgres]
-  (repeat for each physical node)
+```mermaid
+graph LR
+    DHT20[DHT20 Sensor] -->|I2C| Arduino[Arduino nodeX]
+    Arduino -->|HTTPS POST| Supabase[(Supabase Postgres)]
 
-[Vercel Cron (every 15 min)] --> [GET /api/weather] --> [WeatherAPI.com]
-                                           \----> [Supabase Postgres]
+    Cron[Vercel Cron\nevery 15 min] --> WeatherRoute[GET /api/weather]
+    WeatherRoute --> WeatherAPI[WeatherAPI.com]
+    WeatherRoute --> Supabase
 
-[Next.js app] <--authenticated queries/RPC--> [Supabase Postgres]
+    NextJS[Next.js App] <-->|Authenticated\nqueries / RPC| Supabase
 ```
 
 Nodes are dynamically registered in the `devices` table. The dashboard, keepalive, and weather routes all read from this table to determine which devices exist and which are active.
