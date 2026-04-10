@@ -54,13 +54,44 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { email } = body;
+  const { email, linkOnly } = body;
 
   if (!email || typeof email !== 'string') {
     return NextResponse.json({ error: 'Email is required' }, { status: 400 });
   }
 
   const supabase = getServerClient();
+
+  if (linkOnly) {
+    const { data, error } = await supabase.auth.admin.generateLink({
+      type: 'invite',
+      email,
+    });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (data.user) {
+      await supabase.from('user_roles').upsert({
+        user_id: data.user.id,
+        role: 'user',
+      });
+    }
+
+    // Build the redirect URL that the user would normally get via email
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || request.headers.get('origin') || '';
+    const redirectUrl = `${siteUrl}/login`;
+    const inviteLink = `${data.properties.action_link}&redirect_to=${encodeURIComponent(redirectUrl)}`;
+
+    const phClient = getPostHogClient();
+    phClient?.capture({
+      distinctId: auth.user!.id,
+      event: 'user_invited',
+      properties: { invited_email: email, method: 'link' },
+    });
+
+    return NextResponse.json({ inviteLink });
+  }
 
   const { data, error } = await supabase.auth.admin.inviteUserByEmail(email);
   if (error) {
@@ -78,7 +109,7 @@ export async function POST(request: NextRequest) {
   phClient?.capture({
     distinctId: auth.user!.id,
     event: 'user_invited',
-    properties: { invited_email: email },
+    properties: { invited_email: email, method: 'email' },
   });
 
   return NextResponse.json({ user: data.user });

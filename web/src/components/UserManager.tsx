@@ -24,6 +24,7 @@ export function UserManager({ isOpen, onClose }: UserManagerProps) {
   const [error, setError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -75,6 +76,35 @@ export function UserManager({ isOpen, onClose }: UserManagerProps) {
       await fetchUsers();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to invite user.';
+      setError(msg);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    const email = inviteEmail.trim();
+    if (!email) return;
+    setIsSaving(true);
+    setError(null);
+    setCopiedLink(false);
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, linkOnly: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to generate invite link');
+      }
+      const data = await res.json();
+      await navigator.clipboard.writeText(data.inviteLink);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+      await fetchUsers();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate link.';
       setError(msg);
     } finally {
       setIsSaving(false);
@@ -288,13 +318,23 @@ export function UserManager({ isOpen, onClose }: UserManagerProps) {
                   placeholder="colleague@example.com"
                 />
               </div>
-              <button
-                onClick={handleInvite}
-                disabled={isSaving || !inviteEmail.trim()}
-                className="btn-glass w-full px-4 py-2 text-sm font-semibold text-[var(--foreground)] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSaving ? 'Sending Invite...' : 'Send Invite'}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleInvite}
+                  disabled={isSaving || !inviteEmail.trim()}
+                  className="btn-glass flex-1 px-4 py-2 text-sm font-semibold text-[var(--foreground)] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? 'Sending...' : 'Send Invite'}
+                </button>
+                <button
+                  onClick={handleCopyLink}
+                  disabled={isSaving || !inviteEmail.trim()}
+                  className="btn-glass px-4 py-2 text-sm font-semibold text-[var(--foreground)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Generate invite link and copy to clipboard"
+                >
+                  {copiedLink ? 'Copied!' : 'Copy Link'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
