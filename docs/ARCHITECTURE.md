@@ -5,7 +5,7 @@ Full data path from sensor read to dashboard consumption.
 ## 1) Scope
 
 - Hardware: N Arduino Uno R4 WiFi nodes with DHT20 sensors (I2C) and 16x2 LCDs. The number of nodes is not hardcoded — new devices are registered through the web dashboard or auto-registered on first reading.
-- Cloud: Supabase Postgres (`readings`, `deployments`, `devices`, `app_settings`, `device_alert_state`, RPC functions) + WeatherAPI.com for every-15-min weather reference.
+- Cloud: Supabase Postgres (`readings`, `deployments`, `devices`, `app_settings`, `device_alert_state`, `user_roles`, RPC functions) + WeatherAPI.com for every-15-min weather reference.
 - App: Next.js with authenticated dashboard, charts, comparisons, deployment management, device management, AI chat, in-browser Python analysis, and cron-driven weather ingestion.
 
 ## 2) Component Topology
@@ -176,7 +176,11 @@ erDiagram
 
 ## 5) Web Application
 
-All pages require Supabase Auth session (`AuthGate`). The root layout wraps the app in `ThemeProvider` > `AuthProvider` > `DevicesProvider` > `ChatPageContextProvider`, making the device list and chat context available everywhere.
+All pages require Supabase Auth session (`AuthGate`). The root layout wraps the app in `ThemeProvider` > `AuthProvider` > `PostHogProviderWrapper` > `DevicesProvider` > `ChatPageContextProvider`, making the device list, analytics, and chat context available everywhere.
+
+Auth supports two roles: `admin` and `user`. Roles are stored in a `user_roles` table and injected into the JWT via a Custom Access Token Hook. Both roles have the same data access (all authenticated users see all data). The role distinction controls admin-only UI (user management). A middleware layer (`middleware.ts`) refreshes sessions and redirects unauthenticated users to `/login`.
+
+Optional PostHog integration provides product analytics (autocapture, session replay, error tracking) when `NEXT_PUBLIC_POSTHOG_KEY` is configured. Traffic routes through a managed reverse proxy to bypass ad blockers. PostHog is not required — if the env var is unset, the provider renders children without instrumentation.
 
 ### 5.1 Dashboard (`/`)
 
@@ -259,6 +263,7 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 | `/api/chat` | POST | Supabase session | AI chat with Gemini 2.5 Flash. Accepts `{ message, history }`. Streams response with `__STATUS__` markers for tool-call progress. Rate-limited to 30 req/15 min per user. |
 | `/api/keepalive` | GET | `CRON_SECRET` header | Device health monitor. Classifies devices as ok/missing/stale/anomaly. Sends email alerts on state transitions via Resend. Returns per-device status summary. |
 | `/api/weather` | GET | `CRON_SECRET` header | Weather ingestion cron. Fetches current conditions from WeatherAPI.com for each active deployment ZIP. Writes `source=weather` rows. Idempotent per 15-min UTC bucket. Returns fetch/insert/skip counts. |
+| `/api/users` | GET/POST/PATCH/DELETE | Admin only (Supabase session) | User management. GET lists all users with roles. POST invites by email or generates a copy-able invite link (`linkOnly: true`). PATCH updates user role. DELETE removes a user. All mutations require admin role. |
 
 ## 6) Data Semantics
 
@@ -299,7 +304,7 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 |----------|-----------|
 | Device | Anon key, INSERT-only |
 | Browser | Anon client + authenticated session for reads/RPC |
-| Server | Service role on server only; `/api/chat` checks auth; cron routes check `CRON_SECRET` |
+| Server | Service role on server only; `/api/chat` checks auth; `/api/users` requires admin role; cron routes check `CRON_SECRET` |
 
 ## 10) Source Files
 
@@ -315,3 +320,6 @@ All pages require Supabase Auth session (`AuthGate`). The root layout wraps the 
 | Weather | `web/src/app/api/weather/route.ts`, `web/src/lib/weatherZip.ts`, `web/src/lib/weatherCompare.ts` |
 | Analysis | `web/src/lib/pyodide.ts`, `web/src/lib/analysisRunner.ts` |
 | Dashboard extras | `web/src/components/DashboardStats.tsx` |
+| User management | `web/src/app/api/users/route.ts`, `web/src/components/UserManager.tsx` |
+| Auth / roles | `web/src/components/AuthProvider.tsx`, `web/src/lib/serverAuth.ts`, `web/src/middleware.ts` |
+| Analytics (optional) | `web/src/components/PostHogProvider.tsx`, `web/src/lib/posthog-server.ts` |

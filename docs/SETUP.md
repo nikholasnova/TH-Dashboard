@@ -15,9 +15,11 @@ This guide walks you through forking this repo and getting a fully working IoT t
 7. [Set Up Weather Comparison (Optional)](#7-set-up-weather-comparison-optional)
 8. [Set Up AI Chat (Optional)](#8-set-up-ai-chat-optional)
 9. [Set Up Email Alerts (Optional)](#9-set-up-email-alerts-optional)
-10. [Environment Variable Reference](#10-environment-variable-reference)
-11. [Verifying Everything Works](#11-verifying-everything-works)
-12. [Troubleshooting](#12-troubleshooting)
+10. [Inviting Users (Multi-User)](#10-inviting-users-multi-user)
+11. [Analytics (Optional)](#11-analytics-optional)
+12. [Environment Variable Reference](#12-environment-variable-reference)
+13. [Verifying Everything Works](#13-verifying-everything-works)
+14. [Troubleshooting](#14-troubleshooting)
 
 ---
 
@@ -92,18 +94,33 @@ The file `supabase/schema.sql` creates all the tables, functions, and security p
 
 You should see success messages. This creates the `readings`, `devices`, `deployments`, `app_settings`, and `device_alert_state` tables, plus all the RPC functions the dashboard uses. It also seeds two starter devices (`node1` and `node2`).
 
-### 3.3 Create a Login User
+### 3.3 Set Up User Roles
 
-The dashboard requires authentication. You need to create at least one user account.
+The dashboard supports multiple users with admin/user roles. Run the user roles migration after the main schema:
 
-1. In Supabase, go to **Authentication** (left sidebar) > **Users**.
+1. In the SQL Editor, open a new query.
+2. Paste the contents of `supabase/migrations/add_user_roles.sql` and run it.
+3. Enable the Custom Access Token Hook: go to **Authentication** > **Hooks** > **Custom Access Token Hook**, select schema `public` and function `custom_access_token_hook`.
+
+### 3.4 Create Your Admin Account
+
+1. In Supabase, go to **Authentication** > **Users**.
 2. Click **Add User** > **Create New User**.
-3. Enter an email and password. Check **Auto Confirm User** so you can log in immediately.
+3. Enter an email and password. Check **Auto Confirm User**.
 4. Click **Create User**.
+5. Copy the user's UUID from the Users list, then run in the SQL Editor:
 
-Share this email/password with anyone who needs dashboard access (e.g., your lab partner or instructor).
+```sql
+INSERT INTO user_roles (user_id, role) VALUES ('<your-user-uuid>', 'admin');
 
-### 3.4 Copy Your API Credentials
+UPDATE auth.users
+SET raw_app_meta_data = raw_app_meta_data || '{"role": "admin"}'::jsonb
+WHERE id = '<your-user-uuid>';
+```
+
+This makes you an admin. You can invite additional users from the dashboard later (see section 9.5).
+
+### 3.5 Copy Your API Credentials
 
 You need three values from Supabase. Find them at **Settings** > **API** (under "Project Settings" in the left sidebar):
 
@@ -369,7 +386,73 @@ In the web dashboard, you can control which devices are monitored under **Manage
 
 ---
 
-## 10. Environment Variable Reference
+## 10. Inviting Users (Multi-User)
+
+The admin can invite users from the dashboard via **Manage Users** (visible only to admins on the home page).
+
+### 10.1 Configure Supabase Site URL
+
+Before inviting anyone, set the redirect URL so invite links point to your production site (not `localhost:3000`):
+
+1. In Supabase, go to **Authentication** > **URL Configuration**.
+2. Set **Site URL** to your Vercel URL (e.g., `https://your-app.vercel.app`).
+3. Add your Vercel URL to **Redirect URLs** (e.g., `https://your-app.vercel.app/**`).
+
+### 10.2 Invite via Email
+
+Enter the user's email in the Manage Users modal and click **Send Invite**. Supabase sends an invite email with a link. When they click it, they land on a "Set Your Password" page.
+
+**Supabase free tier limits invite emails to 2 per hour.** If you hit the limit, either wait or use the **Copy Link** method below.
+
+### 10.3 Invite via Link (Recommended for .edu emails)
+
+Some email systems (especially `.edu`) silently drop invite emails due to domain mismatch in the link. To work around this:
+
+1. Enter the user's email and click **Copy Link** (instead of Send Invite).
+2. The invite link is copied to your clipboard.
+3. Text or message the link to the user directly.
+4. When they open it, they see the "Set Your Password" form.
+
+Invite links expire based on the **OTP Expiry** setting in Supabase (**Authentication** > **Providers** > **Email** > **Email OTP Expiration**). Default is 3600 seconds (1 hour). Maximum is 86400 seconds (24 hours).
+
+### 10.4 Custom SMTP (Optional, Removes Email Rate Limit)
+
+To bypass the 2-email-per-hour Supabase limit and improve deliverability:
+
+1. Sign up at [resend.com](https://resend.com) and verify a custom domain (Resend > Domains > Add Domain > add the DNS records).
+2. In Supabase, go to **Project Settings** > **Authentication** > **SMTP Settings**.
+3. Toggle **Enable Custom SMTP** and fill in:
+   - **Host:** `smtp.resend.com`
+   - **Port:** `465`
+   - **Username:** `resend`
+   - **Password:** your Resend API key
+   - **Sender email:** an address on your verified domain (e.g., `noreply@yourdomain.com`)
+   - **Sender name:** your project name
+
+With custom SMTP, Supabase's built-in email rate limit no longer applies.
+
+### 10.5 Roles
+
+All users have the same data access. The admin role only controls who can manage users (invite, change roles, remove). Admins can promote or demote users from the Manage Users modal.
+
+---
+
+## 11. Analytics (Optional)
+
+The dashboard optionally integrates PostHog for product analytics (click tracking, page views, session replay, error tracking). This is useful for monitoring how users interact with the dashboard and catching bugs, but is not required for core functionality.
+
+To enable:
+
+1. Sign up at [posthog.com](https://posthog.com) (free tier: 1M events/month).
+2. Add to your environment:
+   - `NEXT_PUBLIC_POSTHOG_KEY` -- your PostHog project API key (starts with `phc_`)
+   - `NEXT_PUBLIC_POSTHOG_HOST` -- `https://us.i.posthog.com` (or a custom proxy domain)
+
+If these variables are not set, PostHog is completely disabled with zero overhead.
+
+---
+
+## 12. Environment Variable Reference
 
 All variables go in `web/.env.local` for local development and in Vercel's project settings for production.
 
@@ -395,10 +478,12 @@ All variables go in `web/.env.local` for local development and in Vercel's proje
 | `ALERT_STALE_MINUTES` | Minutes without data before alerting (default: `10`) |
 | `ENABLE_RECOVERY_ALERTS` | `true` or `false` (default: `true`) |
 | `ALERT_DASHBOARD_URL` | URL included in alert emails |
+| `NEXT_PUBLIC_POSTHOG_KEY` | PostHog project API key (for analytics, optional) |
+| `NEXT_PUBLIC_POSTHOG_HOST` | PostHog host or proxy domain (default: `https://us.i.posthog.com`) |
 
 ---
 
-## 11. Verifying Everything Works
+## 13. Verifying Everything Works
 
 Use this checklist to confirm each piece is working:
 
@@ -413,7 +498,7 @@ Use this checklist to confirm each piece is working:
 
 ---
 
-## 12. Troubleshooting
+## 14. Troubleshooting
 
 ### Arduino Issues
 
@@ -440,3 +525,7 @@ Use this checklist to confirm each piece is working:
 | No alert emails | Both `RESEND_API_KEY` and `ALERT_EMAIL_TO` must be set. A custom sender address requires domain verification in Resend. |
 | New device not showing up | Register it in Manage Devices first, or enable `device_auto_register` in the app settings. |
 | Unwanted device alerts | Toggle monitoring off for that device in Manage Devices, or set `MONITORED_DEVICE_IDS` to only the nodes you want monitored. |
+| Invite email not received | Check spam folder. `.edu` emails may silently drop invites — use **Copy Link** instead. If rate-limited ("Email rate limit exceeded"), wait 1 hour or set up custom SMTP (section 10.4). |
+| Invite link goes to localhost | Set the **Site URL** in Supabase Authentication > URL Configuration to your production URL (section 10.1). |
+| "Manage Users" button not visible | Only admin users see it. Make sure your user has the admin role in the `user_roles` table and `app_metadata`. |
+| Invite link stuck on "Verifying" | The invite token may have expired. Generate a new link via Copy Link. Increase OTP Expiry in Supabase (Authentication > Providers > Email). |

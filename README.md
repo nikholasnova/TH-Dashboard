@@ -63,11 +63,12 @@ flowchart TB
 | Layer | Tech |
 |-------|------|
 | Hardware | Arduino Uno R4 WiFi + DHT20 (I2C) |
-| Database | Supabase Postgres + Auth + RLS |
+| Database | Supabase Postgres + Auth (multi-user, role-based) + RLS |
 | Web | Next.js 16 (App Router), Vercel |
 | AI | Gemini 2.5 Flash (tool-calling) |
 | Analysis | Pyodide (numpy, pandas, scipy, statsmodels) |
 | Weather | WeatherAPI.com (free tier) |
+| Analytics | PostHog (optional, free tier) |
 
 ## Test Coverage
 
