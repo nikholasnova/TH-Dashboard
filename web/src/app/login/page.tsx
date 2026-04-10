@@ -199,7 +199,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative">
-      {/* Focal gradient behind card */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -215,7 +214,6 @@ export default function LoginPage() {
         style={{ background: 'var(--glass-bg)' }}
       >
         <div className="mb-8 text-center">
-          {/* Decorative thermometer icon */}
           <div className="flex justify-center mb-4">
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="text-[var(--foreground-muted)]">
               <rect x="13" y="4" width="6" height="18" rx="3" stroke="currentColor" strokeWidth="1.5" />

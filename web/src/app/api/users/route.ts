@@ -23,14 +23,17 @@ export async function GET() {
 
   const supabase = getServerClient();
 
-  const { data, error } = await supabase.auth.admin.listUsers();
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  const [usersResult, rolesResult] = await Promise.all([
+    supabase.auth.admin.listUsers(),
+    supabase.from('user_roles').select('user_id, role'),
+  ]);
+
+  if (usersResult.error) {
+    return NextResponse.json({ error: usersResult.error.message }, { status: 500 });
   }
 
-  const { data: roles } = await supabase
-    .from('user_roles')
-    .select('user_id, role');
+  const data = usersResult.data;
+  const roles = rolesResult.data;
 
   const roleMap = new Map(
     (roles ?? []).map((r: { user_id: string; role: string }) => [r.user_id, r.role])
@@ -78,7 +81,6 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Build the redirect URL that the user would normally get via email
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || request.headers.get('origin') || '';
     const redirectUrl = `${siteUrl}/login`;
     const inviteLink = `${data.properties.action_link}&redirect_to=${encodeURIComponent(redirectUrl)}`;

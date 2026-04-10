@@ -4,15 +4,11 @@ let posthogClient: PostHog | null = null;
 
 export function getPostHogClient(): PostHog | null {
   const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
-  if (!key || !host) return null;
+  const host = process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com';
+  if (!key) return null;
 
   if (!posthogClient) {
-    posthogClient = new PostHog(key, {
-      host,
-      flushAt: 1,
-      flushInterval: 0,
-    });
+    posthogClient = new PostHog(key, { host });
   }
   return posthogClient;
 }
