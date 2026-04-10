@@ -2,6 +2,7 @@ import { GoogleGenerativeAI, SchemaType, FunctionDeclaration } from '@google/gen
 import { executeTool } from '@/lib/aiTools';
 import { getServerUser } from '@/lib/serverAuth';
 import { getServerClient } from '@/lib/supabase/server';
+import { getPostHogClient } from '@/lib/posthog-server';
 
 const SYSTEM_PROMPT = `You are an AI assistant for an IoT temperature and humidity monitoring system.
 You help users understand their sensor data across different deployments and locations.
@@ -295,6 +296,16 @@ export async function POST(req: Request) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
+
+    const phClient = getPostHogClient();
+    phClient?.capture({
+      distinctId: user.id,
+      event: 'ai_chat_message_sent',
+      properties: {
+        page: typeof pageContext?.page === 'string' ? pageContext.page : null,
+        history_length: Array.isArray(history) ? history.length : 0,
+      },
+    });
 
     // Cap message length and history size to limit cost/latency abuse
     const cappedMessage = message.slice(0, 4000);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import posthog from 'posthog-js';
 import { useSession } from './AuthProvider';
 import { signOut } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
@@ -26,6 +27,7 @@ export function UserMenu() {
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
+    posthog.capture('user_signed_out');
     await signOut();
     setIsOpen(false);
     router.push('/login');

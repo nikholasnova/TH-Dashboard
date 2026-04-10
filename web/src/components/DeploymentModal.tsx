@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import posthog from 'posthog-js';
 import {
   Deployment,
   Reading,
@@ -130,6 +131,7 @@ export function DeploymentModal({
       setIsSaving(false);
       return;
     }
+    posthog.capture('deployment_ended', { deployment_id: currentDeployment.id, device_id: currentDeployment.device_id });
     setCurrentDeployment(isViewingSpecific ? ended : null);
     setIsEditing(false);
     onDeploymentChange();
@@ -167,6 +169,7 @@ export function DeploymentModal({
       return;
     }
 
+    posthog.capture('deployment_created', { deployment_id: newDeployment.id, device_id: newDeployment.device_id, location: newDeployment.location });
     setCurrentDeployment(newDeployment);
     setEditFormData({
       name: newDeployment.name,
@@ -206,6 +209,7 @@ export function DeploymentModal({
       return;
     }
 
+    posthog.capture('deployment_edited', { deployment_id: updated.id, device_id: updated.device_id });
     setCurrentDeployment(updated);
     setIsEditing(false);
     onDeploymentChange();
@@ -222,6 +226,7 @@ export function DeploymentModal({
       setIsSaving(false);
       return;
     }
+    posthog.capture('deployment_deleted', { deployment_id: currentDeployment.id, device_id: currentDeployment.device_id });
     setCurrentDeployment(null);
     setShowDeleteConfirm(false);
     onDeploymentChange();

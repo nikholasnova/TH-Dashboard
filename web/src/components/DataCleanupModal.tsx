@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import posthog from 'posthog-js';
 import { supabase, DeploymentWithCount, getDeployments } from '@/lib/supabase';
 import { useDevices } from '@/contexts/DevicesContext';
 
@@ -123,7 +124,14 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
         p_include_weather: includeWeather,
       });
       if (error) throw error;
-      setDeletedCount(typeof data === 'number' ? data : 0);
+      const count = typeof data === 'number' ? data : 0;
+      setDeletedCount(count);
+      posthog.capture('data_deleted', {
+        device_id: selectedDeviceId,
+        deleted_count: count,
+        include_weather: includeWeather,
+        deployment_id: selectedDeploymentId || null,
+      });
       setStep('done');
     } catch {
       setAuthError('Deletion failed. Please try again.');

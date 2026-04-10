@@ -45,3 +45,8 @@ export async function isAuthenticated(): Promise<boolean> {
   const user = await getServerUser();
   return user !== null;
 }
+
+export async function getServerUserRole(): Promise<'admin' | 'user'> {
+  const user = await getServerUser();
+  return (user?.app_metadata?.role as 'admin' | 'user') ?? 'user';
+}

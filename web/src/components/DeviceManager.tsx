@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createDevice, updateDevice } from '@/lib/supabase';
 import { useDevices } from '@/contexts/DevicesContext';
+import posthog from 'posthog-js';
 
 interface DeviceManagerProps {
   isOpen: boolean;
@@ -94,6 +95,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
     setError(null);
     try {
       await updateDevice(id, { is_active: false, monitor_enabled: false });
+      posthog.capture('device_deactivated', { device_id: id });
       await refresh();
       setConfirmDeactivate(null);
     } catch (err: unknown) {
@@ -130,6 +132,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
         color: newColor,
         sort_order: maxOrder + 1,
       });
+      posthog.capture('device_added', { device_id: trimmedId });
       await refresh();
       resetAddForm();
     } catch (err: unknown) {

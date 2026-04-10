@@ -696,3 +696,45 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.get_dashboard_live(TEXT[], TIMESTAMPTZ, INT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_dashboard_live(TEXT[], TIMESTAMPTZ, INT) TO authenticated, service_role;
+
+-- ============================================================
+-- User roles (admin / user)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.user_roles (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  role    TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role manages roles"
+  ON user_roles FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "Users read own role"
+  ON user_roles FOR SELECT TO authenticated USING (user_id = auth.uid());
+
+-- Custom Access Token Hook: injects user_role into JWT claims
+CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)
+RETURNS jsonb LANGUAGE plpgsql STABLE AS $$
+DECLARE
+  claims    jsonb;
+  user_role text;
+BEGIN
+  SELECT role INTO user_role
+    FROM public.user_roles
+   WHERE user_id = (event->>'user_id')::uuid;
+
+  claims := event->'claims';
+  claims := jsonb_set(claims, '{user_role}', to_jsonb(COALESCE(user_role, 'user')));
+  event  := jsonb_set(event, '{claims}', claims);
+  RETURN event;
+END;
+$$;
+
+-- Permissions for the hook (Supabase Auth calls it as supabase_auth_admin)
+GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
+GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO supabase_auth_admin;
+GRANT SELECT ON TABLE public.user_roles TO supabase_auth_admin;
+REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook FROM authenticated, anon, public;

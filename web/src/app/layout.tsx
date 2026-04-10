@@ -6,6 +6,7 @@ import { DevicesProvider } from "@/contexts/DevicesContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ChatShell } from "@/components/ChatShell";
 import { ChatPageContextProvider } from "@/lib/chatContext";
+import { PostHogProviderWrapper } from "@/components/PostHogProvider";
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains",
@@ -54,12 +55,14 @@ export default function RootLayout({
         </a>
         <ThemeProvider>
           <AuthProvider>
-            <DevicesProvider>
-              <ChatPageContextProvider>
-                {children}
-                <ChatShell />
-              </ChatPageContextProvider>
-            </DevicesProvider>
+            <PostHogProviderWrapper>
+              <DevicesProvider>
+                <ChatPageContextProvider>
+                  {children}
+                  <ChatShell />
+                </ChatPageContextProvider>
+              </DevicesProvider>
+            </PostHogProviderWrapper>
           </AuthProvider>
         </ThemeProvider>
       </body>

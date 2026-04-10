@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getAllReadingsRange, getChartSamples, celsiusToFahrenheit, getDeployments, Deployment } from '@/lib/supabase';
 import { useDevices } from '@/contexts/DevicesContext';
+import posthog from 'posthog-js';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -162,6 +163,12 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
         ? `${depLabel}-${modeLabel}-${startDate}_to_${endDate}.csv`
         : `readings-${modeLabel}-${deviceLabel}-${startDate}_to_${endDate}.csv`;
 
+      posthog.capture('data_exported', {
+        data_mode: dataMode,
+        device_id: selectedDeviceId || 'all',
+        include_weather: includeWeather,
+        deployment_id: selectedDeployment ? selectedDeployment.id : null,
+      });
       downloadCsv(csv, filename);
       onClose();
     } catch {

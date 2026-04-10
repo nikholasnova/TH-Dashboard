@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { LiveReadingCard } from '@/components/LiveReadingCard';
 import { DeploymentModal } from '@/components/DeploymentModal';
 import { DeviceManager } from '@/components/DeviceManager';
+import { UserManager } from '@/components/UserManager';
 import { Reading, Deployment, ChartSample, DeviceStats, DeviceAlertState, getActiveDeployments, getDashboardLive, getDeviceStats, getDeviceAlertStates } from '@/lib/supabase';
 import { DashboardStats } from '@/components/DashboardStats';
 
@@ -13,6 +14,7 @@ import { REFRESH_INTERVAL, STALE_THRESHOLD_MS } from '@/lib/constants';
 import { useDevices } from '@/contexts/DevicesContext';
 import { PageLayout } from '@/components/PageLayout';
 import { ViewportScaler } from '@/components/ViewportScaler';
+import { useSession } from '@/components/AuthProvider';
 
 function getGridClasses(count: number): string {
   if (count <= 1) return 'grid-cols-1 max-w-2xl mx-auto';
@@ -52,6 +54,8 @@ export default function Dashboard() {
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<{ id: string; name: string } | null>(null);
   const [showDeviceManager, setShowDeviceManager] = useState(false);
+  const [showUserManager, setShowUserManager] = useState(false);
+  const { role } = useSession();
 
   useEffect(() => {
     return () => { dashboardCache = { deviceData, stats, lastRefresh }; };
@@ -179,7 +183,18 @@ export default function Dashboard() {
         </div>
       ) : (
       <>
-      <div className="hidden sm:flex justify-end mb-2">
+      <div className="hidden sm:flex justify-end mb-2 gap-2">
+        {role === 'admin' && (
+          <button
+            onClick={() => setShowUserManager(true)}
+            className="btn-glass px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-1.5 sm:gap-2"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+            </svg>
+            Manage Users
+          </button>
+        )}
         <button
           onClick={() => setShowDeviceManager(true)}
           className="btn-glass px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-1.5 sm:gap-2"
@@ -277,6 +292,9 @@ export default function Dashboard() {
         />
       )}
       <DeviceManager isOpen={showDeviceManager} onClose={() => setShowDeviceManager(false)} />
+      {role === 'admin' && (
+        <UserManager isOpen={showUserManager} onClose={() => setShowUserManager(false)} />
+      )}
     </PageLayout>
   );
 }

@@ -11,6 +11,17 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error);
+    import('posthog-js')
+      .then(({ default: posthog }) => {
+        if (posthog.__loaded) {
+          posthog.capture('$exception', {
+            $exception_message: error.message,
+            $exception_stack: error.stack,
+            $exception_digest: error.digest,
+          });
+        }
+      })
+      .catch(() => {});
   }, [error]);
 
   return (

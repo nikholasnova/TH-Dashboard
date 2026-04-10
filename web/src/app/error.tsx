@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePostHog } from 'posthog-js/react';
 import Link from 'next/link';
 
 export default function Error({
@@ -10,9 +11,16 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const posthog = usePostHog();
+
   useEffect(() => {
     console.error(error);
-  }, [error]);
+    posthog?.capture('$exception', {
+      $exception_message: error.message,
+      $exception_stack: error.stack,
+      $exception_digest: error.digest,
+    });
+  }, [error, posthog]);
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
