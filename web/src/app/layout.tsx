@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ChatShell } from "@/components/ChatShell";
 import { ChatPageContextProvider } from "@/lib/chatContext";
 import { PostHogProviderWrapper } from "@/components/PostHogProvider";
+import { GuestProvider } from "@/contexts/GuestContext";
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains",
@@ -53,6 +54,7 @@ export default function RootLayout({
         <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-[var(--glass-bg)] focus:text-[var(--foreground)]">
           Skip to main content
         </a>
+        <GuestProvider>
         <ThemeProvider>
           <AuthProvider>
             <PostHogProviderWrapper>
@@ -65,6 +67,7 @@ export default function RootLayout({
             </PostHogProviderWrapper>
           </AuthProvider>
         </ThemeProvider>
+        </GuestProvider>
       </body>
     </html>
   );

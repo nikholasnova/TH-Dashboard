@@ -10,6 +10,10 @@ import {
   deleteDeployment,
 } from '@/lib/supabase';
 
+vi.mock('../AuthProvider', () => ({
+  useSession: () => ({ session: {}, user: {}, loading: false, role: 'admin' }),
+}));
+
 vi.mock('@/lib/supabase', () => ({
   getActiveDeployment: vi.fn(),
   createDeployment: vi.fn(),

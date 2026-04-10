@@ -8,9 +8,10 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export function UserMenu() {
-  const { session, user } = useSession();
+  const { session, user, role } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [copiedGuestLink, setCopiedGuestLink] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { theme, resolved, toggle } = useTheme();
@@ -24,6 +25,23 @@ export function UserMenu() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleCopyGuestLink = async () => {
+    try {
+      const res = await fetch('/api/guest?action=link');
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to generate guest link');
+        return;
+      }
+      const { link } = await res.json();
+      await navigator.clipboard.writeText(link);
+      setCopiedGuestLink(true);
+      setTimeout(() => setCopiedGuestLink(false), 3000);
+    } catch {
+      alert('Failed to generate guest link');
+    }
+  };
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -72,6 +90,15 @@ export function UserMenu() {
               <span className="text-[var(--success)] font-medium">● Active</span>
             </div>
           </div>
+
+          {role === 'admin' && (
+            <button
+              onClick={handleCopyGuestLink}
+              className="w-full px-4 py-2 text-sm text-[var(--foreground-muted)] hover:bg-[var(--hover-bg)] rounded-lg transition-colors font-medium mb-1"
+            >
+              {copiedGuestLink ? 'Guest Link Copied!' : 'Copy Guest Link'}
+            </button>
+          )}
 
           <button
             onClick={handleSignOut}

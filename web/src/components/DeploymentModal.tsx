@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import posthog from 'posthog-js';
+import { useSession } from './AuthProvider';
 import {
   Deployment,
   Reading,
@@ -216,8 +217,14 @@ export function DeploymentModal({
     setIsSaving(false);
   };
 
+  const { role } = useSession();
+
   const handleDeleteDeployment = async () => {
     if (!currentDeployment) return;
+    if (role !== 'admin') {
+      setActionError('Only admins can delete deployments. Contact your admin.');
+      return;
+    }
     setActionError(null);
     setIsSaving(true);
     const deleted = await deleteDeployment(currentDeployment.id);

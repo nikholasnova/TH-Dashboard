@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createDevice, updateDevice } from '@/lib/supabase';
 import { useDevices } from '@/contexts/DevicesContext';
+import { useSession } from './AuthProvider';
 import posthog from 'posthog-js';
 
 interface DeviceManagerProps {
@@ -25,6 +26,7 @@ const COLOR_PALETTE = [
 
 export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
   const { allDevices, refresh } = useDevices();
+  const { role } = useSession();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -73,6 +75,10 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
   };
 
   const handleToggleActive = async (id: string, currentlyActive: boolean) => {
+    if (role !== 'admin') {
+      setError('Only admins can change device status. Contact your admin.');
+      return;
+    }
     if (currentlyActive) {
       setConfirmDeactivate(id);
       return;

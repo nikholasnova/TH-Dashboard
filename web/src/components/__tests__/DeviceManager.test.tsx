@@ -23,6 +23,10 @@ vi.mock('@/contexts/DevicesContext', () => ({
   }),
 }));
 
+vi.mock('../AuthProvider', () => ({
+  useSession: () => ({ session: {}, user: {}, loading: false, role: 'admin' }),
+}));
+
 import { DeviceManager } from '../DeviceManager';
 
 describe('DeviceManager', () => {

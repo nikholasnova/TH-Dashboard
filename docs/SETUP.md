@@ -431,9 +431,23 @@ To bypass the 2-email-per-hour Supabase limit and improve deliverability:
 
 With custom SMTP, Supabase's built-in email rate limit no longer applies.
 
-### 10.5 Roles
+### 10.5 Guest Read-Only Access
 
-All users have the same data access. The admin role only controls who can manage users (invite, change roles, remove). Admins can promote or demote users from the Manage Users modal.
+Admins can generate a guest link that gives read-only access without requiring an account. Guests can view all dashboards, charts, compare, and analysis pages, and use the AI chat. They cannot create, edit, or delete anything.
+
+1. Set `GUEST_VIEW_TOKEN` to a random string in your environment (local `.env.local` and Vercel).
+2. In the dashboard, click your profile icon and select **Copy Guest Link**.
+3. Share the link with instructors or observers.
+
+To revoke access, change the `GUEST_VIEW_TOKEN` value and redeploy. All existing guest links become invalid immediately.
+
+### 10.6 Roles
+
+| Role | Can view | Can create/edit | Can delete | Can manage users/devices |
+|------|----------|-----------------|------------|--------------------------|
+| Admin | Everything | Deployments, devices | Deployments, readings, devices | Yes |
+| User | Everything | Deployments, devices | No (shown "contact admin") | No |
+| Guest (token link) | Dashboards, charts, compare, analysis, AI chat | No | No | No |
 
 ---
 

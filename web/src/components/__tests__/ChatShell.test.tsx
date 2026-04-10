@@ -8,6 +8,10 @@ vi.mock('../AuthProvider', () => ({
   useSession: vi.fn(),
 }));
 
+vi.mock('@/contexts/GuestContext', () => ({
+  useGuest: () => ({ isGuest: false }),
+}));
+
 vi.mock('../AIChat', () => ({
   AIChat: () => (
     <div data-testid="ai-chat">AI Chat</div>

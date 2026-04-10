@@ -15,6 +15,7 @@ import { useDevices } from '@/contexts/DevicesContext';
 import { PageLayout } from '@/components/PageLayout';
 import { ViewportScaler } from '@/components/ViewportScaler';
 import { useSession } from '@/components/AuthProvider';
+import { useGuest } from '@/contexts/GuestContext';
 
 function getGridClasses(count: number): string {
   if (count <= 1) return 'grid-cols-1 max-w-2xl mx-auto';
@@ -56,6 +57,7 @@ export default function Dashboard() {
   const [showDeviceManager, setShowDeviceManager] = useState(false);
   const [showUserManager, setShowUserManager] = useState(false);
   const { role } = useSession();
+  const { isGuest } = useGuest();
 
   useEffect(() => {
     return () => { dashboardCache = { deviceData, stats, lastRefresh }; };
@@ -183,6 +185,7 @@ export default function Dashboard() {
         </div>
       ) : (
       <>
+      {!isGuest && (
       <div className="hidden sm:flex justify-end mb-2 gap-2">
         {role === 'admin' && (
           <button
@@ -206,6 +209,7 @@ export default function Dashboard() {
           Manage Nodes
         </button>
       </div>
+      )}
 
       {!alertDismissed && (() => {
         const problems = alertStates.filter(a => a.status !== 'ok');
@@ -259,7 +263,7 @@ export default function Dashboard() {
               reading={deviceData[device.id]?.reading}
               activeDeployment={deviceData[device.id]?.deployment}
               isLoading={isLoading}
-              onClick={() => setSelectedDevice({ id: device.id, name: device.display_name })}
+              onClick={isGuest ? undefined : () => setSelectedDevice({ id: device.id, name: device.display_name })}
               onRefresh={() => void fetchLiveAndStats()}
               lastRefresh={lastRefresh}
               weatherReading={deviceData[device.id]?.weather}

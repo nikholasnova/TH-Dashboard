@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import posthog from 'posthog-js';
 import { useSession } from './AuthProvider';
+import { useGuest } from '@/contexts/GuestContext';
 import { AIChat } from './AIChat';
 
 export function ChatShell() {
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { user, loading } = useSession();
+  const { isGuest } = useGuest();
 
   const handleOpen = () => {
     setIsOpen(true);
@@ -34,7 +36,7 @@ export function ChatShell() {
     return () => { document.body.style.overflow = ''; };
   }, [isOpen, isFullscreen]);
 
-  if (loading || !user) return null;
+  if (loading || (!user && !isGuest)) return null;
 
   const containerClass = [
     'fixed z-50 flex flex-col transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',

@@ -12,11 +12,13 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { useDevices } from '@/contexts/DevicesContext';
 import { DataCleanupModal } from '@/components/DataCleanupModal';
+import { useGuest } from '@/contexts/GuestContext';
 
 type StatusFilter = 'all' | 'active' | 'ended';
 
 export default function DeploymentsPage() {
   const { devices } = useDevices();
+  const { isGuest } = useGuest();
   const [deployments, setDeployments] = useState<DeploymentWithCount[]>([]);
   const [locations, setLocations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -107,6 +109,7 @@ export default function DeploymentsPage() {
             </select>
           </div>
 
+          {!isGuest && (
           <div className="flex gap-3 w-full sm:w-auto">
             <button
               onClick={() => setShowCleanupModal(true)}
@@ -121,6 +124,7 @@ export default function DeploymentsPage() {
               + New Deployment
             </button>
           </div>
+          )}
         </div>
 
         {isLoading ? (
@@ -141,8 +145,8 @@ export default function DeploymentsPage() {
             {deployments.map((dep) => (
               <div
                 key={dep.id}
-                onClick={() => setSelectedDeployment(dep)}
-                className="glass-card p-4 sm:p-6 cursor-pointer hover:border-[var(--btn-border-hover)] transition-all"
+                onClick={isGuest ? undefined : () => setSelectedDeployment(dep)}
+                className={`glass-card p-4 sm:p-6 transition-all ${isGuest ? '' : 'cursor-pointer hover:border-[var(--btn-border-hover)]'}`}
               >
                 <div className="flex items-center gap-3 sm:gap-4">
                   <div className={`w-3 h-3 rounded-full shrink-0 ${dep.ended_at ? 'bg-[var(--foreground-muted)]/40' : 'bg-[var(--success)] animate-pulse'}`} />

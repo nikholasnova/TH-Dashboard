@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import posthog from 'posthog-js';
 import { supabase, DeploymentWithCount, getDeployments } from '@/lib/supabase';
 import { useDevices } from '@/contexts/DevicesContext';
+import { useSession } from './AuthProvider';
 
 interface DataCleanupModalProps {
   isOpen: boolean;
@@ -110,8 +111,14 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
     await performDelete();
   };
 
+  const { role } = useSession();
+
   const performDelete = async () => {
     if (!supabase) return;
+    if (role !== 'admin') {
+      setAuthError('Only admins can delete data. Contact your admin.');
+      return;
+    }
     setIsDeleting(true);
     try {
       const isoStart = new Date(customStart).toISOString();

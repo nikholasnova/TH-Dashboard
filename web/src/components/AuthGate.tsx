@@ -3,6 +3,7 @@
 import { ReactNode } from 'react';
 import Link from 'next/link';
 import { useSession } from './AuthProvider';
+import { useGuest } from '@/contexts/GuestContext';
 import { LoadingSpinner } from './LoadingSpinner';
 
 interface AuthGateProps {
@@ -11,6 +12,11 @@ interface AuthGateProps {
 
 export function AuthGate({ children }: AuthGateProps) {
   const { session, loading } = useSession();
+  const { isGuest } = useGuest();
+
+  if (isGuest) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (

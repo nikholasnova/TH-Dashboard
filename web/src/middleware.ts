@@ -25,6 +25,13 @@ export async function middleware(request: NextRequest) {
     }
   );
 
+  // Allow guest token access (read-only mode, no Supabase account)
+  const guestToken = request.cookies.get('guest_token')?.value;
+  const validGuestToken = process.env.GUEST_VIEW_TOKEN;
+  if (guestToken && validGuestToken && guestToken === validGuestToken) {
+    return supabaseResponse;
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -32,7 +39,7 @@ export async function middleware(request: NextRequest) {
   if (
     !user &&
     !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/api')
+    !request.nextUrl.pathname.startsWith('/view')
   ) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
