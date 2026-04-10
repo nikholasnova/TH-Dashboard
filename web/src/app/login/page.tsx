@@ -25,6 +25,20 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordSet, setPasswordSet] = useState(false);
 
+  // When landing with an invite hash, the Supabase singleton may have
+  // already initialized before the hash appeared in the URL. Manually
+  // extract the tokens and establish the session.
+  useEffect(() => {
+    if (!isInvite || !supabase) return;
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    if (accessToken && refreshToken) {
+      supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+    }
+  }, [isInvite]);
+
   useEffect(() => {
     if (!loading && session && !isInvite) {
       router.push('/');
@@ -91,6 +105,8 @@ export default function LoginPage() {
   }
 
   if (isInvite) {
+    const sessionReady = !loading && !!session;
+
     return (
       <div className="min-h-screen flex items-center justify-center p-4 relative">
         <div
@@ -121,11 +137,13 @@ export default function LoginPage() {
             <p className="text-[var(--foreground-muted)]">
               {passwordSet
                 ? 'Password set successfully. Redirecting...'
+                : !sessionReady
+                ? 'Verifying invite link...'
                 : 'Choose a password for your account'}
             </p>
           </div>
 
-          {!passwordSet && (
+          {!passwordSet && sessionReady && (
             <form onSubmit={handleSetPassword} className="space-y-6">
               {error && (
                 <div className="p-4 rounded-xl bg-[var(--error)]/8 border border-[var(--error)]/20">

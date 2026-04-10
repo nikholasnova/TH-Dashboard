@@ -34,13 +34,13 @@ describe('ChatShell', () => {
   const mockedUseSession = vi.mocked(useSession);
 
   it('renders nothing while loading', () => {
-    mockedUseSession.mockReturnValue({ session: null, user: null, loading: true });
+    mockedUseSession.mockReturnValue({ session: null, user: null, loading: true, role: 'user' });
     const { container } = render(<ChatShell />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('renders nothing when unauthenticated', () => {
-    mockedUseSession.mockReturnValue({ session: null, user: null, loading: false });
+    mockedUseSession.mockReturnValue({ session: null, user: null, loading: false, role: 'user' });
     const { container } = render(<ChatShell />);
     expect(container).toBeEmptyDOMElement();
   });
@@ -50,6 +50,7 @@ describe('ChatShell', () => {
       session: {} as never,
       user: { id: 'user-1' } as never,
       loading: false,
+      role: 'user',
     });
 
     render(<ChatShell />);
@@ -71,6 +72,7 @@ describe('ChatShell', () => {
       session: {} as never,
       user: { id: 'user-1' } as never,
       loading: false,
+      role: 'user',
     });
 
     render(<ChatShell />);

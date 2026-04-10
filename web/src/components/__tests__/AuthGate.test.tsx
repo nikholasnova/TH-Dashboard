@@ -22,7 +22,7 @@ describe('AuthGate', () => {
   const mockedUseSession = vi.mocked(useSession);
 
   it('shows loading state when auth is loading', () => {
-    mockedUseSession.mockReturnValue({ session: null, user: null, loading: true });
+    mockedUseSession.mockReturnValue({ session: null, user: null, loading: true, role: 'user' });
 
     render(
       <AuthGate>
@@ -34,7 +34,7 @@ describe('AuthGate', () => {
   });
 
   it('shows login prompt when unauthenticated', () => {
-    mockedUseSession.mockReturnValue({ session: null, user: null, loading: false });
+    mockedUseSession.mockReturnValue({ session: null, user: null, loading: false, role: 'user' });
 
     render(
       <AuthGate>
@@ -47,7 +47,7 @@ describe('AuthGate', () => {
   });
 
   it('renders children when authenticated', () => {
-    mockedUseSession.mockReturnValue({ session: {} as never, user: {} as never, loading: false });
+    mockedUseSession.mockReturnValue({ session: {} as never, user: {} as never, loading: false, role: 'user' });
 
     render(
       <AuthGate>

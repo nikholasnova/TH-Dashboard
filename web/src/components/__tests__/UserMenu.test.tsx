@@ -30,7 +30,7 @@ describe('UserMenu', () => {
   const mockedSignOut = vi.mocked(signOut);
 
   it('renders sign-in link when unauthenticated', () => {
-    mockedUseSession.mockReturnValue({ session: null, user: null, loading: false });
+    mockedUseSession.mockReturnValue({ session: null, user: null, loading: false, role: 'user' });
 
     render(<UserMenu />);
 
@@ -44,6 +44,7 @@ describe('UserMenu', () => {
       session: { user: { email: 'test@example.com' } } as never,
       user: { email: 'test@example.com' } as never,
       loading: false,
+      role: 'user',
     });
     mockedSignOut.mockResolvedValue({ success: true });
 
