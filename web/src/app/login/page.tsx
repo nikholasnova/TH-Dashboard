@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loggedInViaPassword, setLoggedInViaPassword] = useState(false);
   const [hasInviteHash] = useState(() => {
     if (typeof window === 'undefined') return false;
     const hash = window.location.hash;
@@ -28,7 +29,8 @@ export default function LoginPage() {
   // User needs to set password if they arrived via invite hash OR
   // they have a session but haven't set a password yet
   const needsPassword =
-    hasInviteHash || (!loading && session && !session.user?.user_metadata?.password_set);
+    !loggedInViaPassword &&
+    (hasInviteHash || (!loading && session && !session.user?.user_metadata?.password_set));
 
   // When landing with an invite hash, manually extract tokens
   // and establish the session (Supabase singleton may have missed them)
@@ -86,6 +88,7 @@ export default function LoginPage() {
     const result = await signIn(email, password);
 
     if (result.success) {
+      setLoggedInViaPassword(true);
       posthog.capture('user_signed_in', { method: 'email' });
       router.push('/');
     } else {
