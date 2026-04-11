@@ -35,6 +35,9 @@ npm-debug.log*
 # Vercel
 .vercel
 
+# Generated reports
+posthog-setup-report.md
+
 # Local assistant notes
 CLAUDE.md
 .claude/

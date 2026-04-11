@@ -96,12 +96,10 @@ You should see success messages. This creates the `readings`, `devices`, `deploy
 
 ### 3.3 Set Up User Roles
 
-The dashboard supports multiple users with admin/user roles. Run the migrations after the main schema:
+The schema already creates the `user_roles` table and the custom access token hook function. You just need to enable the hook:
 
-1. In the SQL Editor, open a new query.
-2. Paste the contents of `supabase/migrations/add_user_roles.sql` and run it.
-3. Open another new query. Paste the contents of `supabase/migrations/harden_roles.sql` and run it. This adds server-side admin-only enforcement for delete operations.
-4. Enable the Custom Access Token Hook: go to **Authentication** > **Hooks** > **Custom Access Token Hook**, select schema `public` and function `custom_access_token_hook`.
+1. In Supabase, go to **Authentication** > **Hooks** > **Custom Access Token Hook**.
+2. Select schema `public` and function `custom_access_token_hook`.
 
 ### 3.4 Create Your Admin Account
 
