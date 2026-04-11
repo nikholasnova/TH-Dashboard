@@ -85,10 +85,10 @@ export function ChatShell() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0.5, scale: 0.4 }}
+            initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.4 }}
-            transition={{ duration: 0.05, ease: 'linear' }}
+            exit={{ opacity: 0, scale: 0.85 }}
+            transition={{ duration: 0.15, ease: 'easeInOut' }}
             style={{ ...containerStyle, transformOrigin: 'bottom right' } as React.CSSProperties}
             className={containerClass}
           >
