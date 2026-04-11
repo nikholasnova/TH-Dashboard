@@ -19,7 +19,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_SITE_URL || '';
+  const host = request.headers.get('host') || '';
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || `${proto}://${host}`;
   const link = `${origin}/view?token=${encodeURIComponent(token)}`;
   return NextResponse.json({ link });
 }
