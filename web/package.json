@@ -15,7 +15,7 @@
     "@google/generative-ai": "^0.24.1",
     "@nivo/core": "^0.99.0",
     "@nivo/line": "^0.99.0",
-    "@supabase/ssr": "^0.8.0",
+    "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.103.0",
     "@tailwindcss/typography": "^0.5.19",
     "framer-motion": "^12.38.0",
