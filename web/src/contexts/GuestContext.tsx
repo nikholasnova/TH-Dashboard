@@ -15,7 +15,7 @@ export function useGuest() {
 export function GuestProvider({ children }: { children: ReactNode }) {
   const [isGuest] = useState(() => {
     if (typeof document === 'undefined') return false;
-    return document.cookie.includes('guest_token=');
+    return document.cookie.includes('guest_mode=1');
   });
 
   return (

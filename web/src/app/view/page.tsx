@@ -20,7 +20,7 @@ function ViewPageInner() {
     })
       .then((res) => {
         if (!res.ok) throw new Error('Invalid or expired link.');
-        router.push('/');
+        window.location.href = '/';
       })
       .catch(() => setError('Invalid or expired link.'));
   }, [token, router]);

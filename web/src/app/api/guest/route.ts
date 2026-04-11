@@ -35,13 +35,16 @@ export async function POST(request: NextRequest) {
   }
 
   const response = NextResponse.json({ success: true });
-  response.cookies.set('guest_token', token, {
-    httpOnly: true,
+  const cookieOpts = {
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'strict' as const,
     path: '/',
     maxAge: 60 * 60 * 24 * 7, // 7 days
-  });
+  };
+  // httpOnly cookie for middleware validation
+  response.cookies.set('guest_token', token, { ...cookieOpts, httpOnly: true });
+  // readable cookie for client-side GuestContext
+  response.cookies.set('guest_mode', '1', cookieOpts);
 
   return response;
 }
