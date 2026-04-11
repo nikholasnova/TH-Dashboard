@@ -8,6 +8,7 @@ import {
   getDeployments,
   getDistinctLocations,
 } from '@/lib/supabase';
+import { guestGetDeployments, guestGetDistinctLocations } from '@/lib/supabase/guestQueries';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { EmptyState } from '@/components/EmptyState';
 import { useDevices } from '@/contexts/DevicesContext';
@@ -39,9 +40,11 @@ export default function DeploymentsPage() {
     if (locationFilter) filters.location = locationFilter;
     if (statusFilter !== 'all') filters.status = statusFilter;
 
+    const fetchDeps = isGuest ? guestGetDeployments : getDeployments;
+    const fetchLocs = isGuest ? guestGetDistinctLocations : getDistinctLocations;
     const [deps, locs] = await Promise.all([
-      getDeployments(filters),
-      getDistinctLocations(),
+      fetchDeps(filters),
+      fetchLocs(),
     ]);
 
     const filtered = deps;
@@ -49,7 +52,7 @@ export default function DeploymentsPage() {
     setDeployments(filtered);
     setLocations(locs);
     setIsLoading(false);
-  }, [deviceFilter, locationFilter, statusFilter]);
+  }, [deviceFilter, locationFilter, statusFilter, isGuest]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

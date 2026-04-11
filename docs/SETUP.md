@@ -96,11 +96,12 @@ You should see success messages. This creates the `readings`, `devices`, `deploy
 
 ### 3.3 Set Up User Roles
 
-The dashboard supports multiple users with admin/user roles. Run the user roles migration after the main schema:
+The dashboard supports multiple users with admin/user roles. Run the migrations after the main schema:
 
 1. In the SQL Editor, open a new query.
 2. Paste the contents of `supabase/migrations/add_user_roles.sql` and run it.
-3. Enable the Custom Access Token Hook: go to **Authentication** > **Hooks** > **Custom Access Token Hook**, select schema `public` and function `custom_access_token_hook`.
+3. Open another new query. Paste the contents of `supabase/migrations/harden_roles.sql` and run it. This adds server-side admin-only enforcement for delete operations.
+4. Enable the Custom Access Token Hook: go to **Authentication** > **Hooks** > **Custom Access Token Hook**, select schema `public` and function `custom_access_token_hook`.
 
 ### 3.4 Create Your Admin Account
 
@@ -492,6 +493,7 @@ All variables go in `web/.env.local` for local development and in Vercel's proje
 | `ALERT_STALE_MINUTES` | Minutes without data before alerting (default: `10`) |
 | `ENABLE_RECOVERY_ALERTS` | `true` or `false` (default: `true`) |
 | `ALERT_DASHBOARD_URL` | URL included in alert emails |
+| `GUEST_VIEW_TOKEN` | Random string for guest read-only access links (see section 10.5) |
 | `NEXT_PUBLIC_POSTHOG_KEY` | PostHog project API key (for analytics, optional) |
 | `NEXT_PUBLIC_POSTHOG_HOST` | PostHog host or proxy domain (default: `https://us.i.posthog.com`) |
 

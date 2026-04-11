@@ -7,25 +7,8 @@ export interface DashboardLiveData {
   sparklines: Record<string, ChartSample[]>;
 }
 
-export async function getDashboardLive(
-  deviceIds: string[],
-  sparklineStart: string,
-  sparklineBucketMinutes = 15
-): Promise<DashboardLiveData> {
-  const empty: DashboardLiveData = { sensor: {}, weather: {}, sparklines: {} };
-  if (!supabase || deviceIds.length === 0) return empty;
-
-  const { data, error } = await supabase.rpc('get_dashboard_live', {
-    p_device_ids: deviceIds,
-    p_sparkline_start: sparklineStart,
-    p_sparkline_bucket_minutes: sparklineBucketMinutes,
-  });
-
-  if (error) {
-    console.error('Error fetching dashboard live:', error);
-    return empty;
-  }
-
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function parseDashboardLiveRows(deviceIds: string[], rows: any[]): DashboardLiveData {
   const result: DashboardLiveData = { sensor: {}, weather: {}, sparklines: {} };
   for (const id of deviceIds) {
     result.sensor[id] = null;
@@ -33,7 +16,7 @@ export async function getDashboardLive(
     result.sparklines[id] = [];
   }
 
-  for (const row of data || []) {
+  for (const row of rows) {
     if (row.row_type === 'sensor') {
       result.sensor[row.device_id] = {
         id: row.id,
@@ -66,6 +49,28 @@ export async function getDashboardLive(
   }
 
   return result;
+}
+
+export async function getDashboardLive(
+  deviceIds: string[],
+  sparklineStart: string,
+  sparklineBucketMinutes = 15
+): Promise<DashboardLiveData> {
+  const empty: DashboardLiveData = { sensor: {}, weather: {}, sparklines: {} };
+  if (!supabase || deviceIds.length === 0) return empty;
+
+  const { data, error } = await supabase.rpc('get_dashboard_live', {
+    p_device_ids: deviceIds,
+    p_sparkline_start: sparklineStart,
+    p_sparkline_bucket_minutes: sparklineBucketMinutes,
+  });
+
+  if (error) {
+    console.error('Error fetching dashboard live:', error);
+    return empty;
+  }
+
+  return parseDashboardLiveRows(deviceIds, data || []);
 }
 
 export async function getLatestReading(

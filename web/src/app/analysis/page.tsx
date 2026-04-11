@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import posthog from 'posthog-js';
 import { PageLayout } from '@/components/PageLayout';
 import { DeploymentWithCount, getDeployments } from '@/lib/supabase';
+import { useGuest } from '@/contexts/GuestContext';
+import { guestGetDeployments } from '@/lib/supabase/guestQueries';
 import { useSetChatPageContext } from '@/lib/chatContext';
 import { getPyodide, LoadingStatus, PyodideInterface } from '@/lib/pyodide';
 import {
@@ -72,6 +74,7 @@ function areAllResultsEmpty(r: AnalysisResults): boolean {
 }
 
 export default function AnalysisPage() {
+  const { isGuest } = useGuest();
   const [pyodideStatus, setPyodideStatus] = useState<LoadingStatus>({
     stage: 'idle',
     message: '',
@@ -141,8 +144,9 @@ export default function AnalysisPage() {
   }, []);
 
   useEffect(() => {
-    getDeployments().then(setDeployments);
-  }, []);
+    const fetchDeps = isGuest ? guestGetDeployments : getDeployments;
+    fetchDeps().then(setDeployments);
+  }, [isGuest]);
 
   const handleRetryPyodide = useCallback(() => {
     setPyodideStatus({ stage: 'idle', message: '' });
@@ -196,7 +200,8 @@ export default function AnalysisPage() {
           end,
           analyses: selectedAnalyses as AnalysisType[],
         },
-        (msg) => setRunProgress(msg)
+        (msg) => setRunProgress(msg),
+        isGuest
       );
 
       posthog.capture('analysis_run', {
@@ -211,7 +216,7 @@ export default function AnalysisPage() {
     } finally {
       setIsRunning(false);
     }
-  }, [pyodideRef, canRun, selectedDeployments, selectedAnalyses, selectedRange, isCustom, customStart, customEnd]);
+  }, [pyodideRef, canRun, selectedDeployments, selectedAnalyses, selectedRange, isCustom, customStart, customEnd, isGuest]);
 
   const renderPyodideStatus = () => {
     const { stage, message } = pyodideStatus;

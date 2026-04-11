@@ -1,5 +1,6 @@
 import type { PyodideInterface } from './pyodide';
 import { getActiveDeployment, getDeployments, getDeploymentReadings, getChartSamples, celsiusToFahrenheit } from './supabase';
+import { guestGetDeployments, guestGetDeploymentReadings } from './supabase/guestQueries';
 import type { DeploymentWithCount } from './supabase';
 
 export type AnalysisType =
@@ -130,11 +131,13 @@ async function fetchReadingsForAnalysis(
   deploymentIds: number[],
   start: string,
   end: string,
-  options: AnalysisFetchOptions = {}
+  options: AnalysisFetchOptions = {},
+  isGuest = false
 ): Promise<ReadingWithContext[]> {
   let deploymentsById = options.deploymentsById;
   if (!deploymentsById) {
-    const allDeployments = await getDeployments();
+    const fetchDeps = isGuest ? guestGetDeployments : getDeployments;
+    const allDeployments = await fetchDeps();
     deploymentsById = new Map<number, DeploymentWithCount>();
     for (const d of allDeployments) {
       deploymentsById.set(d.id, d);
@@ -142,6 +145,7 @@ async function fetchReadingsForAnalysis(
   }
 
   const combined: ReadingWithContext[] = [];
+  const fetchDepReadings = isGuest ? guestGetDeploymentReadings : getDeploymentReadings;
 
   for (const depId of deploymentIds) {
     const dep = deploymentsById.get(depId);
@@ -150,7 +154,7 @@ async function fetchReadingsForAnalysis(
     const requestedStart = options.useDeploymentBounds ? dep.started_at : start;
     const requestedEnd = options.useDeploymentBounds ? (dep.ended_at || end) : end;
 
-    const readings = await getDeploymentReadings(depId, options.maxRows, {
+    const readings = await fetchDepReadings(depId, options.maxRows, {
       start: requestedStart,
       end: requestedEnd,
       preferLatest: Boolean(options.maxRows),
@@ -596,12 +600,14 @@ result_json = dumps_json_safe(results)
 export async function runAnalyses(
   pyodide: PyodideInterface,
   params: AnalysisParams,
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  isGuest = false
 ): Promise<AnalysisResults> {
   const includeForecasting = params.analyses.includes('forecasting');
   const includeRangeAnalyses = params.analyses.some((a) => a !== 'forecasting');
 
-  const allDeployments = await getDeployments();
+  const fetchDeps = isGuest ? guestGetDeployments : getDeployments;
+  const allDeployments = await fetchDeps();
   const deploymentsById = new Map<number, DeploymentWithCount>();
   for (const d of allDeployments) {
     deploymentsById.set(d.id, d);
@@ -614,7 +620,8 @@ export async function runAnalyses(
       params.deploymentIds,
       params.start,
       params.end,
-      { maxRows: 5000, deploymentsById }
+      { maxRows: 5000, deploymentsById },
+      isGuest
     );
   }
 
@@ -625,7 +632,8 @@ export async function runAnalyses(
       params.deploymentIds,
       params.start,
       new Date().toISOString(),
-      { useDeploymentBounds: true, deploymentsById }
+      { useDeploymentBounds: true, deploymentsById },
+      isGuest
     );
   }
 

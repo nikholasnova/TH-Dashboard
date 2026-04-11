@@ -8,6 +8,8 @@ import {
   getChartSamples,
   celsiusToFahrenheit,
 } from '@/lib/supabase';
+import { useGuest } from '@/contexts/GuestContext';
+import { guestGetChartSamples } from '@/lib/supabase/guestQueries';
 import { useSetChatPageContext } from '@/lib/chatContext';
 import { DEPLOYMENT_ALL_TIME_HOURS, DEPLOYMENT_ALL_TIME_LABEL, TIME_RANGES } from '@/lib/constants';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -159,6 +161,7 @@ export default function ChartsPage() {
   }, []);
 
   const { devices } = useDevices();
+  const { isGuest } = useGuest();
   const timeRange = useTimeRange();
   const { deployments } = useDeployments(timeRange.deviceFilter);
   const {
@@ -205,7 +208,8 @@ export default function ChartsPage() {
       const { start, end, scopedDeviceId } = await getRangeBounds();
       const rangeMs = new Date(end).getTime() - new Date(start).getTime();
       const bucketSeconds = pickBucketSeconds(rangeMs);
-      const data = await getChartSamples({
+      const fetchSamples = isGuest ? guestGetChartSamples : getChartSamples;
+      const data = await fetchSamples({
         start,
         end,
         bucketSeconds,
@@ -217,7 +221,7 @@ export default function ChartsPage() {
       setIsLoading(false);
       setIsFetching(false);
     }
-  }, [getRangeBounds, isCustom, isCustomValid]);
+  }, [getRangeBounds, isCustom, isCustomValid, isGuest]);
 
   useEffect(() => {
     void fetchData();

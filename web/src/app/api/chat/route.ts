@@ -3,6 +3,7 @@ import { executeTool } from '@/lib/aiTools';
 import { getServerUser } from '@/lib/serverAuth';
 import { getServerClient } from '@/lib/supabase/server';
 import { getPostHogClient } from '@/lib/posthog-server';
+import { cookies, headers } from 'next/headers';
 
 const SYSTEM_PROMPT = `You are an AI assistant for an IoT temperature and humidity monitoring system.
 You help users understand their sensor data across different deployments and locations.
@@ -255,17 +256,42 @@ const TOOL_LABELS: Record<string, string> = {
 const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const RATE_LIMIT_MAX = 30;
+const GUEST_RATE_LIMIT_MAX = 5;
 
-export function checkRateLimit(userId: string): boolean {
+export function checkRateLimit(userId: string, isGuest = false): boolean {
   const now = Date.now();
   const timestamps = rateLimitMap.get(userId) || [];
   const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
-  rateLimitMap.set(userId, valid);
+  if (valid.length === 0) {
+    rateLimitMap.delete(userId);
+  }
 
-  if (valid.length >= RATE_LIMIT_MAX) return false;
+  const max = isGuest ? GUEST_RATE_LIMIT_MAX : RATE_LIMIT_MAX;
+  if (valid.length >= max) return false;
 
   valid.push(now);
+  rateLimitMap.set(userId, valid);
   return true;
+}
+
+async function validateGuestToken(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies();
+    const guestToken = cookieStore.get('guest_token')?.value;
+    const validToken = process.env.GUEST_VIEW_TOKEN;
+    return !!(guestToken && validToken && guestToken === validToken);
+  } catch {
+    return false;
+  }
+}
+
+async function getClientIp(): Promise<string> {
+  try {
+    const h = await headers();
+    return h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || 'unknown';
+  } catch {
+    return 'unknown';
+  }
 }
 
 // Allow up to 120s for report generation (multi-step tool calls + Gemini response)
@@ -274,14 +300,18 @@ export const maxDuration = 120;
 export async function POST(req: Request) {
   try {
     const user = await getServerUser();
-    if (!user) {
+    const isGuest = !user && await validateGuestToken();
+
+    if (!user && !isGuest) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    if (!checkRateLimit(user.id)) {
+    const guestIp = isGuest ? await getClientIp() : null;
+    const rateLimitKey = user ? user.id : `guest:${guestIp}`;
+    if (!checkRateLimit(rateLimitKey, isGuest)) {
       return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please wait a few minutes.' }), {
         status: 429,
         headers: { 'Content-Type': 'application/json' },
@@ -298,12 +328,14 @@ export async function POST(req: Request) {
     }
 
     const phClient = getPostHogClient();
+    const distinctId = user?.id ?? `guest:${guestIp}`;
     phClient?.capture({
-      distinctId: user.id,
+      distinctId,
       event: 'ai_chat_message_sent',
       properties: {
         page: typeof pageContext?.page === 'string' ? pageContext.page : null,
         history_length: Array.isArray(history) ? history.length : 0,
+        is_guest: isGuest,
       },
     });
 

@@ -5,6 +5,8 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getDeployments } from '@/lib/supabase';
+import { guestGetDeployments } from '@/lib/supabase/guestQueries';
+import { useGuest } from '@/contexts/GuestContext';
 import { useChatPageContext } from '@/lib/chatContext';
 import { BounceDots } from './LoadingSpinner';
 
@@ -213,6 +215,7 @@ const MessageList = memo(function MessageList({
 
 export function AIChat() {
   const pageContext = useChatPageContext();
+  const { isGuest } = useGuest();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -231,14 +234,15 @@ export function AIChat() {
   useEffect(() => {
     async function loadDeployments() {
       try {
-        const deps = await getDeployments({ status: 'active' });
+        const fetchDeps = isGuest ? guestGetDeployments : getDeployments;
+        const deps = await fetchDeps({ status: 'active' });
         setDeploymentNames(deps.map(d => ({ name: d.name, location: d.location })));
       } catch {
         setDeploymentNames([]);
       }
     }
     loadDeployments();
-  }, []);
+  }, [isGuest]);
 
   // Track whether content extends below the visible scroll area
   const updateScrollHint = useCallback(() => {

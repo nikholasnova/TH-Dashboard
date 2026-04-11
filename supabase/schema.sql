@@ -56,11 +56,33 @@ CREATE INDEX IF NOT EXISTS idx_deployments_time ON deployments (started_at, ende
 ALTER TABLE deployments ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow authenticated all" ON deployments;
-CREATE POLICY "Allow authenticated all" ON deployments
-  FOR ALL
-  TO authenticated
+DROP POLICY IF EXISTS "Allow authenticated select" ON deployments;
+DROP POLICY IF EXISTS "Allow authenticated insert" ON deployments;
+DROP POLICY IF EXISTS "Allow authenticated update" ON deployments;
+DROP POLICY IF EXISTS "Allow admin delete" ON deployments;
+
+CREATE POLICY "Allow authenticated select" ON deployments
+  FOR SELECT TO authenticated
+  USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Allow authenticated insert" ON deployments
+  FOR INSERT TO authenticated
+  WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Allow authenticated update" ON deployments
+  FOR UPDATE TO authenticated
   USING (auth.uid() IS NOT NULL)
   WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Allow admin delete" ON deployments
+  FOR DELETE TO authenticated
+  USING (
+    auth.uid() IS NOT NULL
+    AND coalesce(
+      current_setting('request.jwt.claims', true)::json->>'user_role',
+      'user'
+    ) = 'admin'
+  );
 
 -- Alert state for keepalive monitoring and email notifications.
 CREATE TABLE IF NOT EXISTS device_alert_state (
@@ -364,6 +386,7 @@ GRANT EXECUTE ON FUNCTION public.get_deployments_with_counts(TEXT, BOOLEAN) TO a
 -- Cascade-delete a deployment and its associated readings in one call.
 -- SECURITY DEFINER lets authenticated callers delete readings even though
 -- the readings RLS policy restricts DELETE to service_role.
+-- Admin role is enforced inside the function via JWT claims.
 CREATE OR REPLACE FUNCTION delete_deployment_cascade(p_deployment_id BIGINT)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -374,7 +397,17 @@ DECLARE
   v_device_id TEXT;
   v_started_at TIMESTAMPTZ;
   v_ended_at TIMESTAMPTZ;
+  v_role TEXT;
 BEGIN
+  -- Enforce admin-only access
+  v_role := coalesce(
+    current_setting('request.jwt.claims', true)::json->>'user_role',
+    'user'
+  );
+  IF v_role <> 'admin' THEN
+    RAISE EXCEPTION 'Only admins can delete deployments';
+  END IF;
+
   SELECT device_id, started_at, ended_at
     INTO v_device_id, v_started_at, v_ended_at
     FROM public.deployments WHERE id = p_deployment_id;
@@ -406,6 +439,7 @@ GRANT EXECUTE ON FUNCTION public.delete_deployment_cascade(BIGINT) TO authentica
 -- Scoped deletion of readings by device and time range.
 -- Used by the Data Cleanup UI on the deployments page.
 -- SECURITY DEFINER so it bypasses RLS (readings DELETE is service_role only).
+-- Admin role is enforced inside the function via JWT claims.
 CREATE OR REPLACE FUNCTION delete_readings_range(
   p_device_id TEXT,
   p_start TIMESTAMPTZ,
@@ -420,7 +454,17 @@ AS $$
 DECLARE
   v_count BIGINT := 0;
   v_sub BIGINT;
+  v_role TEXT;
 BEGIN
+  -- Enforce admin-only access
+  v_role := coalesce(
+    current_setting('request.jwt.claims', true)::json->>'user_role',
+    'user'
+  );
+  IF v_role <> 'admin' THEN
+    RAISE EXCEPTION 'Only admins can delete data';
+  END IF;
+
   DELETE FROM public.readings
     WHERE device_id = p_device_id
       AND created_at >= p_start
@@ -442,7 +486,7 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION public.delete_readings_range(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, BOOLEAN) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.delete_readings_range(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_readings_range(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, BOOLEAN) TO authenticated, service_role;
 
 -- Guardrail: one active deployment per device when data allows it.
 DO $$

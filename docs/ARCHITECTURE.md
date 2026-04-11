@@ -91,10 +91,11 @@ RLS enabled on all tables.
 | Table | `anon` | `authenticated` | `service_role` |
 |-------|--------|-----------------|----------------|
 | `readings` | INSERT | SELECT | DELETE |
-| `deployments` | — | Full CRUD | — |
+| `deployments` | — | SELECT, INSERT, UPDATE (DELETE admin-only via JWT role claim) | — |
 | `devices` | — | Full CRUD | — |
 | `app_settings` | — | SELECT, UPDATE | — |
 | `device_alert_state` | — | SELECT | (service_role bypasses RLS; keepalive upserts via service_role) |
+| `user_roles` | — | SELECT own row | Full CRUD (service_role manages roles) |
 
 `/api/weather` uses service_role + `CRON_SECRET`.
 
@@ -108,8 +109,8 @@ RLS enabled on all tables.
 | `get_deployment_readings(deployment_id, limit?)` | Raw readings within a deployment window |
 | `get_deployments_with_counts(device_id?, active_only?)` | Deployments with reading counts |
 | `get_dashboard_live(device_ids[], sparkline_start, bucket_min?)` | Batched latest readings + sparkline per N devices |
-| `delete_deployment_cascade(deployment_id)` | Cascade-delete deployment and its readings |
-| `delete_readings_range(device_id, start, end, include_weather?)` | Scoped deletion of readings by device and time range |
+| `delete_deployment_cascade(deployment_id)` | Cascade-delete deployment and its readings (admin-only, enforced via JWT role claim) |
+| `delete_readings_range(device_id, start, end, include_weather?)` | Scoped deletion of readings by device and time range (admin-only, enforced via JWT role claim) |
 
 Weather data lives in `readings`, so all RPCs work with weather device IDs (e.g., `weather_node1`).
 
@@ -178,7 +179,9 @@ erDiagram
 
 All pages require Supabase Auth session (`AuthGate`). The root layout wraps the app in `ThemeProvider` > `AuthProvider` > `PostHogProviderWrapper` > `DevicesProvider` > `ChatPageContextProvider`, making the device list, analytics, and chat context available everywhere.
 
-Auth supports two roles: `admin` and `user`. Roles are stored in a `user_roles` table and injected into the JWT via a Custom Access Token Hook. Both roles have the same data access (all authenticated users see all data). The role distinction controls admin-only UI (user management). A middleware layer (`middleware.ts`) refreshes sessions and redirects unauthenticated users to `/login`.
+Auth supports two roles: `admin` and `user`. Roles are stored in a `user_roles` table and injected into the JWT via a Custom Access Token Hook. Both roles can read all data. Admins can delete deployments and readings; users cannot (enforced at the RLS and RPC level via JWT role claims, not just UI). Admin-only UI includes user management and device management. A middleware layer (`middleware.ts`) refreshes sessions and redirects unauthenticated users to `/login`.
+
+Guest read-only access is supported via a token-based link (`/view?token=...`). Guests bypass Supabase auth entirely -- the middleware validates a `guest_token` cookie against `GUEST_VIEW_TOKEN`. Guest data requests are proxied through `/api/guest-data`, which validates the cookie and fetches via the service-role client. Guests have hardened rate limits (5 req/10s for data, 5 msg/15min for chat). All write operations are blocked: guests have no Supabase session, and the UI hides all create/edit/delete controls.
 
 Optional PostHog integration provides product analytics (autocapture, session replay, error tracking) when `NEXT_PUBLIC_POSTHOG_KEY` is configured. Traffic routes through a managed reverse proxy to bypass ad blockers. PostHog is not required — if the env var is unset, the provider renders children without instrumentation.
 
@@ -260,9 +263,11 @@ Optional PostHog integration provides product analytics (autocapture, session re
 
 | Route | Method | Auth | Purpose |
 |-------|--------|------|---------|
-| `/api/chat` | POST | Supabase session | AI chat with Gemini 2.5 Flash. Accepts `{ message, history }`. Streams response with `__STATUS__` markers for tool-call progress. Rate-limited to 30 req/15 min per user. |
+| `/api/chat` | POST | Supabase session or guest token | AI chat with Gemini 2.5 Flash. Accepts `{ message, history }`. Streams response with `__STATUS__` markers for tool-call progress. Rate-limited to 30 req/15 min per user, 5 req/15 min per guest IP. |
 | `/api/keepalive` | GET | `CRON_SECRET` header | Device health monitor. Classifies devices as ok/missing/stale/anomaly. Sends email alerts on state transitions via Resend. Returns per-device status summary. |
 | `/api/weather` | GET | `CRON_SECRET` header | Weather ingestion cron. Fetches current conditions from WeatherAPI.com for each active deployment ZIP. Writes `source=weather` rows. Idempotent per 15-min UTC bucket. Returns fetch/insert/skip counts. |
+| `/api/guest-data` | POST | Guest token cookie | Read-only data proxy for guest users. Accepts `{ action, params }` with an allowlisted set of read-only actions. Fetches via service-role client. Rate-limited to 5 req/10s per IP. |
+| `/api/guest` | GET/POST | Admin (GET) / Public (POST) | Guest link management. GET generates a shareable guest URL (admin-only). POST validates a token and sets guest cookies. |
 | `/api/users` | GET/POST/PATCH/DELETE | Admin only (Supabase session) | User management. GET lists all users with roles. POST invites by email or generates a copy-able invite link (`linkOnly: true`). PATCH updates user role. DELETE removes a user. All mutations require admin role. |
 
 ## 6) Data Semantics
@@ -322,4 +327,5 @@ Optional PostHog integration provides product analytics (autocapture, session re
 | Dashboard extras | `web/src/components/DashboardStats.tsx` |
 | User management | `web/src/app/api/users/route.ts`, `web/src/components/UserManager.tsx` |
 | Auth / roles | `web/src/components/AuthProvider.tsx`, `web/src/lib/serverAuth.ts`, `web/src/middleware.ts` |
+| Guest access | `web/src/app/api/guest/route.ts`, `web/src/app/api/guest-data/route.ts`, `web/src/lib/supabase/guestQueries.ts`, `web/src/contexts/GuestContext.tsx` |
 | Analytics (optional) | `web/src/components/PostHogProvider.tsx`, `web/src/lib/posthog-server.ts` |

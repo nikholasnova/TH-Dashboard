@@ -7,6 +7,7 @@ import { DeploymentModal } from '@/components/DeploymentModal';
 import { DeviceManager } from '@/components/DeviceManager';
 import { UserManager } from '@/components/UserManager';
 import { Reading, Deployment, ChartSample, DeviceStats, DeviceAlertState, getActiveDeployments, getDashboardLive, getDeviceStats, getDeviceAlertStates } from '@/lib/supabase';
+import { guestGetDashboardLive, guestGetDeviceStats, guestGetActiveDeployments, guestGetDeviceAlertStates } from '@/lib/supabase/guestQueries';
 import { DashboardStats } from '@/components/DashboardStats';
 
 import { useSetChatPageContext } from '@/lib/chatContext';
@@ -75,9 +76,12 @@ export default function Dashboard() {
     const now = new Date().toISOString();
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+    const fetchLive = isGuest ? guestGetDashboardLive : getDashboardLive;
+    const fetchStats = isGuest ? guestGetDeviceStats : getDeviceStats;
+
     const [liveResult, statsResult] = await Promise.allSettled([
-      getDashboardLive(ids, sixHoursAgo, 15),
-      getDeviceStats({ start: twentyFourHoursAgo, end: now }),
+      fetchLive(ids, sixHoursAgo, 15),
+      fetchStats({ start: twentyFourHoursAgo, end: now }),
     ]);
 
     if (liveResult.status === 'fulfilled') {
@@ -101,7 +105,7 @@ export default function Dashboard() {
       setStats(statsResult.value);
       setStatsLoading(false);
     }
-  }, [devices]);
+  }, [devices, isGuest]);
 
   const fetchInitialData = useCallback(async () => {
     const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
@@ -109,11 +113,16 @@ export default function Dashboard() {
     const now = new Date().toISOString();
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+    const fetchLive = isGuest ? guestGetDashboardLive : getDashboardLive;
+    const fetchStats = isGuest ? guestGetDeviceStats : getDeviceStats;
+    const fetchDeps = isGuest ? guestGetActiveDeployments : getActiveDeployments;
+    const fetchAlerts = isGuest ? guestGetDeviceAlertStates : getDeviceAlertStates;
+
     const [liveResult, statsResult, deploymentsResult, alertResult] = await Promise.allSettled([
-      getDashboardLive(ids, sixHoursAgo, 15),
-      getDeviceStats({ start: twentyFourHoursAgo, end: now }),
-      getActiveDeployments(ids),
-      getDeviceAlertStates(ids),
+      fetchLive(ids, sixHoursAgo, 15),
+      fetchStats({ start: twentyFourHoursAgo, end: now }),
+      fetchDeps(ids),
+      fetchAlerts(ids),
     ]);
 
     const live = liveResult.status === 'fulfilled' ? liveResult.value : null;
@@ -139,7 +148,7 @@ export default function Dashboard() {
       setStatsLoading(false);
     }
     setIsLoading(false);
-  }, [devices]);
+  }, [devices, isGuest]);
 
   useEffect(() => {
     if (devicesLoading) return;
@@ -157,7 +166,8 @@ export default function Dashboard() {
 
   const handleDeploymentChange = useCallback(async () => {
     const ids = devices.map(d => d.id);
-    const deployments = await getActiveDeployments(ids);
+    const fetchDeps = isGuest ? guestGetActiveDeployments : getActiveDeployments;
+    const deployments = await fetchDeps(ids);
     setDeviceData(prev => {
       const next = { ...prev };
       for (const id of Object.keys(deployments)) {
@@ -165,7 +175,7 @@ export default function Dashboard() {
       }
       return next;
     });
-  }, [devices]);
+  }, [devices, isGuest]);
 
   const selectedReading = selectedDevice ? deviceData[selectedDevice.id]?.reading : null;
   const selectedDeviceConnected =

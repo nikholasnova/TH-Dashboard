@@ -3,6 +3,8 @@
 import { useState, useCallback } from 'react';
 import { getDeployment, type Deployment } from '@/lib/supabase';
 import { DEPLOYMENT_ALL_TIME_HOURS } from '@/lib/constants';
+import { useGuest } from '@/contexts/GuestContext';
+import { guestGetDeployment } from '@/lib/supabase/guestQueries';
 
 export interface TimeRangeBounds {
   start: string;
@@ -22,6 +24,7 @@ export function useTimeRange(options: UseTimeRangeOptions = {}) {
   const [customEnd, setCustomEnd] = useState('');
   const [deploymentFilter, setDeploymentFilter] = useState('');
   const [deviceFilter, setDeviceFilter] = useState('');
+  const { isGuest } = useGuest();
 
   const isCustom = selectedRange === -1;
   const isCustomValid =
@@ -30,8 +33,9 @@ export function useTimeRange(options: UseTimeRangeOptions = {}) {
     new Date(customStart).getTime() < new Date(customEnd).getTime();
 
   const getRangeBounds = useCallback(async (): Promise<TimeRangeBounds> => {
+    const fetchDep = isGuest ? guestGetDeployment : getDeployment;
     const dep = deploymentFilter
-      ? await getDeployment(parseInt(deploymentFilter, 10))
+      ? await fetchDep(parseInt(deploymentFilter, 10))
       : null;
 
     if (isCustom) {
@@ -95,7 +99,7 @@ export function useTimeRange(options: UseTimeRangeOptions = {}) {
       end: end.toISOString(),
       scopedDeviceId: deviceFilter || undefined,
     };
-  }, [selectedRange, isCustom, customStart, customEnd, deploymentFilter, deviceFilter, defaultRange]);
+  }, [selectedRange, isCustom, customStart, customEnd, deploymentFilter, deviceFilter, defaultRange, isGuest]);
 
   const handleDeviceFilterChange = useCallback((value: string) => {
     setDeviceFilter(value);
