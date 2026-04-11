@@ -39,7 +39,7 @@ export function ChatShell() {
   if (loading || (!user && !isGuest)) return null;
 
   const containerClass = [
-    'fixed z-50 flex flex-col transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+    'fixed z-50 flex flex-col backdrop-blur-xl transition-[width,height,inset,right,max-height] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
     isFullscreen
       ? 'inset-0'
       : 'right-0 sm:right-6 w-full sm:w-[42rem] h-[75svh] sm:h-[42rem] sm:max-h-[82vh]',
@@ -53,12 +53,12 @@ export function ChatShell() {
       } as React.CSSProperties;
 
   const headerClass = isFullscreen
-    ? 'flex justify-between items-center px-4 py-2 bg-[var(--glass-bg-strong)] backdrop-blur-xl border-b border-[var(--glass-border)]'
-    : 'flex justify-between items-center px-4 py-2 bg-[var(--glass-bg-strong)] backdrop-blur-xl border border-[var(--glass-border)] border-b-0 rounded-t-xl sm:rounded-t-2xl';
+    ? 'flex justify-between items-center px-4 py-2 bg-[var(--glass-bg-strong)] border-b border-[var(--glass-border)]'
+    : 'flex justify-between items-center px-4 py-2 bg-[var(--glass-bg-strong)] border border-[var(--glass-border)] border-b-0 rounded-t-xl sm:rounded-t-2xl';
 
   const bodyClass = isFullscreen
-    ? 'flex-1 min-h-0 bg-[var(--glass-bg-strong)] backdrop-blur-xl border-x border-[var(--glass-border)] overflow-hidden flex flex-col'
-    : 'flex-1 min-h-0 bg-[var(--glass-bg-strong)] backdrop-blur-xl border border-[var(--glass-border)] border-t-0 rounded-b-2xl overflow-hidden flex flex-col overscroll-contain';
+    ? 'flex-1 min-h-0 bg-[var(--glass-bg-strong)] border-x border-[var(--glass-border)] overflow-hidden flex flex-col'
+    : 'flex-1 min-h-0 bg-[var(--glass-bg-strong)] border border-[var(--glass-border)] border-t-0 rounded-b-2xl overflow-hidden flex flex-col overscroll-contain';
 
   return (
     <>
