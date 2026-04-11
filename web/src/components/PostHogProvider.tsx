@@ -17,7 +17,6 @@ if (typeof window !== 'undefined' && POSTHOG_KEY) {
     capture_pageview: false, // we handle this manually for App Router
     capture_pageleave: true,
     autocapture: true,
-    disable_session_recording: true, // started manually after login
     session_recording: {
       maskAllInputs: false,
       maskInputOptions: { password: true },
@@ -62,10 +61,8 @@ function PostHogIdentify() {
         email: user.email,
         role: user.app_metadata?.role,
       });
-      ph.startSessionRecording();
       prevUserId.current = user.id;
     } else if (!user && prevUserId.current) {
-      ph.stopSessionRecording();
       ph.reset();
       prevUserId.current = null;
     }
