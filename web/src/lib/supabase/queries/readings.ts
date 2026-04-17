@@ -155,28 +155,55 @@ export async function getAllReadingsRange(params: {
 }): Promise<Reading[]> {
   if (!supabase) return [];
 
-  let query = supabase
-    .from('readings')
-    .select('*')
-    .gte('created_at', params.start)
-    .lte('created_at', params.end)
-    .order('created_at', { ascending: true });
-
-  if (params.device_id) {
-    query = query.eq('device_id', params.device_id);
-  }
-
   if (params.maxRows) {
-    query = query.limit(params.maxRows);
+    let query = supabase
+      .from('readings')
+      .select('*')
+      .gte('created_at', params.start)
+      .lte('created_at', params.end)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .limit(params.maxRows);
+
+    if (params.device_id) {
+      query = query.eq('device_id', params.device_id);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching readings range:', error);
+      return [];
+    }
+    return data || [];
   }
 
-  const { data, error } = await query;
+  const pageSize = 1000;
+  const rows: Reading[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    let query = supabase
+      .from('readings')
+      .select('*')
+      .gte('created_at', params.start)
+      .lte('created_at', params.end)
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to);
 
-  if (error) {
-    console.error('Error fetching readings range:', error);
-    return [];
+    if (params.device_id) {
+      query = query.eq('device_id', params.device_id);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching readings range:', error);
+      return [];
+    }
+    const page = data || [];
+    rows.push(...page);
+    if (page.length < pageSize) break;
   }
-  return data || [];
+  return rows;
 }
 
 export async function getChartSamples(params: {
@@ -190,24 +217,45 @@ export async function getChartSamples(params: {
 
   const bucketMinutes = Math.max(1, Math.round(params.bucketSeconds / 60));
 
-  let query = supabase.rpc('get_chart_samples', {
-    p_start: params.start,
-    p_end: params.end,
-    p_bucket_minutes: bucketMinutes,
-    p_device_id: params.device_id || null,
-  });
-
   if (params.maxRows) {
-    query = query.limit(params.maxRows);
+    const { data, error } = await supabase
+      .rpc('get_chart_samples', {
+        p_start: params.start,
+        p_end: params.end,
+        p_bucket_minutes: bucketMinutes,
+        p_device_id: params.device_id || null,
+      })
+      .limit(params.maxRows);
+
+    if (error) {
+      console.error('Error fetching chart samples:', error.message || error.code || JSON.stringify(error));
+      return [];
+    }
+    return data || [];
   }
 
-  const { data, error } = await query;
+  const pageSize = 1000;
+  const rows: ChartSample[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    const { data, error } = await supabase
+      .rpc('get_chart_samples', {
+        p_start: params.start,
+        p_end: params.end,
+        p_bucket_minutes: bucketMinutes,
+        p_device_id: params.device_id || null,
+      })
+      .range(from, to);
 
-  if (error) {
-    console.error('Error fetching chart samples:', error.message || error.code || JSON.stringify(error));
-    return [];
+    if (error) {
+      console.error('Error fetching chart samples:', error.message || error.code || JSON.stringify(error));
+      return [];
+    }
+    const page = (data || []) as ChartSample[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
   }
-  return data || [];
+  return rows;
 }
 
 export async function getDeviceStats(params: {

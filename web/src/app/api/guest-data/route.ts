@@ -151,16 +151,39 @@ async function executeAction(supabase: any, action: string, params: any) {
         1,
         Math.round((bucketSeconds || 60) / 60)
       );
-      let query = supabase.rpc('get_chart_samples', {
-        p_start: start,
-        p_end: end,
-        p_bucket_minutes: bucketMinutes,
-        p_device_id: device_id || null,
-      });
-      if (maxRows) query = query.limit(maxRows);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+
+      if (maxRows) {
+        const { data, error } = await supabase
+          .rpc('get_chart_samples', {
+            p_start: start,
+            p_end: end,
+            p_bucket_minutes: bucketMinutes,
+            p_device_id: device_id || null,
+          })
+          .limit(maxRows);
+        if (error) throw error;
+        return data || [];
+      }
+
+      const pageSize = 1000;
+      const maxGuest = 5000;
+      const rows: unknown[] = [];
+      for (let from = 0; rows.length < maxGuest; from += pageSize) {
+        const to = Math.min(from + pageSize - 1, maxGuest - 1);
+        const { data, error } = await supabase
+          .rpc('get_chart_samples', {
+            p_start: start,
+            p_end: end,
+            p_bucket_minutes: bucketMinutes,
+            p_device_id: device_id || null,
+          })
+          .range(from, to);
+        if (error) throw error;
+        const page = data || [];
+        rows.push(...page);
+        if (page.length < to - from + 1) break;
+      }
+      return rows;
     }
 
     case 'deployment_stats': {
@@ -279,17 +302,43 @@ async function executeAction(supabase: any, action: string, params: any) {
 
     case 'all_readings_range': {
       const { start, end, device_id, maxRows } = params;
-      let query = supabase
-        .from('readings')
-        .select('*')
-        .gte('created_at', start)
-        .lte('created_at', end)
-        .order('created_at', { ascending: true });
-      if (device_id) query = query.eq('device_id', device_id);
-      if (maxRows) query = query.limit(maxRows);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
+
+      if (maxRows) {
+        let query = supabase
+          .from('readings')
+          .select('*')
+          .gte('created_at', start)
+          .lte('created_at', end)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+          .limit(maxRows);
+        if (device_id) query = query.eq('device_id', device_id);
+        const { data, error } = await query;
+        if (error) throw error;
+        return data || [];
+      }
+
+      const pageSize = 1000;
+      const maxGuest = 5000;
+      const rows: unknown[] = [];
+      for (let from = 0; rows.length < maxGuest; from += pageSize) {
+        const to = Math.min(from + pageSize - 1, maxGuest - 1);
+        let query = supabase
+          .from('readings')
+          .select('*')
+          .gte('created_at', start)
+          .lte('created_at', end)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, to);
+        if (device_id) query = query.eq('device_id', device_id);
+        const { data, error } = await query;
+        if (error) throw error;
+        const page = data || [];
+        rows.push(...page);
+        if (page.length < to - from + 1) break;
+      }
+      return rows;
     }
 
     case 'alert_states': {
