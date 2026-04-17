@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import Link from 'next/link';
 import { useSession } from './AuthProvider';
 import { useGuest } from '@/contexts/GuestContext';
@@ -12,11 +12,13 @@ interface AuthGateProps {
 
 export function AuthGate({ children }: AuthGateProps) {
   const { session, loading } = useSession();
-  const { isGuest } = useGuest();
+  const { isGuest, clearGuest } = useGuest();
 
-  if (isGuest) {
-    return <>{children}</>;
-  }
+  useEffect(() => {
+    if (session && isGuest) {
+      clearGuest();
+    }
+  }, [session, isGuest, clearGuest]);
 
   if (loading) {
     return (
@@ -26,23 +28,27 @@ export function AuthGate({ children }: AuthGateProps) {
     );
   }
 
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="glass-card p-8 text-center max-w-md">
-          <h2 className="text-xl font-semibold text-[var(--foreground)] mb-4">
-            Authentication Required
-          </h2>
-          <p className="text-[var(--foreground-muted)] mb-6">
-            Please log in to view the dashboard.
-          </p>
-          <Link href="/login" className="btn-glass px-6 py-2 inline-block">
-            Log In
-          </Link>
-        </div>
-      </div>
-    );
+  if (session) {
+    return <>{children}</>;
   }
 
-  return <>{children}</>;
+  if (isGuest) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="glass-card p-8 text-center max-w-md">
+        <h2 className="text-xl font-semibold text-[var(--foreground)] mb-4">
+          Authentication Required
+        </h2>
+        <p className="text-[var(--foreground-muted)] mb-6">
+          Please log in to view the dashboard.
+        </p>
+        <Link href="/login" className="btn-glass px-6 py-2 inline-block">
+          Log In
+        </Link>
+      </div>
+    </div>
+  );
 }

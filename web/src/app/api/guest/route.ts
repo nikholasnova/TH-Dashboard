@@ -39,12 +39,24 @@ export async function POST(request: NextRequest) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict' as const,
     path: '/',
-    maxAge: 60 * 60 * 24 * 7, // 7 days
   };
   // httpOnly cookie for middleware validation
   response.cookies.set('guest_token', token, { ...cookieOpts, httpOnly: true });
   // readable cookie for client-side GuestContext
   response.cookies.set('guest_mode', '1', cookieOpts);
 
+  return response;
+}
+
+export async function DELETE() {
+  const response = NextResponse.json({ success: true });
+  const clearOpts = {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict' as const,
+    path: '/',
+    maxAge: 0,
+  };
+  response.cookies.set('guest_token', '', { ...clearOpts, httpOnly: true });
+  response.cookies.set('guest_mode', '', clearOpts);
   return response;
 }
