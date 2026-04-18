@@ -154,8 +154,8 @@ export default function LoginPage() {
           {!passwordSet && sessionReady && (
             <form onSubmit={handleSetPassword} className="space-y-6">
               {error && (
-                <div className="p-4 rounded-xl bg-[var(--error)]/8 border border-[var(--error)]/20">
-                  <p className="text-sm text-[var(--error)]">{error}</p>
+                <div className="alert-accent text-[var(--error)]">
+                  <p className="text-sm">{error}</p>
                 </div>
               )}
 
@@ -170,7 +170,7 @@ export default function LoginPage() {
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                   autoComplete="new-password"
-                  className="w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] transition-all"
+                  className="w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] transition-colors"
                   placeholder="At least 6 characters"
                 />
               </div>
@@ -186,7 +186,7 @@ export default function LoginPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   autoComplete="new-password"
-                  className="w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] transition-all"
+                  className="w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] transition-colors"
                   placeholder="Re-enter your password"
                 />
               </div>
@@ -238,8 +238,8 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="p-4 rounded-xl bg-[var(--error)]/8 border border-[var(--error)]/20">
-              <p className="text-sm text-[var(--error)]">{error}</p>
+            <div className="alert-accent text-[var(--error)]">
+              <p className="text-sm">{error}</p>
             </div>
           )}
 
@@ -257,7 +257,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] transition-all"
+              className="w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] transition-colors"
               placeholder="you@example.com"
             />
           </div>
@@ -276,7 +276,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] transition-all"
+              className="w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] focus:ring-2 focus:ring-[var(--input-focus-ring)] transition-colors"
               placeholder="Enter your password"
             />
           </div>

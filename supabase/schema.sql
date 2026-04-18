@@ -488,6 +488,35 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.delete_readings_range(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, BOOLEAN) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.delete_readings_range(TEXT, TIMESTAMPTZ, TIMESTAMPTZ, BOOLEAN) TO authenticated, service_role;
 
+-- Single-row delete for the Data Explorer review flow.
+-- SECURITY DEFINER so it bypasses the readings DELETE RLS (service_role only).
+-- Admin role is enforced by looking up user_roles directly via auth.uid(),
+-- which is robust to stale JWTs (unlike the JWT-claims approach used elsewhere).
+CREATE OR REPLACE FUNCTION delete_reading_by_id(p_id BIGINT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_count INT;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = auth.uid() AND role = 'admin'
+  ) THEN
+    RAISE EXCEPTION 'Only admins can delete readings';
+  END IF;
+
+  DELETE FROM public.readings WHERE id = p_id;
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count > 0;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.delete_reading_by_id(BIGINT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.delete_reading_by_id(BIGINT) TO authenticated, service_role;
+
 -- Guardrail: one active deployment per device when data allows it.
 DO $$
 BEGIN

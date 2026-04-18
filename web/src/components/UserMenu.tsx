@@ -71,7 +71,7 @@ export function UserMenu() {
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-10 h-10 rounded-full bg-[var(--active-bg)] border border-[var(--btn-border-hover)] flex items-center justify-center text-[var(--foreground-secondary)] font-semibold text-sm hover:bg-[var(--active-bg)] hover:border-[var(--btn-border-hover)] transition-all"
+          className="w-10 h-10 rounded-full bg-[var(--active-bg)] border border-[var(--btn-border-hover)] flex items-center justify-center text-[var(--foreground-secondary)] font-semibold text-sm hover:bg-[var(--active-bg)] hover:border-[var(--btn-border-hover)] transition-colors"
           aria-label="User menu"
         >
           {initials}
@@ -114,7 +114,7 @@ export function UserMenu() {
       {/* Theme toggle */}
       <button
         onClick={toggle}
-        className="w-10 h-10 rounded-full bg-[var(--active-bg)] border border-[var(--btn-border-hover)] flex items-center justify-center text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-all"
+        className="w-10 h-10 rounded-full bg-[var(--active-bg)] border border-[var(--btn-border-hover)] flex items-center justify-center text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
         aria-label={`Switch to ${resolved === 'dark' ? 'light' : 'dark'} mode`}
         title={theme === 'dark' ? 'Dark' : 'Light'}
       >

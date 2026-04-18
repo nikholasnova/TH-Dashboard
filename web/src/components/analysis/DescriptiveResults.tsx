@@ -47,7 +47,7 @@ function Histogram({ counts, binEdges, color, unit }: HistogramProps) {
           return (
             <div
               key={i}
-              className="flex-1 rounded-t-sm transition-all hover:opacity-80 relative group"
+              className="flex-1 rounded-t-sm transition-opacity hover:opacity-80 relative group"
               style={{
                 height: `${heightPct}%`,
                 backgroundColor: color,

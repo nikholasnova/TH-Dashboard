@@ -292,15 +292,15 @@ export function DeploymentModal({
         </div>
 
         {reading && !isDeviceConnected && !isViewingSpecific && (
-          <div className="mb-6 p-4 rounded-xl bg-[var(--warning)]/10 border border-[var(--warning)]/30">
-            <p className="text-sm text-[var(--warning)]">
+          <div className="mb-6 alert-accent text-[var(--warning)]">
+            <p className="text-sm">
               <span className="font-semibold">Device offline.</span> You can still create a deployment, but no data will be collected until the device reconnects.
             </p>
           </div>
         )}
         {actionError && (
-          <div className="mb-6 p-4 rounded-xl bg-[var(--error)]/10 border border-[var(--error)]/30">
-            <p className="text-sm text-[var(--error)]">{actionError}</p>
+          <div className="mb-6 alert-accent text-[var(--error)]">
+            <p className="text-sm">{actionError}</p>
           </div>
         )}
 
@@ -322,7 +322,7 @@ export function DeploymentModal({
                     </>
                   ) : (
                     <>
-                      <div className="w-2 h-2 rounded-full bg-[var(--success)] animate-pulse" />
+                      <div className="w-2 h-2 rounded-full bg-[var(--success)]" />
                       <h3 className="text-lg font-semibold text-[var(--foreground)]">Active Deployment</h3>
                     </>
                   )}
@@ -397,14 +397,14 @@ export function DeploymentModal({
                       </div>
                     </div>
                     {!isEditTimeValid && editFormData.ended_at && (
-                      <div className="p-3 rounded-lg bg-[var(--error)]/10 border border-[var(--error)]/30">
-                        <p className="text-xs text-[var(--error)]">
+                      <div className="alert-accent text-[var(--error)]">
+                        <p className="text-xs">
                           End time must be after start time.
                         </p>
                       </div>
                     )}
-                    <div className="p-3 rounded-lg bg-[var(--warning)]/10 border border-[var(--warning)]/30">
-                      <p className="text-xs text-[var(--warning)]">
+                    <div className="alert-accent text-[var(--warning)]">
+                      <p className="text-xs">
                         Changing time bounds may cause some readings to become unassigned until another deployment covers them.
                       </p>
                     </div>
@@ -473,7 +473,7 @@ export function DeploymentModal({
                     </div>
 
                     {showDeleteConfirm && (
-                      <div className="mt-4 p-4 rounded-xl bg-[var(--error)]/10 border border-[var(--error)]/30">
+                      <div className="mt-4 alert-accent text-[var(--error)]">
                         <p className="text-sm text-[var(--foreground)] mb-3">Are you sure? This will permanently delete this deployment <span className="font-semibold">and all its sensor readings</span>. This cannot be undone.</p>
                         <div className="flex gap-3">
                           <button

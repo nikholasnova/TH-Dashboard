@@ -188,7 +188,7 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
 
   const inputClass = 'bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full';
   const toggleClass = (active: boolean) =>
-    `nav-pill px-4 py-2 text-sm rounded-xl transition-all ${active ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`;
+    `nav-pill px-4 py-2 text-sm rounded-xl transition-colors ${active ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

@@ -7,8 +7,10 @@ export {
   getChartSamples,
   getDeviceStats,
   getDashboardLive,
+  getFilteredReadings,
+  deleteReadingById,
 } from './readings';
-export type { DashboardLiveData } from './readings';
+export type { DashboardLiveData, ReadingsFilter } from './readings';
 export {
   getDeployments,
   getDeployment,

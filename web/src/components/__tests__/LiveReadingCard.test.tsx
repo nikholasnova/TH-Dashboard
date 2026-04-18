@@ -68,15 +68,16 @@ describe('LiveReadingCard', () => {
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 
-  it('shows Live badge when reading is fresh', () => {
-    render(
+  it('shows live indicator with updated timestamp when reading is fresh', () => {
+    const { container } = render(
       <LiveReadingCard
         deviceId="node1"
         deviceName="Node 1"
         reading={baseReading}
       />
     );
-    expect(screen.getByText('Live')).toBeInTheDocument();
+    expect(container.querySelector('.live-indicator')).toBeInTheDocument();
+    expect(screen.getByText(/Updated/)).toBeInTheDocument();
   });
 
   it('shows Offline badge when reading is stale', () => {

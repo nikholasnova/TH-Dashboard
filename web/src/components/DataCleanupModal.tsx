@@ -209,8 +209,8 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
 
           {step === 'confirm' && (
             <div className="space-y-5">
-              <div className="p-4 rounded-lg bg-[var(--error)]/10 border border-[var(--error)]/30">
-                <p className="text-sm font-medium text-[var(--error)] mb-2">This action cannot be undone</p>
+              <div className="alert-accent text-[var(--error)]">
+                <p className="text-sm font-medium mb-1">This action cannot be undone</p>
                 <p className="text-sm text-[var(--foreground)]">
                   You are about to delete <strong>{previewCount?.toLocaleString()}</strong> readings from <strong>{devName}</strong> between {new Date(customStart).toLocaleDateString()} and {new Date(customEnd).toLocaleDateString()}.
                 </p>
@@ -230,13 +230,11 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
           )}
 
           {step === 'done' && (
-            <div className="text-center py-8">
-              <div className="mb-4 inline-flex p-3 rounded-full bg-[var(--success)]/10">
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              </div>
-              <p className="text-lg font-medium text-[var(--foreground)] mb-2">Deleted {deletedCount.toLocaleString()} readings</p>
+            <div className="py-6">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-3">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              <p className="text-lg font-medium text-[var(--foreground)] mb-1">Deleted {deletedCount.toLocaleString()} readings</p>
               <p className="text-sm text-[var(--foreground-muted)]">from {devName}</p>
               <button onClick={() => { onComplete(); onClose(); }} className="btn-glass px-6 py-2.5 text-sm font-semibold mt-6">Done</button>
             </div>

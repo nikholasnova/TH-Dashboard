@@ -65,6 +65,12 @@
   /* Scrollbar */
   --scrollbar-thumb: rgba(0, 0, 0, 0.12);
   --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+
+  /* Content surfaces (solid, distinct from glass) */
+  --surface: rgba(0, 0, 0, 0.02);
+  --surface-raised: rgba(0, 0, 0, 0.04);
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
 }
 
 /* Dark Mode */
@@ -121,6 +127,11 @@
 
   --scrollbar-thumb: rgba(255, 255, 255, 0.12);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+
+  --surface: rgba(255, 255, 255, 0.03);
+  --surface-raised: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
 }
 
 @theme inline {
@@ -410,8 +421,38 @@ nav.glass-card {
   }
 }
 
-.animate-breathe {
+.live-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--success);
   animation: breathe 2.5s ease-in-out infinite;
+}
+
+/* Solid content surface — the counterpart to .glass-card.
+   Use for inner cells, list rows, stat boxes. */
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* Semantic alert using a left border instead of a tinted fill.
+   Apply to the outer element with the semantic color class, e.g.
+   <div className="alert-accent text-[var(--error)]"> */
+.alert-accent {
+  border-left: 2px solid currentColor;
+  padding: 0.5rem 0.875rem;
+}
+
+/* Small uppercase metadata label — section headings, counts, status words. */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--foreground-muted);
 }
 
 /* Sparkline draw-on animation */

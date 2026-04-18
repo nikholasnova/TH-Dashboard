@@ -223,19 +223,14 @@ export default function AnalysisPage() {
 
     if (stage === 'ready') {
       return (
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-[var(--success)]" />
-          <span className="text-[var(--success)] text-sm font-medium">
-            Python ready
-          </span>
-        </div>
+        <span className="eyebrow text-[var(--success)]">Python ready</span>
       );
     }
 
     if (stage === 'error') {
       return (
         <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-[var(--error)]" />
+          <span className="eyebrow text-[var(--error)]">Error</span>
           <span className="text-[var(--error)] text-sm">{message}</span>
           <button
             onClick={handleRetryPyodide}
@@ -277,7 +272,7 @@ export default function AnalysisPage() {
 
   return (
     <PageLayout title="Python Statistical Analysis" subtitle="Run scientific analyses on sensor data using Python">
-          <div className="glass-card p-4 sm:p-6 mb-6">{renderPyodideStatus()}</div>
+          <div className="mb-6">{renderPyodideStatus()}</div>
 
           <div className="glass-card p-4 sm:p-6 mb-6">
             <h2 className="text-lg font-semibold text-[var(--foreground)] mb-4">
@@ -299,7 +294,7 @@ export default function AnalysisPage() {
                       key={dep.id}
                       onClick={() => toggleDeployment(dep.id)}
                       disabled={!pyodideReady}
-                      className={`nav-pill px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
+                      className={`nav-pill px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-colors whitespace-nowrap shrink-0 ${
                         selectedDeployments.includes(dep.id)
                           ? 'nav-active text-[var(--foreground)] font-semibold'
                           : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
@@ -321,14 +316,14 @@ export default function AnalysisPage() {
                   Time Range
                 </label>
                 <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
-                  <div className="glass-card p-2 flex gap-1 overflow-x-auto scrollbar-thin">
+                  <div className="surface p-2 flex gap-1 overflow-x-auto scrollbar-thin">
                     {TIME_RANGES.map((range) => (
                       <button
                         key={range.hours}
                         onClick={() => setSelectedRange(range.hours)}
                         disabled={!pyodideReady}
                         data-label={range.label}
-                        className={`nav-pill px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
+                        className={`nav-pill px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-colors whitespace-nowrap shrink-0 ${
                           selectedRange === range.hours
                             ? 'nav-active text-[var(--foreground)] font-semibold'
                             : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
@@ -340,7 +335,7 @@ export default function AnalysisPage() {
                   </div>
 
                   {isCustom && (
-                    <div className="glass-card p-3 flex flex-wrap items-center gap-3">
+                    <div className="surface p-3 flex flex-wrap items-center gap-3">
                       <div className="flex items-center gap-2">
                         <label className="text-xs text-[var(--foreground-muted)]">Start</label>
                         <input
@@ -384,7 +379,7 @@ export default function AnalysisPage() {
                       onClick={() => toggleAnalysis(type.id)}
                       disabled={!pyodideReady}
                       data-label={type.label}
-                      className={`nav-pill px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-all whitespace-nowrap shrink-0 ${
+                      className={`nav-pill px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-xl transition-colors whitespace-nowrap shrink-0 ${
                         selectedAnalyses.includes(type.id)
                           ? 'nav-active text-[var(--foreground)] font-semibold'
                           : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
@@ -442,7 +437,7 @@ export default function AnalysisPage() {
                   <span className="text-[var(--foreground-muted)] text-sm">{runProgress}</span>
                 </div>
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="glass-card p-6 skeleton h-48" />
+                  <div key={i} className="surface p-6 skeleton h-48" />
                 ))}
               </div>
             )}
@@ -472,8 +467,8 @@ export default function AnalysisPage() {
                       {!isError(results.descriptive) && <CsvDownloadBtn analysisType="descriptive" onClick={() => exportDescriptive(results.descriptive as DescriptiveResult[])} />}
                     </div>
                     {isError(results.descriptive) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
-                        <p className="text-[var(--warning)] text-sm">{results.descriptive.error}</p>
+                      <div className="alert-accent text-[var(--warning)]">
+                        <p className="text-sm">{results.descriptive.error}</p>
                       </div>
                     ) : (
                       <DescriptiveResults results={results.descriptive} />
@@ -488,8 +483,8 @@ export default function AnalysisPage() {
                       {!isError(results.correlation) && <CsvDownloadBtn analysisType="correlation" onClick={() => exportCorrelation(results.correlation as CorrelationResult[])} />}
                     </div>
                     {isError(results.correlation) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
-                        <p className="text-[var(--warning)] text-sm">{results.correlation.error}</p>
+                      <div className="alert-accent text-[var(--warning)]">
+                        <p className="text-sm">{results.correlation.error}</p>
                       </div>
                     ) : (
                       <CorrelationResults results={results.correlation} />
@@ -504,8 +499,8 @@ export default function AnalysisPage() {
                       {!isError(results.hypothesis_test) && <CsvDownloadBtn analysisType="hypothesis_test" onClick={() => exportHypothesisTest(results.hypothesis_test as HypothesisTestResult[])} />}
                     </div>
                     {isError(results.hypothesis_test) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
-                        <p className="text-[var(--warning)] text-sm">{results.hypothesis_test.error}</p>
+                      <div className="alert-accent text-[var(--warning)]">
+                        <p className="text-sm">{results.hypothesis_test.error}</p>
                       </div>
                     ) : (
                       <HypothesisTestResults results={results.hypothesis_test} />
@@ -519,8 +514,8 @@ export default function AnalysisPage() {
                       <h3 className="text-md font-semibold text-[var(--foreground)]">ANOVA (3+ Groups)</h3>
                     </div>
                     {isError(results.anova) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
-                        <p className="text-[var(--warning)] text-sm">{(results.anova as { error: string }).error}</p>
+                      <div className="alert-accent text-[var(--warning)]">
+                        <p className="text-sm">{(results.anova as { error: string }).error}</p>
                       </div>
                     ) : (
                       <AnovaResults results={results.anova as AnovaResult[]} />
@@ -535,8 +530,8 @@ export default function AnalysisPage() {
                       {!isError(results.seasonal_decomposition) && <CsvDownloadBtn analysisType="seasonal_decomposition" onClick={() => exportSeasonal(results.seasonal_decomposition as SeasonalResult[])} />}
                     </div>
                     {isError(results.seasonal_decomposition) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
-                        <p className="text-[var(--warning)] text-sm">{results.seasonal_decomposition.error}</p>
+                      <div className="alert-accent text-[var(--warning)]">
+                        <p className="text-sm">{results.seasonal_decomposition.error}</p>
                       </div>
                     ) : (
                       <SeasonalResults results={results.seasonal_decomposition} />
@@ -551,8 +546,8 @@ export default function AnalysisPage() {
                       {!isError(results.forecasting) && <CsvDownloadBtn analysisType="forecasting" onClick={() => exportForecast(results.forecasting as ForecastResult[])} />}
                     </div>
                     {isError(results.forecasting) ? (
-                      <div className="glass-card p-4 border-l-4 border-l-[var(--warning)]">
-                        <p className="text-[var(--warning)] text-sm">{results.forecasting.error}</p>
+                      <div className="alert-accent text-[var(--warning)]">
+                        <p className="text-sm">{results.forecasting.error}</p>
                       </div>
                     ) : (
                       <ForecastResults results={results.forecasting} />

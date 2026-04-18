@@ -38,5 +38,7 @@ export {
   deactivateDevice,
   getDashboardLive,
   getDeviceAlertStates,
+  getFilteredReadings,
+  deleteReadingById,
 } from './queries/index';
-export type { DashboardLiveData } from './queries/index';
+export type { DashboardLiveData, ReadingsFilter } from './queries/index';

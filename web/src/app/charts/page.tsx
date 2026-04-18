@@ -337,15 +337,15 @@ export default function ChartsPage() {
         <FilterToolbar timeRange={timeRange} deployments={deployments}>
           <div className="glass-card p-2 flex gap-1">
             <button onClick={() => setMetric('temperature')} data-label="Temp"
-              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'temperature' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
+              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-colors ${metric === 'temperature' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Temp
             </button>
             <button onClick={() => setMetric('humidity')} data-label="Humidity"
-              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'humidity' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
+              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-colors ${metric === 'humidity' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Humidity
             </button>
             <button onClick={() => setMetric('both')} data-label="Both"
-              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-all ${metric === 'both' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
+              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-colors ${metric === 'both' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
               Both
             </button>
           </div>

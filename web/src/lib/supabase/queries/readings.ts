@@ -258,6 +258,90 @@ export async function getChartSamples(params: {
   return rows;
 }
 
+export interface ReadingsFilter {
+  start: string;
+  end: string;
+  deviceIds?: string[];
+  source?: 'sensor' | 'weather' | 'both';
+  minTempC?: number;
+  maxTempC?: number;
+  minHumidity?: number;
+  maxHumidity?: number;
+  deploymentId?: number;
+  sort?: 'asc' | 'desc';
+  limit?: number;
+}
+
+const PAGE_SIZE = 1000;
+export const FILTERED_READINGS_CEILING = 50_000;
+
+export interface FilteredReadingsResult {
+  readings: Reading[];
+  truncated: boolean;
+  ceiling: number;
+}
+
+export async function getFilteredReadings(filter: ReadingsFilter): Promise<FilteredReadingsResult> {
+  const ceiling = filter.limit ?? FILTERED_READINGS_CEILING;
+  if (!supabase) return { readings: [], truncated: false, ceiling };
+
+  const client = supabase;
+  const source = filter.source ?? 'both';
+  const sortDir = filter.sort ?? 'desc';
+
+  const buildBaseQuery = () => {
+    let q = client
+      .from('readings')
+      .select('*')
+      .gte('created_at', filter.start)
+      .lte('created_at', filter.end)
+      .order('created_at', { ascending: sortDir === 'asc' })
+      .order('id', { ascending: sortDir === 'asc' });
+
+    if (filter.deviceIds && filter.deviceIds.length > 0) {
+      q = q.in('device_id', filter.deviceIds);
+    }
+    if (source !== 'both') {
+      q = q.eq('source', source);
+    }
+    if (filter.minTempC != null) q = q.gte('temperature', filter.minTempC);
+    if (filter.maxTempC != null) q = q.lte('temperature', filter.maxTempC);
+    if (filter.minHumidity != null) q = q.gte('humidity', filter.minHumidity);
+    if (filter.maxHumidity != null) q = q.lte('humidity', filter.maxHumidity);
+    if (filter.deploymentId != null) q = q.eq('deployment_id', filter.deploymentId);
+    return q;
+  };
+
+  const rows: Reading[] = [];
+  let truncated = false;
+  for (let from = 0; from < ceiling; from += PAGE_SIZE) {
+    const to = Math.min(ceiling - 1, from + PAGE_SIZE - 1);
+    const { data, error } = await buildBaseQuery().range(from, to);
+    if (error) {
+      console.error('Error fetching filtered readings:', error);
+      break;
+    }
+    const page = data ?? [];
+    rows.push(...page);
+    if (page.length < to - from + 1) break;
+    if (rows.length >= ceiling) {
+      truncated = true;
+      break;
+    }
+  }
+  return { readings: rows, truncated, ceiling };
+}
+
+export async function deleteReadingById(id: number): Promise<boolean> {
+  if (!supabase) return false;
+  const { data, error } = await supabase.rpc('delete_reading_by_id', { p_id: id });
+  if (error) {
+    console.error('Error deleting reading:', error);
+    throw error;
+  }
+  return data === true;
+}
+
 export async function getDeviceStats(params: {
   start: string;
   end: string;

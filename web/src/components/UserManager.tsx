@@ -192,8 +192,8 @@ export function UserManager({ isOpen, onClose }: UserManagerProps) {
           </div>
 
           {error && (
-            <div className="mb-4 p-3 rounded-xl bg-[var(--error)]/10 border border-[var(--error)]/30">
-              <p className="text-sm text-[var(--error)]">{error}</p>
+            <div className="mb-4 alert-accent text-[var(--error)]">
+              <p className="text-sm">{error}</p>
             </div>
           )}
 
@@ -268,7 +268,7 @@ export function UserManager({ isOpen, onClose }: UserManagerProps) {
                     </div>
 
                     {confirmDelete === u.id && (
-                      <div className="mt-3 p-3 rounded-lg bg-[var(--error)]/10 border border-[var(--error)]/30">
+                      <div className="mt-3 alert-accent text-[var(--error)]">
                         <p className="text-sm text-[var(--foreground)] mb-2">
                           Remove{' '}
                           <span className="font-semibold">{u.email}</span>?

@@ -175,8 +175,8 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
         </div>
 
         {error && (
-          <div className="mb-4 p-3 rounded-xl bg-[var(--error)]/10 border border-[var(--error)]/30">
-            <p className="text-sm text-[var(--error)]">{error}</p>
+          <div className="mb-4 alert-accent text-[var(--error)]">
+            <p className="text-sm">{error}</p>
           </div>
         )}
 
@@ -201,7 +201,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                         <button
                           key={c}
                           onClick={() => setEditColor(c)}
-                          className="w-9 h-9 sm:w-7 sm:h-7 rounded-full transition-all"
+                          className="w-9 h-9 sm:w-7 sm:h-7 rounded-full transition-colors"
                           style={{
                             backgroundColor: c,
                             outline: editColor === c ? '2px solid var(--foreground)' : '2px solid transparent',
@@ -270,7 +270,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
               )}
 
               {confirmDeactivate === device.id && (
-                <div className="mt-3 p-3 rounded-lg bg-[var(--error)]/10 border border-[var(--error)]/30">
+                <div className="mt-3 alert-accent text-[var(--error)]">
                   <p className="text-sm text-[var(--foreground)] mb-2">Deactivate <span className="font-semibold">{device.display_name}</span>? It will be hidden from the dashboard.</p>
                   <div className="flex gap-3">
                     <button
@@ -332,7 +332,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                   <button
                     key={c}
                     onClick={() => setNewColor(c)}
-                    className="w-9 h-9 sm:w-7 sm:h-7 rounded-full transition-all"
+                    className="w-9 h-9 sm:w-7 sm:h-7 rounded-full transition-colors"
                     style={{
                       backgroundColor: c,
                       outline: newColor === c ? '2px solid var(--foreground)' : '2px solid transparent',

@@ -187,10 +187,10 @@ function HypothesisCard({ result }: HypothesisCardProps) {
           </table>
 
           <div
-            className={`mt-3 p-3 rounded-lg ${
+            className={`mt-3 ${
               result.significant
-                ? 'bg-[var(--success)]/10 border border-[var(--success)]/30'
-                : 'bg-[var(--hover-bg)] border border-[var(--divider)]'
+                ? 'alert-accent text-[var(--success)]'
+                : 'p-3 surface'
             }`}
           >
             <p className="text-sm text-[var(--foreground)]">

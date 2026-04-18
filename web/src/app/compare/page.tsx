@@ -193,34 +193,34 @@ export default function ComparePage() {
 
                   return (
                     <>
-                      <div className="glass-card p-4">
-                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Temp Spread</p>
-                        <p className="text-2xl font-bold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      <div className="surface p-4">
+                        <p className="eyebrow mb-1">Temp Spread</p>
+                        <p className="text-2xl font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
                           {tempSpread != null ? `${tempSpread.toFixed(1)}°F` : '—'}
                         </p>
                         <p className="text-xs text-[var(--foreground-muted)] mt-1">between sensor averages</p>
                       </div>
-                      <div className="glass-card p-4">
-                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Most Accurate</p>
-                        <p className="text-2xl font-bold text-[var(--foreground)]">
+                      <div className="surface p-4">
+                        <p className="eyebrow mb-1">Most Accurate</p>
+                        <p className="text-2xl font-semibold text-[var(--foreground)]">
                           {mostAccurate ? mostAccurate.device.display_name : '—'}
                         </p>
                         <p className="text-xs text-[var(--foreground-muted)] mt-1">
                           {mostAccurate ? `${formatPercent(mostAccurate.tempErrorPct)} error vs weather` : 'no weather data'}
                         </p>
                       </div>
-                      <div className="glass-card p-4">
-                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Overall Range</p>
-                        <p className="text-2xl font-bold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      <div className="surface p-4">
+                        <p className="eyebrow mb-1">Overall Range</p>
+                        <p className="text-2xl font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
                           {overallHigh != null && overallLow != null
                             ? <><span className="text-[var(--warning)]">{overallHigh.toFixed(1)}°</span>{' / '}<span className="text-[var(--info)]">{overallLow.toFixed(1)}°</span></>
                             : '—'}
                         </p>
                         <p className="text-xs text-[var(--foreground-muted)] mt-1">high / low across all sensors</p>
                       </div>
-                      <div className="glass-card p-4">
-                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Total Readings</p>
-                        <p className="text-2xl font-bold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      <div className="surface p-4">
+                        <p className="eyebrow mb-1">Total Readings</p>
+                        <p className="text-2xl font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
                           {totalReadings.toLocaleString()}
                         </p>
                         <p className="text-xs text-[var(--foreground-muted)] mt-1">across {deviceColumns.length} sensor{deviceColumns.length !== 1 ? 's' : ''}</p>
@@ -244,8 +244,8 @@ export default function ComparePage() {
 
                   return (
                     <>
-                      <div className="glass-card p-4 sm:p-5">
-                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-3">Temperature Range Overlap</p>
+                      <div className="surface p-4 sm:p-5">
+                        <p className="eyebrow mb-3">Temperature Range Overlap</p>
                         <div className="space-y-2.5" style={{ minHeight: deviceColumns.length * 32 }}>
                           {tempCols.map(col => {
                             const left = ((col.tempMinF! - tempGlobalMin) / tempRange) * 100;
@@ -271,8 +271,8 @@ export default function ComparePage() {
                           <span>{tempGlobalMax.toFixed(1)}°F</span>
                         </div>
                       </div>
-                      <div className="glass-card p-4 sm:p-5">
-                        <p className="text-xs text-[var(--foreground-muted)] uppercase tracking-wider mb-3">Humidity Range Overlap</p>
+                      <div className="surface p-4 sm:p-5">
+                        <p className="eyebrow mb-3">Humidity Range Overlap</p>
                         <div className="space-y-2.5" style={{ minHeight: deviceColumns.length * 32 }}>
                           {humCols.map(col => {
                             const left = ((col.sensor!.humidity_min! - humGlobalMin) / humRange) * 100;
@@ -306,29 +306,29 @@ export default function ComparePage() {
             {/* Mobile: stacked cards per device */}
             <div className="sm:hidden space-y-4">
               {deviceColumns.map(col => (
-                <div key={col.device.id} className="glass-card p-4">
-                  <h3 className="text-base font-bold mb-3" style={{ color: col.device.color }}>
+                <div key={col.device.id} className="surface p-4">
+                  <h3 className="text-base font-semibold mb-3" style={{ color: col.device.color }}>
                     {col.device.display_name}
                   </h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
-                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Avg Temp</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    <div>
+                      <p className="eyebrow mb-1">Avg Temp</p>
                       <p className="text-lg font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.tempAvgF)}°F</p>
                     </div>
-                    <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
-                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Avg Humidity</p>
+                    <div>
+                      <p className="eyebrow mb-1">Avg Humidity</p>
                       <p className="text-lg font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.sensor?.humidity_avg)}%</p>
                     </div>
-                    <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
-                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">High / Low</p>
+                    <div>
+                      <p className="eyebrow mb-1">High / Low</p>
                       <p className="text-sm font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
                         <span className="text-[var(--warning)]">{formatValue(col.tempMaxF)}°</span>
                         {' / '}
                         <span className="text-[var(--info)]">{formatValue(col.tempMinF)}°</span>
                       </p>
                     </div>
-                    <div className="rounded-lg p-3 bg-[var(--hover-bg)]">
-                      <p className="text-[11px] text-[var(--foreground-muted)] uppercase tracking-wider mb-1">Std Dev</p>
+                    <div>
+                      <p className="eyebrow mb-1">Std Dev</p>
                       <p className="text-sm font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.tempStdF, 2)}°F</p>
                     </div>
                   </div>
@@ -346,8 +346,8 @@ export default function ComparePage() {
 
             {/* Desktop: side-by-side tables */}
             <div className="hidden sm:grid sm:grid-cols-2 sm:gap-6">
-            <div className="glass-card p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] mb-3 sm:mb-4">Temperature (°F)</h2>
+            <div className="surface p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-3 sm:mb-4">Temperature (°F)</h2>
               <div className="overflow-x-auto">
               <table className="w-full text-sm sm:text-base">
                 <thead>
@@ -423,8 +423,8 @@ export default function ComparePage() {
               </div>
             </div>
 
-            <div className="glass-card p-4 sm:p-6">
-              <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)] mb-3 sm:mb-4">Humidity (%)</h2>
+            <div className="surface p-4 sm:p-6">
+              <h2 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-3 sm:mb-4">Humidity (%)</h2>
               <div className="overflow-x-auto">
               <table className="w-full text-sm sm:text-base">
                 <thead>

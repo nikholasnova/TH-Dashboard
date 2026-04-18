@@ -144,36 +144,36 @@ export default function DeploymentsPage() {
             }
           />
         ) : (
-          <div className="space-y-4">
+          <div className="glass-card divide-y divide-[var(--divider)] overflow-hidden">
             {deployments.map((dep) => (
               <div
                 key={dep.id}
                 onClick={isGuest ? undefined : () => setSelectedDeployment(dep)}
-                className={`glass-card p-4 sm:p-6 transition-all ${isGuest ? '' : 'cursor-pointer hover:border-[var(--btn-border-hover)]'}`}
+                className={`px-4 sm:px-6 py-4 transition-colors ${isGuest ? '' : 'cursor-pointer hover:bg-[var(--hover-bg)]'}`}
               >
                 <div className="flex items-center gap-3 sm:gap-4">
-                  <div className={`w-3 h-3 rounded-full shrink-0 ${dep.ended_at ? 'bg-[var(--foreground-muted)]/40' : 'bg-[var(--success)] animate-pulse'}`} />
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${dep.ended_at ? 'bg-[var(--foreground-muted)]/40' : 'bg-[var(--success)]'}`} />
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base sm:text-lg font-semibold text-[var(--foreground)] truncate">{dep.name}</h3>
-                    <p className="text-xs sm:text-sm text-[var(--foreground-muted)]">
-                      {dep.device_id} &bull; {dep.location}
+                    <h3 className="text-base font-semibold text-[var(--foreground)] truncate">{dep.name}</h3>
+                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5">
+                      {dep.device_id} &middot; {dep.location}
                     </p>
-                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5 sm:hidden">
-                      {formatDateRange(dep)} &bull; {dep.reading_count.toLocaleString()} readings
+                    <p className="text-xs text-[var(--foreground-muted)] mt-0.5 sm:hidden" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {formatDateRange(dep)} &middot; {dep.reading_count.toLocaleString()} readings
                     </p>
                   </div>
 
-                  <div className="text-right hidden sm:block">
+                  <div className="text-right hidden sm:block shrink-0 w-36">
                     <p className="text-sm text-[var(--foreground)]">{formatDateRange(dep)}</p>
-                    <p className="text-xs text-[var(--foreground-muted)]">
+                    <p className="eyebrow mt-0.5">
                       {dep.ended_at ? 'Ended' : 'Active'}
                     </p>
                   </div>
 
-                  <div className="text-right hidden sm:block">
-                    <p className="text-sm font-medium text-[var(--foreground)]">{dep.reading_count.toLocaleString()}</p>
-                    <p className="text-xs text-[var(--foreground-muted)]">readings</p>
+                  <div className="text-right hidden sm:block shrink-0 w-24">
+                    <p className="text-sm font-medium text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>{dep.reading_count.toLocaleString()}</p>
+                    <p className="eyebrow mt-0.5">readings</p>
                   </div>
                 </div>
               </div>

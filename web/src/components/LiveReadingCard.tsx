@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect, useId } from 'react';
+import { useState } from 'react';
 import { Reading, Deployment, ChartSample, celsiusToFahrenheit } from '@/lib/supabase';
 import { STALE_THRESHOLD_MS } from '@/lib/constants';
 import { formatTime, formatDate, getTimeAgo, formatPercent } from '@/lib/format';
 import { computePercentError } from '@/lib/weatherCompare';
+import { Sparkline } from './Sparkline';
 
 interface LiveReadingCardProps {
   deviceId: string;
@@ -17,110 +18,6 @@ interface LiveReadingCardProps {
   lastRefresh?: Date | null;
   weatherReading?: Reading | null;
   sparklineData?: ChartSample[];
-}
-
-function monotoneCubicPaths(xs: number[], ys: number[]): string {
-  const n = xs.length;
-  if (n < 2) return '';
-  if (n === 2) return `M${xs[0].toFixed(1)},${ys[0].toFixed(1)} L${xs[1].toFixed(1)},${ys[1].toFixed(1)}`;
-
-  const dx: number[] = [];
-  const dy: number[] = [];
-  const m: number[] = [];
-  for (let i = 0; i < n - 1; i++) {
-    dx.push(xs[i + 1] - xs[i]);
-    dy.push(ys[i + 1] - ys[i]);
-    m.push(dy[i] / dx[i]);
-  }
-
-  const tangents: number[] = [m[0]];
-  for (let i = 1; i < n - 1; i++) {
-    if (m[i - 1] * m[i] <= 0) {
-      tangents.push(0);
-    } else {
-      tangents.push(2 / (1 / m[i - 1] + 1 / m[i]));
-    }
-  }
-  tangents.push(m[n - 2]);
-
-  let path = `M${xs[0].toFixed(1)},${ys[0].toFixed(1)}`;
-  for (let i = 0; i < n - 1; i++) {
-    const seg = dx[i] / 3;
-    const cp1x = xs[i] + seg;
-    const cp1y = ys[i] + tangents[i] * seg;
-    const cp2x = xs[i + 1] - seg;
-    const cp2y = ys[i + 1] - tangents[i + 1] * seg;
-    path += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${xs[i + 1].toFixed(1)},${ys[i + 1].toFixed(1)}`;
-  }
-  return path;
-}
-
-function Sparkline({ data }: { data: ChartSample[] }) {
-  const pathRef = useRef<SVGPathElement>(null);
-  const uid = useId();
-  const areaGradId = `${uid}-area`;
-  const strokeGradId = `${uid}-stroke`;
-
-  useEffect(() => {
-    const el = pathRef.current;
-    if (!el) return;
-    const len = el.getTotalLength();
-    el.style.setProperty('--path-length', String(len));
-  }, [data]);
-
-  if (data.length < 2) return null;
-  const values = data.map((s) => celsiusToFahrenheit(s.temperature_avg));
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const w = 1000;
-  const h = 52;
-  const padY = 10;
-  const padX = 8;
-
-  const xs: number[] = [];
-  const ys: number[] = [];
-  for (let i = 0; i < values.length; i++) {
-    xs.push(padX + (i / (values.length - 1)) * (w - padX * 2));
-    ys.push(h - padY - ((values[i] - min) / range) * (h - padY * 2));
-  }
-
-  const linePath = monotoneCubicPaths(xs, ys);
-  const areaPath = `${linePath} L${xs[xs.length - 1]},${h} L${xs[0]},${h} Z`;
-
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full" style={{ height: 52 }}>
-      <defs>
-        {/* Vertical fade-out for area fill (strong at top, transparent at bottom) */}
-        <linearGradient id={areaGradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--chart-line)" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="var(--chart-line)" stopOpacity="0" />
-        </linearGradient>
-        {/* Horizontal stroke gradient (fades in from left to right) */}
-        <linearGradient id={strokeGradId} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="var(--chart-line)" stopOpacity="0" />
-          <stop offset="30%" stopColor="var(--chart-line)" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="var(--chart-line)" stopOpacity="0.8" />
-        </linearGradient>
-      </defs>
-      {/* Area fill with vertical fade */}
-      <path
-        d={areaPath}
-        fill={`url(#${areaGradId})`}
-        className="area-fade-in"
-      />
-      {/* Main line with left-to-right fade */}
-      <path
-        ref={pathRef}
-        d={linePath}
-        fill="none"
-        stroke={`url(#${strokeGradId})`}
-        strokeWidth="2"
-        vectorEffect="non-scaling-stroke"
-        className="sparkline-animate"
-      />
-    </svg>
-  );
 }
 
 const WEATHER_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -152,14 +49,14 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
 
   return (
     <div
-      className={`glass-card p-4 sm:p-5 card-reading h-full flex flex-col ${onClick ? 'cursor-pointer hover:border-[var(--btn-border-hover)] transition-all' : ''}`}
+      className={`glass-card p-4 sm:p-5 card-reading h-full flex flex-col ${onClick ? 'cursor-pointer hover:border-[var(--btn-border-hover)] transition-colors' : ''}`}
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">
         <div>
           {activeDeployment ? (
             <>
-              <h2 className="text-2xl sm:text-2xl font-bold text-[var(--foreground)]">{activeDeployment.name}</h2>
+              <h2 className="text-2xl sm:text-2xl font-semibold text-[var(--foreground)] tracking-tight">{activeDeployment.name}</h2>
               <span className="text-sm text-[var(--foreground-muted)]">{deviceName} &bull; Started {getTimeAgo(activeDeployment.started_at)}</span>
             </>
           ) : (
@@ -171,16 +68,16 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
         </div>
         <div className="flex items-center gap-3">
           {reading && !isStale && (
-            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[var(--success)]/8">
-              <div className="w-2 h-2 rounded-full bg-[var(--success)] animate-breathe" />
-              <span className="text-sm font-medium text-[var(--success)]">Live</span>
-            </div>
+            <span className="inline-flex items-center gap-2 text-xs text-[var(--foreground-muted)]">
+              <span className="live-indicator" />
+              Updated {getTimeAgo(reading.created_at)}
+            </span>
           )}
           {reading && isStale && (
-            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-[var(--error)]/8">
-              <div className="w-2 h-2 rounded-full bg-[var(--error)]" />
-              <span className="text-sm font-medium text-[var(--error)]">Offline</span>
-            </div>
+            <span className="inline-flex items-center gap-2 text-xs text-[var(--error)]">
+              <span className="inline-block w-2 h-2 rounded-full bg-[var(--error)]" />
+              Offline
+            </span>
           )}
           {onRefresh && (
             <button
@@ -275,7 +172,7 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
 
           <div className="mb-4 -mx-2" style={{ height: 52 }}>
             {sparklineData && sparklineData.length >= 2 && (
-              <Sparkline data={sparklineData} />
+              <Sparkline values={sparklineData.map((s) => celsiusToFahrenheit(s.temperature_avg))} />
             )}
           </div>
 
@@ -290,17 +187,15 @@ export function LiveReadingCard({ deviceId, deviceName, reading, activeDeploymen
         </>
       ) : reading && isStale ? (
         <div className="flex flex-col justify-center items-center flex-1 min-h-[140px]">
-          <div className="mb-4 p-3 rounded-full bg-[var(--error)]/8">
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--error)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="1" y1="1" x2="23" y2="23" />
-              <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
-              <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
-              <path d="M10.71 5.05A16 16 0 0 1 22.56 9" />
-              <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
-              <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-              <line x1="12" y1="20" x2="12.01" y2="20" />
-            </svg>
-          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--error)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-3">
+            <line x1="1" y1="1" x2="23" y2="23" />
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+            <path d="M10.71 5.05A16 16 0 0 1 22.56 9" />
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+            <line x1="12" y1="20" x2="12.01" y2="20" />
+          </svg>
           <p className="text-lg sm:text-xl font-medium text-[var(--error)] mb-1">Device Offline</p>
           <p className="text-sm sm:text-sm text-[var(--foreground-muted)]">Last seen {getTimeAgo(reading.created_at)}</p>
           {activeDeployment?.zip_code && (
