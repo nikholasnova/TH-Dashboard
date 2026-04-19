@@ -20,8 +20,6 @@ type GuestAction =
   | 'chart_samples'
   | 'deployment_stats'
   | 'deployment_readings'
-  | 'readings'
-  | 'all_readings'
   | 'all_readings_range'
   | 'alert_states'
   | 'distinct_locations'
@@ -75,21 +73,6 @@ export async function guestGetDeviceStats(params: {
   device_id?: string;
 }): Promise<DeviceStats[]> {
   return guestFetch('device_stats', params);
-}
-
-export async function guestGetReadings(
-  deviceId: string,
-  hoursAgo: number,
-  maxRows?: number
-): Promise<Reading[]> {
-  return guestFetch('readings', { deviceId, hoursAgo, maxRows });
-}
-
-export async function guestGetAllReadings(
-  hoursAgo: number,
-  maxRows?: number
-): Promise<Reading[]> {
-  return guestFetch('all_readings', { hoursAgo, maxRows });
 }
 
 export async function guestGetAllReadingsRange(params: {

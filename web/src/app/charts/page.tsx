@@ -11,7 +11,8 @@ import {
 import { useGuest } from '@/contexts/GuestContext';
 import { guestGetChartSamples } from '@/lib/supabase/guestQueries';
 import { useSetChatPageContext } from '@/lib/chatContext';
-import { DEPLOYMENT_ALL_TIME_HOURS, DEPLOYMENT_ALL_TIME_LABEL, TIME_RANGES } from '@/lib/constants';
+import { formatRangeLabel } from '@/lib/timeRangeFormat';
+import { ActiveDeploymentChip } from '@/components/ActiveDeploymentChip';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { FilterToolbar } from '@/components/FilterToolbar';
 import { useTimeRange } from '@/hooks/useTimeRange';
@@ -158,7 +159,7 @@ export default function ChartsPage() {
   const { devices } = useDevices();
   const { isGuest } = useGuest();
   const timeRange = useTimeRange();
-  const { deployments } = useDeployments(timeRange.deviceFilter);
+  const { deployments } = useDeployments();
   const {
     selectedRange, isCustom, isCustomValid,
     deploymentFilter, deviceFilter,
@@ -168,14 +169,9 @@ export default function ChartsPage() {
 
   const setPageContext = useSetChatPageContext();
   useEffect(() => {
-    const rangeLabel =
-      selectedRange === DEPLOYMENT_ALL_TIME_HOURS
-        ? DEPLOYMENT_ALL_TIME_LABEL
-        : (TIME_RANGES.find(r => r.hours === selectedRange)?.label || `${selectedRange}h`);
-
     setPageContext({
       page: 'charts',
-      timeRange: rangeLabel,
+      timeRange: formatRangeLabel(selectedRange),
       deviceFilter: deviceFilter || undefined,
       deploymentId: deploymentFilter ? parseInt(deploymentFilter, 10) : undefined,
       customStart: selectedRange === -1 ? customStart : undefined,
@@ -344,7 +340,7 @@ export default function ChartsPage() {
 
           <button
             onClick={() => setIsExportModalOpen(true)}
-            className="h-14 px-4 inline-flex items-center gap-2 text-sm font-semibold text-[var(--fg)] border border-[var(--hairline-strong)] rounded-md hover:bg-[var(--hover-bg)] transition-colors sm:ml-auto w-full sm:w-auto"
+            className="h-14 inline-flex items-center gap-2 text-sm tracking-tight text-[var(--fg-muted)] hover:text-[var(--fg)] transition-colors sm:ml-auto"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
@@ -354,12 +350,11 @@ export default function ChartsPage() {
         </FilterToolbar>
 
         {deploymentFilter && (
-          <div className="mb-4 px-4 py-2 rounded-lg bg-[var(--active-bg)] border border-[var(--divider)] inline-flex items-center gap-2">
-            <span className="text-sm text-[var(--foreground)]">
-              Showing: {deployments.find(d => d.id.toString() === deploymentFilter)?.name}
-            </span>
-            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]" aria-label="Clear deployment filter">✕</button>
-          </div>
+          <ActiveDeploymentChip
+            name={deployments.find(d => d.id.toString() === deploymentFilter)?.name ?? ''}
+            onClear={() => timeRange.setDeploymentFilter('')}
+            className="mb-4"
+          />
         )}
 
         {hasData && !isLoading && (

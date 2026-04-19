@@ -64,7 +64,7 @@ export function FilterBar({ state, onChange, devices, deployments, anomalyCount,
         <button
           type="button"
           onClick={() => setIsOpen((v) => !v)}
-          className="flex-1 flex items-center gap-3 py-3 text-left hover:bg-[var(--hover-bg)] transition-colors px-1"
+          className="flex-1 flex items-center gap-3 py-3 text-left px-1"
           aria-expanded={isOpen}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-[var(--fg-muted)] transition-transform ${isOpen ? 'rotate-90' : ''}`}>

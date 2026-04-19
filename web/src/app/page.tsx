@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { LiveReadingCard } from '@/components/LiveReadingCard';
 import { DeploymentModal } from '@/components/DeploymentModal';
 import { DeviceManager } from '@/components/DeviceManager';
@@ -59,9 +59,13 @@ export default function Dashboard() {
   const { role } = useSession();
   const { isGuest } = useGuest();
 
+  const cacheRef = useRef({ deviceData, stats, lastRefresh });
   useEffect(() => {
-    return () => { dashboardCache = { deviceData, stats, lastRefresh }; };
-  });
+    cacheRef.current = { deviceData, stats, lastRefresh };
+  }, [deviceData, stats, lastRefresh]);
+  useEffect(() => {
+    return () => { dashboardCache = cacheRef.current; };
+  }, []);
 
   const setPageContext = useSetChatPageContext();
   useEffect(() => {

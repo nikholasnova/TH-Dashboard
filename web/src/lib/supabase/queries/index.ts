@@ -1,8 +1,6 @@
 export { celsiusToFahrenheit, celsiusDeltaToFahrenheit } from './conversions';
 export {
   getLatestReading,
-  getReadings,
-  getAllReadings,
   getAllReadingsRange,
   getChartSamples,
   getDeviceStats,
@@ -10,7 +8,6 @@ export {
   getFilteredReadings,
   deleteReadingById,
 } from './readings';
-export type { DashboardLiveData, ReadingsFilter } from './readings';
 export {
   getDeployments,
   getDeployment,

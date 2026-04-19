@@ -6,19 +6,9 @@ import {
   classifyDevice,
   shouldSendProblemAlert,
   shouldSendRecoveryAlert,
-  parseDeviceList,
   parseNumberEnv,
 } from './route';
-
-type DeviceAlertState = {
-  device_id: string;
-  status: 'ok' | 'missing' | 'stale' | 'anomaly';
-  last_seen_at: string | null;
-  last_alert_type: string | null;
-  last_alert_sent_at: string | null;
-  last_recovery_sent_at: string | null;
-  updated_at: string;
-};
+import type { DeviceAlertState } from '@/lib/supabase';
 
 function makeState(overrides: Partial<DeviceAlertState> = {}): DeviceAlertState {
   return {
@@ -192,34 +182,6 @@ describe('shouldSendRecoveryAlert', () => {
 
   it('returns false when previous was already ok', () => {
     expect(shouldSendRecoveryAlert(makeState({ status: 'ok' }), true)).toBe(false);
-  });
-});
-
-describe('parseDeviceList', () => {
-  const originalEnv = { ...process.env };
-
-  afterEach(() => {
-    process.env = { ...originalEnv };
-  });
-
-  it('returns default devices when env is unset', () => {
-    delete process.env.MONITORED_DEVICE_IDS;
-    expect(parseDeviceList()).toEqual(['node1', 'node2']);
-  });
-
-  it('parses comma-separated list', () => {
-    process.env.MONITORED_DEVICE_IDS = 'sensor_a, sensor_b, sensor_c';
-    expect(parseDeviceList()).toEqual(['sensor_a', 'sensor_b', 'sensor_c']);
-  });
-
-  it('returns defaults for empty string', () => {
-    process.env.MONITORED_DEVICE_IDS = '';
-    expect(parseDeviceList()).toEqual(['node1', 'node2']);
-  });
-
-  it('returns defaults for whitespace-only', () => {
-    process.env.MONITORED_DEVICE_IDS = '  ,  , ';
-    expect(parseDeviceList()).toEqual(['node1', 'node2']);
   });
 });
 

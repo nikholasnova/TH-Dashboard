@@ -64,3 +64,16 @@ export function parseNumberInput(v: string): number | null {
 export function fahrenheitToCelsius(f: number): number {
   return ((f - 32) * 5) / 9;
 }
+
+export interface NLFilterResponse {
+  deviceIds?: string[];
+  rangePreset?: RangePreset;
+  customStart?: string;
+  customEnd?: string;
+  minTempF?: number | null;
+  maxTempF?: number | null;
+  minHumidity?: number | null;
+  maxHumidity?: number | null;
+  source?: SourceFilter;
+  anomaliesOnly?: boolean;
+}

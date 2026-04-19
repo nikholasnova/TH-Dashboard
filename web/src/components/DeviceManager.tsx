@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createDevice, updateDevice } from '@/lib/supabase';
 import { useDevices } from '@/contexts/DevicesContext';
 import { useSession } from './AuthProvider';
+import { Modal } from './Modal';
 import posthog from 'posthog-js';
 import { COLOR_PALETTE, resolveDeviceColor } from '@/lib/deviceColors';
 
@@ -141,19 +142,8 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
 
   const isNewIdValid = newId.trim() === '' || DEVICE_ID_PATTERN.test(newId.trim());
 
-  useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-[var(--overlay-bg)] backdrop-blur-sm" onClick={onClose} />
-
-      <div className="relative glass-card w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+    <Modal isOpen={isOpen} onClose={onClose}>
         <div className="p-6 overflow-y-auto scrollbar-thin">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-[var(--foreground)]">Manage Devices</h2>
@@ -342,7 +332,6 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
           </div>
         </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

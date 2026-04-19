@@ -59,7 +59,7 @@ export async function getDeviceAlertStates(deviceIds: string[]): Promise<DeviceA
   if (!supabase || deviceIds.length === 0) return [];
   const { data, error } = await supabase
     .from('device_alert_state')
-    .select('device_id, status, last_seen_at, updated_at')
+    .select('device_id, status, last_seen_at, last_alert_type, last_alert_sent_at, last_recovery_sent_at, updated_at')
     .in('device_id', deviceIds);
   if (error) {
     console.error('Error fetching device alert states:', error);

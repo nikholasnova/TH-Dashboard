@@ -54,11 +54,11 @@ export function ChatShell() {
       } as React.CSSProperties;
 
   const headerClass = isFullscreen
-    ? 'flex justify-between items-center px-4 py-2 bg-[var(--surface-1)] border-b border-[var(--hairline)]'
+    ? 'flex justify-between items-center px-4 py-2 bg-[var(--surface-1)]'
     : 'flex justify-between items-center px-4 py-2 bg-[var(--surface-1)] border border-[var(--hairline)] border-b-0 rounded-t-xl sm:rounded-t-2xl';
 
   const bodyClass = isFullscreen
-    ? 'flex-1 min-h-0 bg-[var(--surface-1)] border-x border-[var(--hairline)] overflow-hidden flex flex-col'
+    ? 'flex-1 min-h-0 bg-[var(--surface-1)] overflow-hidden flex flex-col'
     : 'flex-1 min-h-0 bg-[var(--surface-1)] border border-[var(--hairline)] border-t-0 rounded-b-2xl overflow-hidden flex flex-col overscroll-contain';
 
   return (

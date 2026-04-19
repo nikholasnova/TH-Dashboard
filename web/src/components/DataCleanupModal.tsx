@@ -5,6 +5,8 @@ import posthog from 'posthog-js';
 import { supabase, DeploymentWithCount, getDeployments } from '@/lib/supabase';
 import { useDevices } from '@/contexts/DevicesContext';
 import { useSession } from './AuthProvider';
+import { Modal } from './Modal';
+import { MODAL_INPUT_CLASS } from '@/lib/styles';
 
 interface DataCleanupModalProps {
   isOpen: boolean;
@@ -57,12 +59,6 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
       setSelectedDeviceId(selectedDeployment.device_id);
     }
   }, [selectedDeployment]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
 
   const scopeValid = !!selectedDeviceId && !!customStart && !!customEnd && new Date(customStart) < new Date(customEnd);
 
@@ -147,15 +143,10 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
     }
   };
 
-  if (!isOpen) return null;
-
-  const inputClass = 'bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full';
   const devName = devices.find(d => d.id === selectedDeviceId)?.display_name ?? selectedDeviceId;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-[var(--overlay-bg)] backdrop-blur-sm" onClick={onClose} />
-      <div className="relative glass-card w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <Modal isOpen={isOpen} onClose={onClose}>
         <div className="p-6 sm:p-8 overflow-y-auto scrollbar-thin">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)]">Clean Up Data</h2>
@@ -171,7 +162,7 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
               {deploymentList.length > 0 && (
                 <div>
                   <label className="text-sm font-medium text-[var(--foreground-secondary)] mb-2 block">Deployment (optional)</label>
-                  <select value={selectedDeploymentId} onChange={e => { setSelectedDeploymentId(e.target.value); if (!e.target.value) { setSelectedDeviceId(''); setCustomStart(''); setCustomEnd(''); } }} className={inputClass}>
+                  <select value={selectedDeploymentId} onChange={e => { setSelectedDeploymentId(e.target.value); if (!e.target.value) { setSelectedDeviceId(''); setCustomStart(''); setCustomEnd(''); } }} className={MODAL_INPUT_CLASS}>
                     <option value="">Custom range</option>
                     {deploymentList.map(d => <option key={d.id} value={String(d.id)}>{d.name} ({d.device_id})</option>)}
                   </select>
@@ -179,7 +170,7 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
               )}
               <div>
                 <label className="text-sm font-medium text-[var(--foreground-secondary)] mb-2 block">Device</label>
-                <select value={selectedDeviceId} onChange={e => setSelectedDeviceId(e.target.value)} className={inputClass} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined}>
+                <select value={selectedDeviceId} onChange={e => setSelectedDeviceId(e.target.value)} className={MODAL_INPUT_CLASS} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined}>
                   <option value="">Select device</option>
                   {devices.map(d => <option key={d.id} value={d.id}>{d.display_name}</option>)}
                 </select>
@@ -187,11 +178,11 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <span className="text-xs text-[var(--foreground-muted)] mb-1 block">Start</span>
-                  <input type="datetime-local" value={customStart} onChange={e => setCustomStart(e.target.value)} className={inputClass} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined} />
+                  <input type="datetime-local" value={customStart} onChange={e => setCustomStart(e.target.value)} className={MODAL_INPUT_CLASS} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined} />
                 </div>
                 <div>
                   <span className="text-xs text-[var(--foreground-muted)] mb-1 block">End</span>
-                  <input type="datetime-local" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className={inputClass} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined} />
+                  <input type="datetime-local" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className={MODAL_INPUT_CLASS} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined} />
                 </div>
               </div>
               <label className="flex items-center gap-3 cursor-pointer">
@@ -217,7 +208,7 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
               </div>
               <div>
                 <label className="text-sm font-medium text-[var(--foreground-secondary)] mb-2 block">Enter your password to confirm</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className={inputClass} placeholder="Dashboard password" autoComplete="current-password" />
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} className={MODAL_INPUT_CLASS} placeholder="Dashboard password" autoComplete="current-password" />
                 {authError && <p className="text-xs text-[var(--error)] mt-2">{authError}</p>}
               </div>
               <div className="flex justify-end gap-3 mt-6">
@@ -240,7 +231,6 @@ export function DataCleanupModal({ isOpen, onClose, onComplete }: DataCleanupMod
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

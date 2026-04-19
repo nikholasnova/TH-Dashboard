@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 
 function ViewPageInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
   const [error, setError] = useState(() => (token ? '' : 'No token provided.'));
@@ -23,7 +22,7 @@ function ViewPageInner() {
         window.location.href = '/';
       })
       .catch(() => setError('Invalid or expired link.'));
-  }, [token, router]);
+  }, [token]);
 
   if (error) {
     return (

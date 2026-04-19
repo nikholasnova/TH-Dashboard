@@ -33,8 +33,6 @@ vi.mock('../../client', () => ({
 import {
   getDashboardLive,
   getLatestReading,
-  getReadings,
-  getAllReadings,
   getAllReadingsRange,
   getChartSamples,
   getDeviceStats,
@@ -111,65 +109,6 @@ describe('readings queries', () => {
     it('returns null on error', async () => {
       mockSupabase!._setResult(null, { message: 'Error' });
       expect(await getLatestReading('node1')).toBeNull();
-    });
-  });
-
-  describe('getReadings', () => {
-    it('returns readings for a device', async () => {
-      const readings = [{ id: 1 }, { id: 2 }];
-      mockSupabase!._setResult(readings);
-
-      const result = await getReadings('node1', 24);
-      expect(result).toEqual(readings);
-      expect(mockSupabase!._chain.eq).toHaveBeenCalledWith('device_id', 'node1');
-    });
-
-    it('applies limit when maxRows is provided', async () => {
-      mockSupabase!._setResult([]);
-      await getReadings('node1', 24, 100);
-      expect(mockSupabase!._chain.limit).toHaveBeenCalledWith(100);
-    });
-
-    it('does not apply limit when maxRows is omitted', async () => {
-      mockSupabase!._setResult([]);
-      await getReadings('node1', 24);
-      expect(mockSupabase!._chain.limit).not.toHaveBeenCalled();
-    });
-
-    it('returns empty array when supabase is null', async () => {
-      mockSupabase = null;
-      expect(await getReadings('node1', 24)).toEqual([]);
-    });
-
-    it('returns empty array on error', async () => {
-      mockSupabase!._setResult(null, { message: 'Error' });
-      expect(await getReadings('node1', 24)).toEqual([]);
-    });
-  });
-
-  describe('getAllReadings', () => {
-    it('returns all readings', async () => {
-      const readings = [{ id: 1 }];
-      mockSupabase!._setResult(readings);
-
-      const result = await getAllReadings(24);
-      expect(result).toEqual(readings);
-    });
-
-    it('applies limit when maxRows is provided', async () => {
-      mockSupabase!._setResult([]);
-      await getAllReadings(24, 500);
-      expect(mockSupabase!._chain.limit).toHaveBeenCalledWith(500);
-    });
-
-    it('returns empty array when supabase is null', async () => {
-      mockSupabase = null;
-      expect(await getAllReadings(24)).toEqual([]);
-    });
-
-    it('returns empty array on error', async () => {
-      mockSupabase!._setResult(null, { message: 'Error' });
-      expect(await getAllReadings(24)).toEqual([]);
     });
   });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Modal } from '../Modal';
 
 interface ConfirmDeleteModalProps {
   isOpen: boolean;
@@ -11,30 +11,14 @@ interface ConfirmDeleteModalProps {
 }
 
 export function ConfirmDeleteModal({ isOpen, count, isDeleting, onConfirm, onClose }: ConfirmDeleteModalProps) {
-  useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isDeleting) onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, isDeleting, onClose]);
-
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-[var(--overlay-bg)] backdrop-blur-sm"
-        onClick={() => { if (!isDeleting) onClose(); }}
-      />
-      <div className="relative glass-card w-full max-w-md mx-4 overflow-hidden flex flex-col">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidth="md"
+      disableClose={isDeleting}
+      enableEscape
+    >
         <div className="p-6 sm:p-8">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-xl font-bold text-[var(--foreground)]">Delete readings</h2>
@@ -78,7 +62,6 @@ export function ConfirmDeleteModal({ isOpen, count, isDeleting, onConfirm, onClo
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

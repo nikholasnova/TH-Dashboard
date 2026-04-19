@@ -9,6 +9,47 @@ interface DeviceDeploymentFilterProps {
   onDeploymentChange: (value: string) => void;
 }
 
+interface InlineSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function InlineSelect({ value, onChange, placeholder, children, className = '' }: InlineSelectProps) {
+  const hasValue = value !== '';
+  return (
+    <div className={`relative inline-flex items-stretch border-b border-[var(--hairline)] ${className}`}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`appearance-none bg-transparent h-14 pl-0 pr-7 text-sm tracking-tight cursor-pointer focus:outline-none w-full transition-colors ${
+          hasValue ? 'text-[var(--fg)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg)]'
+        }`}
+      >
+        <option value="">{placeholder}</option>
+        {children}
+      </select>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="12"
+        height="12"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+        className="absolute right-1 top-1/2 -translate-y-1/2 text-[var(--fg-muted)] pointer-events-none"
+      >
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    </div>
+  );
+}
+
 export function DeviceDeploymentFilter({
   deviceFilter,
   deploymentFilter,
@@ -22,31 +63,31 @@ export function DeviceDeploymentFilter({
     : deployments;
 
   return (
-    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3">
-      <select
+    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-stretch gap-2 sm:gap-6">
+      <InlineSelect
         value={deviceFilter}
-        onChange={(e) => onDeviceChange(e.target.value)}
-        className="h-14 bg-transparent border border-[var(--hairline-strong)] rounded-md px-4 text-sm text-[var(--fg)] w-full sm:w-44 hover:bg-[var(--hover-bg)] transition-colors"
+        onChange={onDeviceChange}
+        placeholder="All devices"
+        className="w-full sm:w-40"
       >
-        <option value="">All devices</option>
         {devices.map((d) => (
           <option key={d.id} value={d.id}>
             {d.display_name}
           </option>
         ))}
-      </select>
-      <select
+      </InlineSelect>
+      <InlineSelect
         value={deploymentFilter}
-        onChange={(e) => onDeploymentChange(e.target.value)}
-        className="h-14 bg-transparent border border-[var(--hairline-strong)] rounded-md px-4 text-sm text-[var(--fg)] w-full sm:w-64 hover:bg-[var(--hover-bg)] transition-colors"
+        onChange={onDeploymentChange}
+        placeholder="All deployments"
+        className="w-full sm:w-56"
       >
-        <option value="">All deployments</option>
         {filteredDeployments.map((dep) => (
           <option key={dep.id} value={dep.id.toString()}>
             {dep.name} ({dep.device_id})
           </option>
         ))}
-      </select>
+      </InlineSelect>
     </div>
   );
 }

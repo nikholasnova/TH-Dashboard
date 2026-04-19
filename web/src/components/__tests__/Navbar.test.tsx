@@ -30,21 +30,21 @@ describe('Navbar', () => {
     mockPathname = '/';
     render(<Navbar />);
     const liveLinks = screen.getAllByText('Live');
-    expect(liveLinks[0].closest('a')?.className).toContain('font-semibold');
+    expect(liveLinks[0].closest('a')?.className).toContain('text-[var(--fg)]');
   });
 
   it('marks prefix match as active for non-root routes', () => {
     mockPathname = '/charts/export';
     render(<Navbar />);
     const chartLinks = screen.getAllByText('Charts');
-    expect(chartLinks[0].closest('a')?.className).toContain('font-semibold');
+    expect(chartLinks[0].closest('a')?.className).toContain('text-[var(--fg)]');
   });
 
   it('does not mark "/" active when on other routes', () => {
     mockPathname = '/charts';
     render(<Navbar />);
     const liveLinks = screen.getAllByText('Live');
-    expect(liveLinks[0].closest('a')?.className).not.toContain('font-semibold');
+    expect(liveLinks[0].closest('a')?.className).toContain('text-[var(--fg-muted)]');
   });
 
   it('renders UserMenu', () => {

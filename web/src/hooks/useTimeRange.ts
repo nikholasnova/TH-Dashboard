@@ -6,14 +6,14 @@ import { DEPLOYMENT_ALL_TIME_HOURS } from '@/lib/constants';
 import { useGuest } from '@/contexts/GuestContext';
 import { guestGetDeployment } from '@/lib/supabase/guestQueries';
 
-export interface TimeRangeBounds {
+interface TimeRangeBounds {
   start: string;
   end: string;
   scopedDeviceId?: string;
   deployment?: Deployment | null;
 }
 
-export interface UseTimeRangeOptions {
+interface UseTimeRangeOptions {
   defaultRange?: number;
 }
 

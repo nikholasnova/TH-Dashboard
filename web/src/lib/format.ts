@@ -18,17 +18,6 @@ export function formatValue(
   return value.toFixed(decimals);
 }
 
-export function formatDelta(
-  a: number | null | undefined,
-  b: number | null | undefined,
-  decimals = 1
-): string {
-  if (a == null || b == null) return DASH;
-  const delta = a - b;
-  const sign = delta >= 0 ? '+' : '';
-  return `${sign}${delta.toFixed(decimals)}`;
-}
-
 export function formatPercent(
   value: number | null | undefined,
   decimals = 1

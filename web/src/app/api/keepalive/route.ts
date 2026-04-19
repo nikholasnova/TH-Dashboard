@@ -1,40 +1,17 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { NextRequest, NextResponse } from 'next/server';
+import { getServiceRoleClient, verifyCronSecret } from '@/lib/serverAuth';
+import type { DeviceAlertState } from '@/lib/supabase';
 
 type ServiceRoleClient = SupabaseClient;
 
-function getServiceRoleClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceRoleKey) {
-    return {
-      client: null,
-      error:
-        'NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required',
-    } as const;
-  }
-
-  return { client: createClient(url, serviceRoleKey), error: null } as const;
-}
-
-type DeviceStatus = 'ok' | 'missing' | 'stale' | 'anomaly';
+type DeviceStatus = DeviceAlertState['status'];
 
 type LatestReading = {
   created_at: string;
   temperature: number;
   humidity: number;
-};
-
-type DeviceAlertState = {
-  device_id: string;
-  status: DeviceStatus;
-  last_seen_at: string | null;
-  last_alert_type: string | null;
-  last_alert_sent_at: string | null;
-  last_recovery_sent_at: string | null;
-  updated_at: string;
 };
 
 type ChannelResult = {
@@ -55,16 +32,6 @@ const MIN_TEMP_C = -40;
 const MAX_TEMP_C = 85;
 const MIN_HUMIDITY = 0;
 const MAX_HUMIDITY = 100;
-
-export function parseDeviceList(): string[] {
-  const raw = process.env.MONITORED_DEVICE_IDS;
-  if (!raw) return DEFAULT_DEVICES;
-  const parsed = raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return parsed.length > 0 ? parsed : DEFAULT_DEVICES;
-}
 
 async function getMonitoredDevices(supabase: ServiceRoleClient): Promise<string[]> {
   const envList = process.env.MONITORED_DEVICE_IDS;
@@ -460,14 +427,8 @@ async function runMonitoring(supabase: ServiceRoleClient) {
 // Pinged by Vercel cron for health checks and lightweight keepalive traffic.
 // Protected by CRON_SECRET - only trusted callers should invoke this route.
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-
-  const expectedSecret = process.env.CRON_SECRET;
-  const providedSecret = authHeader?.replace('Bearer ', '');
-
-  if (!expectedSecret || providedSecret !== expectedSecret) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const unauthorized = verifyCronSecret(request);
+  if (unauthorized) return unauthorized;
 
   const { client: supabase, error: supabaseConfigError } = getServiceRoleClient();
   if (!supabase) {

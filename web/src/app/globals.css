@@ -27,26 +27,21 @@
   --primary: var(--fg);
   --primary-light: #FFFFFF;
   --info: var(--fg-dim);
-  --info-light: var(--fg-muted);
 
   /* Semantic — muted accents */
   --success: #8FB58F;
-  --success-light: #A8C9A8;
   --warning: #D1A875;
   --error: #C47878;
 
   /* Card / glass aliases — flat panels */
-  --card-border: var(--hairline);
   --card-highlight: rgba(255, 255, 255, 0.05);
   --glass-bg: var(--surface-1);
   --glass-bg-strong: rgba(61, 62, 64, 0.94);
   --glass-bg-hover: rgba(255, 255, 255, 0.07);
   --glass-border: var(--hairline);
-  --glass-inset: rgba(255, 255, 255, 0);
 
   /* Buttons */
   --btn-bg: rgba(255, 255, 255, 0.08);
-  --btn-border: rgba(255, 255, 255, 0.2);
   --btn-border-hover: rgba(255, 255, 255, 0.32);
 
   /* Inputs */
@@ -74,20 +69,15 @@
   /* Scrollbar */
   --scrollbar-thumb: rgba(255, 255, 255, 0.15);
   --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
-
-  /* Solid surface tokens */
-  --surface: var(--surface-1);
-  --surface-raised: var(--surface-2);
-  --border: var(--hairline);
-  --border-strong: var(--hairline-strong);
 }
 
 @theme inline {
   --color-background: var(--surface-0);
   --color-foreground: var(--fg);
-  --font-sans: var(--font-jetbrains);
-  --font-ui: var(--font-inter);
-  --font-mono: var(--font-jetbrains);
+  --font-sans: var(--font-newsreader);
+  --font-ui: var(--font-newsreader);
+  --font-display: var(--font-newsreader);
+  --font-mono: var(--font-geist-mono);
 }
 
 html, body {
@@ -109,23 +99,21 @@ html, body {
 body {
   background: var(--surface-0);
   color: var(--fg);
-  font-family: var(--font-jetbrains), 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-newsreader), ui-serif, Georgia, Cambria, 'Times New Roman', serif;
   min-height: 100vh;
   min-height: 100svh;
   position: relative;
 }
 
-/* Glass button */
+/* Glass button — editorial chip: subtle bg tint, no hairline, tight corners */
 .btn-glass {
   background: var(--btn-bg);
-  border: 1px solid var(--btn-border);
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--fg);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .btn-glass:hover {
-  border-color: var(--btn-border-hover);
   background: var(--glass-bg-hover);
 }
 
@@ -167,28 +155,15 @@ body {
   border-bottom-color: var(--fg);
 }
 
-/* Interactive panel — kept for hover-card callers, now flat */
-.glass-card-interactive {
-  background: var(--surface-1);
-  border: 1px solid var(--hairline);
-  border-radius: 10px;
-  transition: border-color 0.15s ease, background 0.15s ease;
-}
-
-.glass-card-interactive:hover {
-  border-color: var(--hairline-strong);
-  background: var(--surface-2);
-}
-
 /* Numeric display */
 .stat-value {
   font-size: 1.875rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--fg);
-  font-family: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-newsreader), ui-serif, Georgia, Cambria, 'Times New Roman', serif;
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
 }
 
 @media (min-width: 640px) {
@@ -272,6 +247,20 @@ body {
   border-radius: 10px;
 }
 
+/* Editorial modal panel — tighter corners, no hairline, real depth.
+   Descendant fields/cards inherit transparent borders so nothing inside
+   repeats the outer hairline. */
+.modal-panel {
+  --input-border: transparent;
+  --divider: transparent;
+  background: var(--surface-0);
+  border-radius: 4px;
+  box-shadow:
+    0 40px 80px -16px rgba(0, 0, 0, 0.75),
+    0 16px 32px -8px rgba(0, 0, 0, 0.5),
+    0 4px 12px -2px rgba(0, 0, 0, 0.35);
+}
+
 /* Breathing glow for live indicators */
 @keyframes breathe {
   0%, 100% {
@@ -300,16 +289,16 @@ body {
   border-radius: 8px;
 }
 
-/* Horizontal rule utility — prefer this over wrapping in a card */
-.rule {
-  border-top: 1px solid var(--hairline);
-}
-
 /* Tabular monospace numbers */
 .metric {
-  font-family: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums lining-nums;
   font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+h1, h2, h3, nav a {
+  font-family: var(--font-newsreader), ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+  letter-spacing: -0.01em;
 }
 
 .alert-accent {
@@ -425,7 +414,7 @@ body {
 }
 
 :root {
-  --tab-bar-height: 70px;
+  --tab-bar-height: 84px;
   --bottom-spacing: calc(var(--tab-bar-height) + env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 640px) {
@@ -475,7 +464,6 @@ body {
 
 .mobile-tab-active {
   color: var(--fg);
-  font-weight: 600;
 }
 
 @media (max-width: 639px) {

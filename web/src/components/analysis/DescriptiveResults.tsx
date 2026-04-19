@@ -1,25 +1,10 @@
 'use client';
 
 import type { DescriptiveResult } from '@/lib/analysisRunner';
+import { StatRow } from './StatRow';
 
 interface DescriptiveResultsProps {
   results: DescriptiveResult[];
-}
-
-interface StatRowProps {
-  label: string;
-  value: string;
-}
-
-function StatRow({ label, value }: StatRowProps) {
-  return (
-    <tr className="border-b border-[var(--divider)] last:border-b-0">
-      <td className="py-1.5 pr-4 text-sm text-[var(--foreground-muted)]">{label}</td>
-      <td className="py-1.5 text-sm text-[var(--foreground)] text-right font-mono">
-        {value}
-      </td>
-    </tr>
-  );
 }
 
 interface HistogramProps {

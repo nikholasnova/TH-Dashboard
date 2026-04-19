@@ -1,6 +1,6 @@
-import { GoogleGenerativeAI, SchemaType, FunctionDeclaration } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType, FunctionDeclaration, type EnhancedGenerateContentResponse } from '@google/generative-ai';
 import { executeTool } from '@/lib/aiTools';
-import { getServerUser } from '@/lib/serverAuth';
+import { getServerUser, getClientIp, createRateLimiter } from '@/lib/serverAuth';
 import { getServerClient } from '@/lib/supabase/server';
 import { getPostHogClient } from '@/lib/posthog-server';
 import { cookies, headers } from 'next/headers';
@@ -253,25 +253,13 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 // In-memory rate limiter — resets on deploy, sufficient for class project
-const rateLimitMap = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const RATE_LIMIT_MAX = 30;
 const GUEST_RATE_LIMIT_MAX = 5;
+const checkLimit = createRateLimiter({ windowMs: RATE_LIMIT_WINDOW_MS });
 
 export function checkRateLimit(userId: string, isGuest = false): boolean {
-  const now = Date.now();
-  const timestamps = rateLimitMap.get(userId) || [];
-  const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
-  if (valid.length === 0) {
-    rateLimitMap.delete(userId);
-  }
-
-  const max = isGuest ? GUEST_RATE_LIMIT_MAX : RATE_LIMIT_MAX;
-  if (valid.length >= max) return false;
-
-  valid.push(now);
-  rateLimitMap.set(userId, valid);
-  return true;
+  return checkLimit(userId, isGuest ? GUEST_RATE_LIMIT_MAX : RATE_LIMIT_MAX);
 }
 
 async function validateGuestToken(): Promise<boolean> {
@@ -285,10 +273,9 @@ async function validateGuestToken(): Promise<boolean> {
   }
 }
 
-async function getClientIp(): Promise<string> {
+async function getRequestClientIp(): Promise<string> {
   try {
-    const h = await headers();
-    return h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || 'unknown';
+    return getClientIp(await headers());
   } catch {
     return 'unknown';
   }
@@ -309,7 +296,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const guestIp = isGuest ? await getClientIp() : null;
+    const guestIp = isGuest ? await getRequestClientIp() : null;
     const rateLimitKey = user ? user.id : `guest:${guestIp}`;
     if (!checkRateLimit(rateLimitKey, isGuest)) {
       return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please wait a few minutes.' }), {
@@ -450,8 +437,7 @@ export async function POST(req: Request) {
         if (signal.aborted) return;
 
         // Stream Gemini chunks directly to the response writer
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async function streamToWriter(sr: { stream: AsyncIterable<{ text: () => string }>; response: Promise<any> }) {
+        async function streamToWriter(sr: { stream: AsyncIterable<{ text: () => string }>; response: Promise<EnhancedGenerateContentResponse> }) {
           let wrote = false;
           for await (const chunk of sr.stream) {
             if (signal.aborted) break;

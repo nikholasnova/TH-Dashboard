@@ -9,14 +9,15 @@ import { computePercentError, getScopedCompareDeviceIds } from '@/lib/weatherCom
 import { formatValue, formatPercent, safeC2F, safeDeltaC2F } from '@/lib/format';
 import { useDevices } from '@/contexts/DevicesContext';
 import { useSetChatPageContext } from '@/lib/chatContext';
-import { DEPLOYMENT_ALL_TIME_HOURS, DEPLOYMENT_ALL_TIME_LABEL, TIME_RANGES } from '@/lib/constants';
+import { formatRangeLabel } from '@/lib/timeRangeFormat';
+import { ActiveDeploymentChip } from '@/components/ActiveDeploymentChip';
 import { FilterToolbar } from '@/components/FilterToolbar';
 import { useTimeRange } from '@/hooks/useTimeRange';
 import { useDeployments } from '@/hooks/useDeployments';
 import { ViewportScaler } from '@/components/ViewportScaler';
 import { resolveDeviceColor } from '@/lib/deviceColors';
 
-function formatDelta(values: (number | null | undefined)[], decimals = 1): string {
+function formatSpread(values: (number | null | undefined)[], decimals = 1): string {
   const valid = values.filter((v): v is number => v != null);
   if (valid.length < 2) return '—';
   if (valid.length === 2) {
@@ -28,7 +29,7 @@ function formatDelta(values: (number | null | undefined)[], decimals = 1): strin
   return `±${(spread / 2).toFixed(decimals)}`;
 }
 
-function formatDeltaPercent(values: (number | null | undefined)[]): string {
+function formatSpreadPercent(values: (number | null | undefined)[]): string {
   const valid = values.filter((v): v is number => v != null);
   if (valid.length < 2) return '—';
   if (valid.length === 2) {
@@ -55,7 +56,7 @@ export default function ComparePage() {
   const { devices, isLoading: devicesLoading } = useDevices();
   const { isGuest } = useGuest();
   const timeRange = useTimeRange();
-  const { deployments } = useDeployments(timeRange.deviceFilter);
+  const { deployments } = useDeployments();
   const {
     selectedRange, isCustom, isCustomValid,
     deploymentFilter, deviceFilter,
@@ -64,14 +65,9 @@ export default function ComparePage() {
 
   const setPageContext = useSetChatPageContext();
   useEffect(() => {
-    const rangeLabel =
-      selectedRange === DEPLOYMENT_ALL_TIME_HOURS
-        ? DEPLOYMENT_ALL_TIME_LABEL
-        : (TIME_RANGES.find(r => r.hours === selectedRange)?.label || `${selectedRange}h`);
-
     setPageContext({
       page: 'compare',
-      timeRange: rangeLabel,
+      timeRange: formatRangeLabel(selectedRange),
       deviceFilter: deviceFilter || undefined,
       deploymentId: deploymentFilter ? parseInt(deploymentFilter, 10) : undefined,
     });
@@ -166,12 +162,12 @@ export default function ComparePage() {
         <FilterToolbar timeRange={timeRange} deployments={deployments} />
 
         {deploymentFilter && activeDeployment && (
-          <div className="mb-6 px-4 py-2 rounded-lg bg-[var(--active-bg)] border border-[var(--divider)] inline-flex items-center gap-2">
-            <span className="text-sm text-[var(--foreground)]">
-              Showing: {activeDeployment.name} ({activeDeployment.location})
-            </span>
-            <button onClick={() => timeRange.setDeploymentFilter('')} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)]" aria-label="Clear deployment filter">✕</button>
-          </div>
+          <ActiveDeploymentChip
+            name={activeDeployment.name}
+            location={activeDeployment.location}
+            onClear={() => timeRange.setDeploymentFilter('')}
+            className="mb-6"
+          />
         )}
 
         <div className={isLoading ? 'opacity-50' : 'fade-in'}>
@@ -371,7 +367,7 @@ export default function ComparePage() {
                       <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempAvgF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempAvgF))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatSpread(deviceColumns.map(c => c.tempAvgF))}</td>
                     )}
                   </tr>
                   <tr className="border-b border-[var(--divider)]">
@@ -380,7 +376,7 @@ export default function ComparePage() {
                       <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempMinF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempMinF))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatSpread(deviceColumns.map(c => c.tempMinF))}</td>
                     )}
                   </tr>
                   <tr className="border-b border-[var(--divider)]">
@@ -389,7 +385,7 @@ export default function ComparePage() {
                       <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.tempMaxF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.tempMaxF))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatSpread(deviceColumns.map(c => c.tempMaxF))}</td>
                     )}
                   </tr>
                   <tr>
@@ -407,7 +403,7 @@ export default function ComparePage() {
                       <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.weatherTempAvgF)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.weatherTempAvgF))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatSpread(deviceColumns.map(c => c.weatherTempAvgF))}</td>
                     )}
                   </tr>
                   <tr>
@@ -416,7 +412,7 @@ export default function ComparePage() {
                       <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatPercent(col.tempErrorPct)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDeltaPercent(deviceColumns.map(c => c.tempErrorPct))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatSpreadPercent(deviceColumns.map(c => c.tempErrorPct))}</td>
                     )}
                   </tr>
                 </tbody>
@@ -448,7 +444,7 @@ export default function ComparePage() {
                       <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_avg)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_avg))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatSpread(deviceColumns.map(c => c.sensor?.humidity_avg))}</td>
                     )}
                   </tr>
                   <tr className="border-b border-[var(--divider)]">
@@ -457,7 +453,7 @@ export default function ComparePage() {
                       <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_min)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_min))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatSpread(deviceColumns.map(c => c.sensor?.humidity_min))}</td>
                     )}
                   </tr>
                   <tr className="border-b border-[var(--divider)]">
@@ -466,7 +462,7 @@ export default function ComparePage() {
                       <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.sensor?.humidity_max)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.sensor?.humidity_max))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatSpread(deviceColumns.map(c => c.sensor?.humidity_max))}</td>
                     )}
                   </tr>
                   <tr>
@@ -484,7 +480,7 @@ export default function ComparePage() {
                       <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatValue(col.weather?.humidity_avg)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDelta(deviceColumns.map(c => c.weather?.humidity_avg))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatSpread(deviceColumns.map(c => c.weather?.humidity_avg))}</td>
                     )}
                   </tr>
                   <tr>
@@ -493,7 +489,7 @@ export default function ComparePage() {
                       <td key={col.device.id} className="py-3 text-right font-semibold text-[var(--foreground)]">{formatPercent(col.humidityErrorPct)}</td>
                     ))}
                     {deviceColumns.length >= 2 && (
-                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatDeltaPercent(deviceColumns.map(c => c.humidityErrorPct))}</td>
+                      <td className="py-3 text-right text-[var(--foreground-muted)]/60">{formatSpreadPercent(deviceColumns.map(c => c.humidityErrorPct))}</td>
                     )}
                   </tr>
                 </tbody>

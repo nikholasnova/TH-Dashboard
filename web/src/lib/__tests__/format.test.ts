@@ -3,7 +3,6 @@ import {
   safeC2F,
   safeDeltaC2F,
   formatValue,
-  formatDelta,
   formatPercent,
   formatPercentDelta,
   formatTempF,
@@ -38,16 +37,6 @@ describe('formatValue', () => {
   it('formats negative values', () => expect(formatValue(-3.14)).toBe('-3.1'));
   it('returns dash for null', () => expect(formatValue(null)).toBe(DASH));
   it('returns dash for undefined', () => expect(formatValue(undefined)).toBe(DASH));
-});
-
-describe('formatDelta', () => {
-  it('shows positive delta with + sign', () => expect(formatDelta(30, 25)).toBe('+5.0'));
-  it('shows negative delta without extra sign', () => expect(formatDelta(20, 25)).toBe('-5.0'));
-  it('shows zero delta as +0.0', () => expect(formatDelta(25, 25)).toBe('+0.0'));
-  it('returns dash when first value is null', () => expect(formatDelta(null, 25)).toBe(DASH));
-  it('returns dash when second value is null', () => expect(formatDelta(25, null)).toBe(DASH));
-  it('returns dash when both are null', () => expect(formatDelta(null, null)).toBe(DASH));
-  it('respects custom decimals', () => expect(formatDelta(10.123, 10, 2)).toBe('+0.12'));
 });
 
 describe('formatPercent', () => {

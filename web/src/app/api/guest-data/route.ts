@@ -1,32 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/server';
+import { getClientIp, createRateLimiter } from '@/lib/serverAuth';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // IP-based rate limiter: 5 requests per 10 seconds
-const guestRateMap = new Map<string, number[]>();
 const GUEST_RATE_WINDOW_MS = 10_000;
 const GUEST_RATE_MAX = 5;
-
-function checkGuestRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const timestamps = (guestRateMap.get(ip) || []).filter(
-    (t) => now - t < GUEST_RATE_WINDOW_MS
-  );
-  if (timestamps.length === 0) {
-    guestRateMap.delete(ip);
-  }
-  if (timestamps.length >= GUEST_RATE_MAX) return false;
-  timestamps.push(now);
-  guestRateMap.set(ip, timestamps);
-  return true;
-}
-
-function getClientIp(request: NextRequest): string {
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip') ||
-    'unknown'
-  );
-}
+const checkGuestRateLimit = createRateLimiter({ windowMs: GUEST_RATE_WINDOW_MS });
 
 const ALLOWED_ACTIONS = new Set([
   'dashboard_live',
@@ -37,8 +17,6 @@ const ALLOWED_ACTIONS = new Set([
   'chart_samples',
   'deployment_stats',
   'deployment_readings',
-  'readings',
-  'all_readings',
   'all_readings_range',
   'alert_states',
   'distinct_locations',
@@ -55,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   // Rate limit by IP
   const ip = getClientIp(request);
-  if (!checkGuestRateLimit(ip)) {
+  if (!checkGuestRateLimit(ip, GUEST_RATE_MAX)) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please slow down.' },
       { status: 429 }
@@ -80,8 +58,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function executeAction(supabase: any, action: string, params: any) {
+async function executeAction(
+  supabase: SupabaseClient,
+  action: string,
+  // Params come from dynamic JSON; each case validates/destructures its own shape.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  params: Record<string, any>
+) {
   switch (action) {
     case 'devices': {
       const activeOnly = params.activeOnly ?? true;
@@ -271,35 +254,6 @@ async function executeAction(supabase: any, action: string, params: any) {
       return rows;
     }
 
-    case 'readings': {
-      const { deviceId, hoursAgo, maxRows } = params;
-      const since = new Date(Date.now() - hoursAgo * 3600_000).toISOString();
-      let query = supabase
-        .from('readings')
-        .select('*')
-        .eq('device_id', deviceId)
-        .gte('created_at', since)
-        .order('created_at', { ascending: true });
-      if (maxRows) query = query.limit(maxRows);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    }
-
-    case 'all_readings': {
-      const { hoursAgo, maxRows } = params;
-      const since = new Date(Date.now() - hoursAgo * 3600_000).toISOString();
-      let query = supabase
-        .from('readings')
-        .select('*')
-        .gte('created_at', since)
-        .order('created_at', { ascending: true });
-      if (maxRows) query = query.limit(maxRows);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    }
-
     case 'all_readings_range': {
       const { start, end, device_id, maxRows } = params;
 
@@ -346,7 +300,7 @@ async function executeAction(supabase: any, action: string, params: any) {
       if (!deviceIds?.length) return [];
       const { data, error } = await supabase
         .from('device_alert_state')
-        .select('device_id, status, last_seen_at, updated_at')
+        .select('device_id, status, last_seen_at, last_alert_type, last_alert_sent_at, last_recovery_sent_at, updated_at')
         .in('device_id', deviceIds);
       if (error) throw error;
       return data || [];

@@ -15,6 +15,7 @@ import { useDevices } from '@/contexts/DevicesContext';
 import { DataCleanupModal } from '@/components/DataCleanupModal';
 import { useGuest } from '@/contexts/GuestContext';
 import { SegmentedNav } from '@/components/SegmentedNav';
+import { InlineSelect } from '@/components/DeviceDeploymentFilter';
 
 type StatusFilter = 'all' | 'active' | 'ended';
 
@@ -78,27 +79,27 @@ export default function DeploymentsPage() {
     <PageLayout title="Deployments">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4 sm:gap-6">
-            <select
+            <InlineSelect
               value={deviceFilter}
-              onChange={(e) => setDeviceFilter(e.target.value)}
-              className="h-14 bg-transparent border border-[var(--hairline-strong)] rounded-md px-4 text-sm text-[var(--fg)] w-full sm:w-44 hover:bg-[var(--hover-bg)] transition-colors"
+              onChange={setDeviceFilter}
+              placeholder="All devices"
+              className="w-full sm:w-40"
             >
-              <option value="">All devices</option>
               {devices.map((d) => (
                 <option key={d.id} value={d.id}>{d.display_name}</option>
               ))}
-            </select>
+            </InlineSelect>
 
-            <select
+            <InlineSelect
               value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              className="h-14 bg-transparent border border-[var(--hairline-strong)] rounded-md px-4 text-sm text-[var(--fg)] w-full sm:w-44 hover:bg-[var(--hover-bg)] transition-colors"
+              onChange={setLocationFilter}
+              placeholder="All locations"
+              className="w-full sm:w-40"
             >
-              <option value="">All locations</option>
               {locations.map((loc) => (
                 <option key={loc} value={loc}>{loc}</option>
               ))}
-            </select>
+            </InlineSelect>
 
             <SegmentedNav
               layoutGroupId="deployments-status"
@@ -113,18 +114,21 @@ export default function DeploymentsPage() {
           </div>
 
           {!isGuest && (
-            <div className="flex gap-3 w-full sm:w-auto">
+            <div className="flex gap-6 w-full sm:w-auto">
               <button
                 onClick={() => setShowCleanupModal(true)}
-                className="h-14 px-4 text-sm text-[var(--fg-dim)] hover:text-[var(--error)] transition-colors w-full sm:w-auto"
+                className="h-14 inline-flex items-center text-sm tracking-tight text-[var(--fg-muted)] hover:text-[var(--error)] transition-colors"
               >
                 Clean Up Data
               </button>
               <button
                 onClick={() => setShowNewModal(true)}
-                className="h-14 px-4 text-sm font-semibold text-[var(--fg)] border border-[var(--hairline-strong)] rounded-md hover:bg-[var(--hover-bg)] transition-colors w-full sm:w-auto"
+                className="h-14 inline-flex items-center gap-2 text-sm tracking-tight text-[var(--fg-muted)] hover:text-[var(--fg)] transition-colors"
               >
-                + New Deployment
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                New Deployment
               </button>
             </div>
           )}

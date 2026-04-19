@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerUser } from '@/lib/serverAuth';
+import { requireAdmin } from '@/lib/serverAuth';
 
 export async function GET(request: NextRequest) {
-  const user = await getServerUser();
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-  const role = user.app_metadata?.role ?? 'user';
-  if (role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const auth = await requireAdmin();
+  if (auth.response) return auth.response;
 
   const token = process.env.GUEST_VIEW_TOKEN;
   if (!token) {

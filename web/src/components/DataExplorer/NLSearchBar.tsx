@@ -1,27 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import type { FilterState } from './filterTypes';
+import type { FilterState, NLFilterResponse } from './filterTypes';
 import { DEFAULT_FILTER } from './filterTypes';
 
 interface NLSearchBarProps {
   onApply: (patch: Partial<FilterState>) => void;
 }
 
-interface ParsedFilter {
-  deviceIds?: string[];
-  rangePreset?: FilterState['rangePreset'];
-  customStart?: string;
-  customEnd?: string;
-  minTempF?: number | null;
-  maxTempF?: number | null;
-  minHumidity?: number | null;
-  maxHumidity?: number | null;
-  source?: FilterState['source'];
-  anomaliesOnly?: boolean;
-}
-
-function toPatch(raw: ParsedFilter): Partial<FilterState> {
+function toPatch(raw: NLFilterResponse): Partial<FilterState> {
   const patch: Partial<FilterState> = {};
   if (Array.isArray(raw.deviceIds)) patch.deviceIds = raw.deviceIds.map(String);
   if (raw.rangePreset) patch.rangePreset = raw.rangePreset;
@@ -64,7 +51,7 @@ export function NLSearchBar({ onApply }: NLSearchBarProps) {
         return;
       }
       const body = await res.json();
-      const parsed = (body?.filter ?? {}) as ParsedFilter;
+      const parsed = (body?.filter ?? {}) as NLFilterResponse;
       const patch = toPatch(parsed);
       onApply({ ...DEFAULT_FILTER, ...patch });
     } catch {

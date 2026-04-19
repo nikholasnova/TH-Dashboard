@@ -3,7 +3,7 @@
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
-export interface AuthResult {
+interface AuthResult {
   success: boolean;
   error?: string;
 }

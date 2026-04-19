@@ -1,5 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server';
+import type { User } from '@supabase/supabase-js';
 
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
@@ -46,7 +49,72 @@ export async function isAuthenticated(): Promise<boolean> {
   return user !== null;
 }
 
-export async function getServerUserRole(): Promise<'admin' | 'user'> {
+export function getServiceRoleClient():
+  | { client: SupabaseClient; error: null }
+  | { client: null; error: string } {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    return {
+      client: null,
+      error:
+        'NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required',
+    };
+  }
+
+  return { client: createClient(url, serviceRoleKey), error: null };
+}
+
+export function verifyCronSecret(request: NextRequest): NextResponse | null {
+  const expected = process.env.CRON_SECRET;
+  const provided = request.headers.get('authorization')?.replace('Bearer ', '');
+  if (!expected || provided !== expected) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  return null;
+}
+
+export async function requireAdmin(): Promise<
+  { user: User; response: null } | { user: null; response: NextResponse }
+> {
   const user = await getServerUser();
-  return (user?.app_metadata?.role as 'admin' | 'user') ?? 'user';
+  if (!user) {
+    return {
+      user: null,
+      response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
+    };
+  }
+  const role = user.app_metadata?.role ?? 'user';
+  if (role !== 'admin') {
+    return {
+      user: null,
+      response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
+    };
+  }
+  return { user, response: null };
+}
+
+export function getClientIp(source: Headers | NextRequest): string {
+  const h = source instanceof Headers ? source : source.headers;
+  return (
+    h.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    h.get('x-real-ip') ||
+    'unknown'
+  );
+}
+
+export function createRateLimiter(opts: { windowMs: number }) {
+  const map = new Map<string, number[]>();
+  return function checkLimit(key: string, max: number): boolean {
+    const now = Date.now();
+    const timestamps = (map.get(key) || []).filter(
+      (t) => now - t < opts.windowMs
+    );
+    if (timestamps.length === 0) map.delete(key);
+    if (timestamps.length >= max) return false;
+    timestamps.push(now);
+    map.set(key, timestamps);
+    return true;
+  };
 }

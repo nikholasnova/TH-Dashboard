@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from './AuthProvider';
+import { Modal } from './Modal';
 
 interface ManagedUser {
   id: string;
@@ -49,13 +50,6 @@ export function UserManager({ isOpen, onClose }: UserManagerProps) {
     if (isOpen) fetchUsers();
   }, [isOpen, fetchUsers]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isOpen]);
 
   const handleInvite = async () => {
     const email = inviteEmail.trim();
@@ -154,16 +148,8 @@ export function UserManager({ isOpen, onClose }: UserManagerProps) {
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-[var(--overlay-bg)] backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      <div className="relative glass-card w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+    <Modal isOpen={isOpen} onClose={onClose}>
         <div className="p-6 overflow-y-auto scrollbar-thin">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-[var(--foreground)]">
@@ -338,7 +324,6 @@ export function UserManager({ isOpen, onClose }: UserManagerProps) {
             </div>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

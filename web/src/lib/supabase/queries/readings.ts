@@ -7,8 +7,21 @@ export interface DashboardLiveData {
   sparklines: Record<string, ChartSample[]>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function parseDashboardLiveRows(deviceIds: string[], rows: any[]): DashboardLiveData {
+type DashboardLiveRow = {
+  row_type: 'sensor' | 'weather' | 'sparkline';
+  device_id: string;
+  id: number;
+  temperature: number;
+  humidity: number;
+  created_at: string;
+  source: string;
+  bucket_ts: string;
+  temperature_avg: number;
+  humidity_avg: number;
+  reading_count: number;
+};
+
+export function parseDashboardLiveRows(deviceIds: string[], rows: DashboardLiveRow[]): DashboardLiveData {
   const result: DashboardLiveData = { sensor: {}, weather: {}, sparklines: {} };
   for (const id of deviceIds) {
     result.sensor[id] = null;
@@ -91,60 +104,6 @@ export async function getLatestReading(
     return null;
   }
   return data;
-}
-
-export async function getReadings(
-  deviceId: string,
-  hoursAgo: number,
-  maxRows?: number
-): Promise<Reading[]> {
-  if (!supabase) return [];
-
-  const since = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
-  let query = supabase
-    .from('readings')
-    .select('*')
-    .eq('device_id', deviceId)
-    .gte('created_at', since)
-    .order('created_at', { ascending: true });
-
-  if (maxRows) {
-    query = query.limit(maxRows);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error(`Error fetching readings for ${deviceId}:`, error);
-    return [];
-  }
-  return data || [];
-}
-
-export async function getAllReadings(
-  hoursAgo: number,
-  maxRows?: number
-): Promise<Reading[]> {
-  if (!supabase) return [];
-
-  const since = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
-  let query = supabase
-    .from('readings')
-    .select('*')
-    .gte('created_at', since)
-    .order('created_at', { ascending: true });
-
-  if (maxRows) {
-    query = query.limit(maxRows);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('Error fetching all readings:', error);
-    return [];
-  }
-  return data || [];
 }
 
 export async function getAllReadingsRange(params: {

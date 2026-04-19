@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/server';
-import { getServerUser } from '@/lib/serverAuth';
+import { requireAdmin } from '@/lib/serverAuth';
 import { getPostHogClient } from '@/lib/posthog-server';
-
-async function requireAdmin() {
-  const user = await getServerUser();
-  if (!user) {
-    return { error: 'Unauthorized', status: 401, user: null };
-  }
-  const role = user.app_metadata?.role ?? 'user';
-  if (role !== 'admin') {
-    return { error: 'Forbidden', status: 403, user: null };
-  }
-  return { error: null, status: 200, user };
-}
 
 export async function GET() {
   const auth = await requireAdmin();
-  if (auth.error) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  if (auth.response) return auth.response;
 
   const supabase = getServerClient();
 
@@ -52,9 +38,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
-  if (auth.error) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  if (auth.response) return auth.response;
 
   const body = await request.json();
   const { email, linkOnly } = body;
@@ -87,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     const phClient = getPostHogClient();
     phClient?.capture({
-      distinctId: auth.user!.id,
+      distinctId: auth.user.id,
       event: 'user_invited',
       properties: { invited_email: email, method: 'link' },
     });
@@ -109,7 +93,7 @@ export async function POST(request: NextRequest) {
 
   const phClient = getPostHogClient();
   phClient?.capture({
-    distinctId: auth.user!.id,
+    distinctId: auth.user.id,
     event: 'user_invited',
     properties: { invited_email: email, method: 'email' },
   });
@@ -119,9 +103,7 @@ export async function POST(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   const auth = await requireAdmin();
-  if (auth.error) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  if (auth.response) return auth.response;
 
   const body = await request.json();
   const { userId, role } = body;
@@ -133,7 +115,7 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  if (userId === auth.user!.id) {
+  if (userId === auth.user.id) {
     return NextResponse.json(
       { error: 'Cannot change your own role' },
       { status: 400 }
@@ -161,7 +143,7 @@ export async function PATCH(request: NextRequest) {
 
   const phClient = getPostHogClient();
   phClient?.capture({
-    distinctId: auth.user!.id,
+    distinctId: auth.user.id,
     event: 'user_role_changed',
     properties: { target_user_id: userId, new_role: role },
   });
@@ -171,9 +153,7 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const auth = await requireAdmin();
-  if (auth.error) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
+  if (auth.response) return auth.response;
 
   const { searchParams } = new URL(request.url);
   const userId = searchParams.get('userId');
@@ -182,7 +162,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'userId is required' }, { status: 400 });
   }
 
-  if (userId === auth.user!.id) {
+  if (userId === auth.user.id) {
     return NextResponse.json(
       { error: 'Cannot delete your own account' },
       { status: 400 }
@@ -198,7 +178,7 @@ export async function DELETE(request: NextRequest) {
 
   const phClient = getPostHogClient();
   phClient?.capture({
-    distinctId: auth.user!.id,
+    distinctId: auth.user.id,
     event: 'user_removed',
     properties: { removed_user_id: userId },
   });

@@ -1,6 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { normalizeUsZipCode, toWeatherDeviceId } from '@/lib/weatherZip';
+import { getServiceRoleClient, verifyCronSecret } from '@/lib/serverAuth';
 
 type ActiveDeployment = {
   id: number;
@@ -22,21 +22,6 @@ type WeatherTarget = {
   deviceId: string;
   zipCode: string;
 };
-
-function getServiceRoleClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !serviceKey) {
-    return {
-      client: null,
-      error:
-        'NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required',
-    } as const;
-  }
-
-  return { client: createClient(url, serviceKey), error: null } as const;
-}
 
 export function getUtcBucketRange(now = new Date()) {
   const start = new Date(now);
@@ -103,14 +88,8 @@ export function buildWeatherTargets(activeDeployments: ActiveDeployment[]) {
 // Fetched by Vercel cron every 30 min to pull outdoor weather for active deployments.
 // Protected by CRON_SECRET — only trusted callers should invoke this route.
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-
-  const expectedSecret = process.env.CRON_SECRET;
-  const providedSecret = authHeader?.replace('Bearer ', '');
-
-  if (!expectedSecret || providedSecret !== expectedSecret) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const unauthorized = verifyCronSecret(request);
+  if (unauthorized) return unauthorized;
 
   // If missing, return early — don't break the cron
   const weatherApiKey = process.env.WEATHER_API_KEY;

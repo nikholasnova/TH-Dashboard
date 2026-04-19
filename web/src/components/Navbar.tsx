@@ -111,7 +111,7 @@ export function Navbar() {
                     onFocus={() => setHoveredIdx(idx)}
                     className={`relative text-base md:text-lg lg:text-xl xl:text-2xl tracking-tight pb-4 md:pb-5 lg:pb-6 transition-colors ${
                       active
-                        ? 'text-[var(--fg)] font-semibold'
+                        ? 'text-[var(--fg)]'
                         : 'text-[var(--fg-muted)] hover:text-[var(--fg)]'
                     }`}
                   >

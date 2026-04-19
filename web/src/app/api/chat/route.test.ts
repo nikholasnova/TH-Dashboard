@@ -15,9 +15,13 @@ const startChatMock = vi.fn((input: StartChatInput) => {
 const getGenerativeModelMock = vi.fn(function () { return { startChat: startChatMock }; });
 const GoogleGenerativeAIMock = vi.fn(function () { return { getGenerativeModel: getGenerativeModelMock }; });
 
-vi.mock('@/lib/serverAuth', () => ({
-  getServerUser: getServerUserMock,
-}));
+vi.mock('@/lib/serverAuth', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/serverAuth')>('@/lib/serverAuth');
+  return {
+    ...actual,
+    getServerUser: getServerUserMock,
+  };
+});
 
 vi.mock('@/lib/aiTools', () => ({
   executeTool: executeToolMock,

@@ -25,15 +25,9 @@ import {
   resolveRange,
   type FilterState,
 } from '@/components/DataExplorer/filterTypes';
+import { csvSafe, downloadCsv } from '@/lib/csv';
 
-function csvSafe(value: string): string {
-  if (/[,"\n\r]/.test(value) || /^[=+\-@\t\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
-function downloadCsv(readings: Reading[]) {
+function buildReadingsCsv(readings: Reading[]) {
   const header = ['id', 'device_id', 'source', 'timestamp_utc', 'temperature_c', 'temperature_f', 'humidity_pct', 'deployment_id'];
   const rows = readings.map((r) => [
     String(r.id),
@@ -45,14 +39,7 @@ function downloadCsv(readings: Reading[]) {
     r.humidity.toFixed(2),
     r.deployment_id != null ? String(r.deployment_id) : '',
   ].map(csvSafe).join(','));
-  const csv = [header.join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `readings-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  return [header.join(','), ...rows].join('\n');
 }
 
 export default function DataPage() {
@@ -181,7 +168,10 @@ export default function DataPage() {
         )}
         <button
           type="button"
-          onClick={() => downloadCsv(visibleReadings)}
+          onClick={() => downloadCsv(
+            buildReadingsCsv(visibleReadings),
+            `readings-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`
+          )}
           disabled={visibleReadings.length === 0}
           className="btn-glass px-4 py-2 text-sm font-semibold disabled:opacity-50"
         >

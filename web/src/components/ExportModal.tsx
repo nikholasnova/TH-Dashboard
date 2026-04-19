@@ -5,6 +5,9 @@ import { getAllReadingsRange, getChartSamples, celsiusToFahrenheit, getDeploymen
 import { guestGetAllReadingsRange, guestGetChartSamples, guestGetDeployments } from '@/lib/supabase/guestQueries';
 import { useDevices } from '@/contexts/DevicesContext';
 import { useGuest } from '@/contexts/GuestContext';
+import { csvSafe, downloadCsv } from '@/lib/csv';
+import { MODAL_INPUT_CLASS } from '@/lib/styles';
+import { Modal } from './Modal';
 import posthog from 'posthog-js';
 
 interface ExportModalProps {
@@ -25,22 +28,6 @@ const BUCKET_OPTIONS = [
   { label: '1 day', seconds: 86400 },
 ] as const;
 
-function csvSafe(value: string): string {
-  if (/[,"\n\r]/.test(value) || /^[=+\-@\t\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
-}
-
-function downloadCsv(csv: string, filename: string) {
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
 export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, defaultDeviceId }: ExportModalProps) {
   const { devices } = useDevices();
@@ -80,18 +67,6 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
     setSelectedDeviceId(selectedDeployment.device_id);
   }, [selectedDeployment]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [isOpen, onClose]);
 
   const isRangeValid = !!start && !!end && new Date(start).getTime() < new Date(end).getTime();
 
@@ -184,17 +159,11 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
     }
   };
 
-  if (!isOpen) return null;
-
-  const inputClass = 'bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full';
   const toggleClass = (active: boolean) =>
     `nav-pill px-4 py-2 text-sm rounded-xl transition-colors ${active ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-[var(--overlay-bg)] backdrop-blur-sm" onClick={onClose} />
-
-      <div className="relative glass-card w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <Modal isOpen={isOpen} onClose={onClose} enableEscape>
         <div className="p-6 sm:p-8 overflow-y-auto scrollbar-thin">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl sm:text-2xl font-bold text-[var(--foreground)]">Export Data</h2>
@@ -220,7 +189,7 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
                       setSelectedDeviceId(defaultDeviceId);
                     }
                   }}
-                  className={inputClass}
+                  className={MODAL_INPUT_CLASS}
                 >
                   <option value="">None (manual range)</option>
                   {deploymentList.map(d => (
@@ -243,11 +212,11 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <span className="text-xs text-[var(--foreground-muted)] mb-1 block">Start</span>
-                  <input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} className={inputClass} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined} />
+                  <input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} className={MODAL_INPUT_CLASS} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined} />
                 </div>
                 <div>
                   <span className="text-xs text-[var(--foreground-muted)] mb-1 block">End</span>
-                  <input type="datetime-local" value={end} onChange={e => setEnd(e.target.value)} className={inputClass} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined} />
+                  <input type="datetime-local" value={end} onChange={e => setEnd(e.target.value)} className={MODAL_INPUT_CLASS} disabled={!!selectedDeployment} style={selectedDeployment ? { opacity: 0.6 } : undefined} />
                 </div>
               </div>
               {!isRangeValid && start && end && (
@@ -275,7 +244,7 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
                 <select
                   value={bucketSeconds}
                   onChange={e => setBucketSeconds(Number(e.target.value))}
-                  className={inputClass}
+                  className={MODAL_INPUT_CLASS}
                 >
                   {BUCKET_OPTIONS.map(opt => (
                     <option key={opt.seconds} value={opt.seconds}>{opt.label}</option>
@@ -290,7 +259,7 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
               <select
                 value={selectedDeviceId}
                 onChange={e => setSelectedDeviceId(e.target.value)}
-                className={inputClass}
+                className={MODAL_INPUT_CLASS}
                 disabled={!!selectedDeployment}
                 style={selectedDeployment ? { opacity: 0.6 } : undefined}
               >
@@ -335,7 +304,6 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

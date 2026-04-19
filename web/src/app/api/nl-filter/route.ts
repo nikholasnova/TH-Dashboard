@@ -1,21 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getServerUser } from '@/lib/serverAuth';
 import { getServerClient } from '@/lib/supabase/server';
+import type { NLFilterResponse } from '@/components/DataExplorer/filterTypes';
 
 export const maxDuration = 20;
-
-interface NLFilterResponse {
-  deviceIds?: string[];
-  rangePreset?: '1h' | '24h' | '7d' | '30d' | 'custom';
-  customStart?: string;
-  customEnd?: string;
-  minTempF?: number | null;
-  maxTempF?: number | null;
-  minHumidity?: number | null;
-  maxHumidity?: number | null;
-  source?: 'sensor' | 'weather' | 'both';
-  anomaliesOnly?: boolean;
-}
 
 function buildSystemPrompt(devices: { id: string; display_name: string }[]): string {
   const deviceList = devices.map((d) => `${d.id} (${d.display_name})`).join(', ');

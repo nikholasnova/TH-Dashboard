@@ -1,14 +1,5 @@
 import type { DescriptiveResult, CorrelationResult, HypothesisTestResult, SeasonalResult, ForecastResult } from './analysisRunner';
-
-function downloadCsv(csv: string, filename: string) {
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
+import { downloadCsv } from './csv';
 
 export function exportDescriptive(results: DescriptiveResult[]) {
   const headers = ['deployment', 'location', 'metric', 'count', 'mean', 'median', 'std', 'std_error', 'min', 'max', 'q25', 'q75', 'skewness', 'kurtosis'];

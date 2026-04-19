@@ -62,6 +62,9 @@ export interface DeviceAlertState {
   device_id: string;
   status: 'ok' | 'missing' | 'stale' | 'anomaly';
   last_seen_at: string | null;
+  last_alert_type: string | null;
+  last_alert_sent_at: string | null;
+  last_recovery_sent_at: string | null;
   updated_at: string;
 }
 

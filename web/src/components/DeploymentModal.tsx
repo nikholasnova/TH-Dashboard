@@ -14,6 +14,7 @@ import {
 } from '@/lib/supabase';
 import { isValidOptionalUsZipCode, normalizeUsZipCode } from '@/lib/weatherZip';
 import { useDevices } from '@/contexts/DevicesContext';
+import { Modal } from './Modal';
 
 interface DeploymentModalProps {
   deviceId: string;
@@ -265,19 +266,8 @@ export function DeploymentModal({
     return 'just now';
   };
 
-  useEffect(() => {
-    if (!isOpen) return;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-[var(--overlay-bg)] backdrop-blur-sm" onClick={onClose} />
-
-      <div className="relative glass-card w-full max-w-lg mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+    <Modal isOpen={isOpen} onClose={onClose}>
         <div className="p-8 overflow-y-auto scrollbar-thin">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -585,7 +575,6 @@ export function DeploymentModal({
           </>
         )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
