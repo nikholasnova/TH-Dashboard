@@ -313,12 +313,12 @@ function buildAlertHtml(p: {
   const metricRows = p.metrics
     .map(
       (m) =>
-        `<tr><td class="metric-label" style="padding:7px 0;color:#A3A29E;font-size:13px;font-family:${serifStack};">${escapeHtml(m.label)}</td><td align="right" class="metric-value" style="padding:7px 0;color:#F5F4F0;font-size:13px;font-family:${monoStack};font-variant-numeric:tabular-nums lining-nums;font-feature-settings:'tnum' 1,'lnum' 1;">${escapeHtml(m.value)}</td></tr>`
+        `<tr><td class="metric-label e-muted" style="padding:7px 0;color:#A3A29E;font-size:13px;font-family:${serifStack};">${escapeHtml(m.label)}</td><td align="right" class="metric-value e-fg" style="padding:7px 0;color:#F5F4F0;font-size:13px;font-family:${monoStack};font-variant-numeric:tabular-nums lining-nums;font-feature-settings:'tnum' 1,'lnum' 1;">${escapeHtml(m.value)}</td></tr>`
     )
     .join('');
 
   const deploymentRow = p.deploymentLine
-    ? `<tr><td class="row-pad" style="padding:0 28px 20px 28px;font-size:13px;color:#A3A29E;font-family:${serifStack};">Deployment: <span style="color:#C9C7C2;">${escapeHtml(p.deploymentLine)}</span></td></tr>`
+    ? `<tr><td class="row-pad e-muted" style="padding:0 28px 20px 28px;font-size:13px;color:#A3A29E;font-family:${serifStack};">Deployment: <span class="e-dim" style="color:#C9C7C2;">${escapeHtml(p.deploymentLine)}</span></td></tr>`
     : '';
 
   const ctaRow = p.dashboardUrl
@@ -338,8 +338,27 @@ function buildAlertHtml(p: {
 <meta name="x-apple-disable-message-reformatting">
 <title>IoT Monitor</title>
 <style>
-  /* Mobile polish (Apple Mail / iOS Mail / Gmail web support these).
-     Clients that strip <style> fall back to the inline styles below. */
+  /* Signal dark-only design to the UA and Gmail / Apple Mail. */
+  :root { color-scheme: dark; supported-color-schemes: dark; }
+  body { color-scheme: dark; }
+
+  /* Gmail dark mode re-inverts "light" emails; re-assert our colors in
+     prefers-color-scheme:dark so we lock the palette instead of Gmail
+     flipping it. The !important is what bypasses Gmail's inline override. */
+  @media (prefers-color-scheme: dark) {
+    .e-bg { background-color: #1D1C1B !important; }
+    .e-card { background-color: #2F2F2D !important; }
+    .e-fg { color: #F5F4F0 !important; }
+    .e-muted { color: #A3A29E !important; }
+    .e-dim { color: #C9C7C2 !important; }
+    .e-cta { background-color: #C89B4A !important; color: #1D1C1B !important; }
+    .e-banner-missing { background-color: #C47878 !important; color: #1D1C1B !important; }
+    .e-banner-stale { background-color: #D1A875 !important; color: #1D1C1B !important; }
+    .e-banner-anomaly { background-color: #C89B4A !important; color: #1D1C1B !important; }
+    .e-banner-recovery { background-color: #8FB58F !important; color: #1D1C1B !important; }
+  }
+
+  /* Mobile polish (Apple Mail / iOS Mail / Gmail web support these). */
   @media only screen and (max-width: 480px) {
     .outer-pad { padding: 16px 10px !important; }
     .row-pad { padding-left: 18px !important; padding-right: 18px !important; }
@@ -356,29 +375,29 @@ function buildAlertHtml(p: {
   a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
 </style>
 </head>
-<body style="margin:0;padding:0;background:#1D1C1B;font-family:${serifStack};color:#F5F4F0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1D1C1B;">
+<body class="e-bg" style="margin:0;padding:0;background:#1D1C1B;font-family:${serifStack};color:#F5F4F0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="e-bg" style="background:#1D1C1B;">
 <tr><td align="center" class="outer-pad" style="padding:32px 16px;">
-<table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0" style="background:#2F2F2D;border:1px solid rgba(255,255,255,0.18);border-radius:10px;max-width:540px;width:100%;">
-<tr><td class="banner-pad" style="background:${meta.color};padding:12px 28px;color:#1D1C1B;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border-radius:10px 10px 0 0;font-family:${serifStack};">${escapeHtml(meta.label)}</td></tr>
+<table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0" class="e-card" style="background:#2F2F2D;border:1px solid rgba(255,255,255,0.18);border-radius:10px;max-width:540px;width:100%;">
+<tr><td class="banner-pad e-banner-${p.kind}" style="background:${meta.color};padding:12px 28px;color:#1D1C1B;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border-radius:10px 10px 0 0;font-family:${serifStack};">${escapeHtml(meta.label)}</td></tr>
 <tr><td class="row-pad" style="padding:24px 28px 4px 28px;">
-<div style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;font-weight:600;font-family:${serifStack};">Device</div>
-<div class="device-title" style="font-size:24px;font-weight:500;color:#F5F4F0;line-height:1.25;letter-spacing:-0.01em;font-family:${serifStack};">${escapeHtml(p.displayName)} <span class="device-subtitle" style="font-size:15px;color:#A3A29E;font-weight:400;">(${escapeHtml(p.deviceId)})</span></div>
+<div class="e-muted" style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;font-weight:600;font-family:${serifStack};">Device</div>
+<div class="device-title e-fg" style="font-size:24px;font-weight:500;color:#F5F4F0;line-height:1.25;letter-spacing:-0.01em;font-family:${serifStack};">${escapeHtml(p.displayName)} <span class="device-subtitle e-muted" style="font-size:15px;color:#A3A29E;font-weight:400;">(${escapeHtml(p.deviceId)})</span></div>
 </td></tr>
 ${deploymentRow}
 <tr><td class="row-pad" style="padding:16px 28px;border-top:1px solid rgba(255,255,255,0.12);">
-<div style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;font-family:${serifStack};">What happened</div>
-<div class="section-body" style="font-size:14px;line-height:1.55;color:#F5F4F0;font-family:${serifStack};">${escapeHtml(p.reason)}</div>
+<div class="e-muted" style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;font-family:${serifStack};">What happened</div>
+<div class="section-body e-fg" style="font-size:14px;line-height:1.55;color:#F5F4F0;font-family:${serifStack};">${escapeHtml(p.reason)}</div>
 </td></tr>
 <tr><td class="row-pad" style="padding:2px 28px 14px 28px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${metricRows}</table>
 </td></tr>
 <tr><td class="row-pad" style="padding:16px 28px;border-top:1px solid rgba(255,255,255,0.12);">
-<div style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;font-family:${serifStack};">Suggested action</div>
-<div class="section-body" style="font-size:14px;line-height:1.55;color:#F5F4F0;font-family:${serifStack};">${escapeHtml(p.action)}</div>
+<div class="e-muted" style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;font-family:${serifStack};">Suggested action</div>
+<div class="section-body e-fg" style="font-size:14px;line-height:1.55;color:#F5F4F0;font-family:${serifStack};">${escapeHtml(p.action)}</div>
 </td></tr>
-${ctaRow}
-<tr><td class="row-pad footer" style="padding:12px 28px;border-top:1px solid rgba(255,255,255,0.12);border-radius:0 0 10px 10px;font-size:11px;color:#A3A29E;font-family:${serifStack};">IoT Temp/Humidity Monitor \u00b7 sent ${escapeHtml(sentAt)}</td></tr>
+${ctaRow.replace('class="cta"', 'class="cta e-cta"')}
+<tr><td class="row-pad footer e-muted" style="padding:12px 28px;border-top:1px solid rgba(255,255,255,0.12);border-radius:0 0 10px 10px;font-size:11px;color:#A3A29E;font-family:${serifStack};">IoT Temp/Humidity Monitor \u00b7 sent ${escapeHtml(sentAt)}</td></tr>
 </table>
 </td></tr>
 </table>
