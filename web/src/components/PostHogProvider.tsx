@@ -49,7 +49,7 @@ export function PostHogPageView() {
 }
 
 function PostHogIdentify() {
-  const { user } = useSession();
+  const { user, role } = useSession();
   const ph = usePostHog();
   const prevUserId = useRef<string | null>(null);
 
@@ -59,14 +59,14 @@ function PostHogIdentify() {
     if (user && user.id !== prevUserId.current) {
       ph.identify(user.id, {
         email: user.email,
-        role: user.app_metadata?.role,
+        role,
       });
       prevUserId.current = user.id;
     } else if (!user && prevUserId.current) {
       ph.reset();
       prevUserId.current = null;
     }
-  }, [user, ph]);
+  }, [user, role, ph]);
 
   return null;
 }

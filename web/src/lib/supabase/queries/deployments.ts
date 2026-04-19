@@ -5,8 +5,6 @@ import type {
   DeploymentWithCount,
   DeploymentStats,
 } from '../types';
-import { normalizeUsZipCode } from '../../weatherZip';
-
 export async function getDeployments(filters?: {
   deviceId?: string;
   location?: string;
@@ -64,27 +62,17 @@ export async function createDeployment(deployment: {
   zip_code?: string;
   started_at?: string;
 }): Promise<Deployment | null> {
-  if (!supabase) return null;
-
-  const { data, error } = await supabase
-    .from('deployments')
-    .insert({
-      device_id: deployment.device_id,
-      name: deployment.name,
-      location: deployment.location,
-      notes: deployment.notes || null,
-      zip_code: deployment.zip_code ? normalizeUsZipCode(deployment.zip_code) : null,
-      started_at: deployment.started_at || new Date().toISOString(),
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating deployment:', error);
-    return null;
+  const res = await fetch('/api/deployments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(deployment),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to create deployment (${res.status})`);
   }
-
-  return data;
+  const { deployment: created } = await res.json();
+  return created ?? null;
 }
 
 export async function updateDeployment(
@@ -98,57 +86,32 @@ export async function updateDeployment(
     ended_at?: string | null;
   }
 ): Promise<Deployment | null> {
-  if (!supabase) return null;
-
-  if ('zip_code' in updates && updates.zip_code != null) {
-    updates.zip_code = normalizeUsZipCode(updates.zip_code);
+  const res = await fetch('/api/deployments', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, ...updates }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to update deployment (${res.status})`);
   }
-
-  const { data, error } = await supabase
-    .from('deployments')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error updating deployment:', error);
-    return null;
-  }
-
-  return data;
+  const { deployment } = await res.json();
+  return deployment ?? null;
 }
 
 export async function endDeployment(id: number): Promise<Deployment | null> {
-  if (!supabase) return null;
-
-  const { data, error } = await supabase
-    .from('deployments')
-    .update({ ended_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error ending deployment:', error);
-    return null;
-  }
-
-  return data;
+  return updateDeployment(id, { ended_at: new Date().toISOString() });
 }
 
 export async function deleteDeployment(id: number): Promise<boolean> {
-  if (!supabase) return false;
-
-  const { error } = await supabase.rpc('delete_deployment_cascade', {
-    p_deployment_id: id,
+  const res = await fetch(`/api/deployments?id=${encodeURIComponent(String(id))}`, {
+    method: 'DELETE',
   });
-
-  if (error) {
-    console.error('Error deleting deployment:', error);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    console.error('Error deleting deployment:', body.error || res.status);
     return false;
   }
-
   return true;
 }
 

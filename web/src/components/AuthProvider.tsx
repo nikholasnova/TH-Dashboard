@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { getSession, onAuthStateChange } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 
 type UserRole = 'admin' | 'user';
 
@@ -38,38 +39,53 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+async function fetchRole(userId: string): Promise<UserRole> {
+  if (!supabase) return 'user';
+  try {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) return 'user';
+    return (data?.role as UserRole) ?? 'user';
+  } catch {
+    return 'user';
+  }
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null);
+  const [role, setRole] = useState<UserRole>('user');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getSession().then((session) => {
-      setSession(session);
-      setLoading(false);
-    });
+    let cancelled = false;
 
-    const unsubscribe = onAuthStateChange((session) => {
-      setSession(session);
-      setLoading(false);
-    });
+    async function hydrate(nextSession: Session | null) {
+      if (cancelled) return;
+      setSession(nextSession);
+      if (nextSession?.user) {
+        const r = await fetchRole(nextSession.user.id);
+        if (!cancelled) setRole(r);
+      } else {
+        setRole('user');
+      }
+      if (!cancelled) setLoading(false);
+    }
+
+    getSession().then(hydrate);
+    const unsubscribe = onAuthStateChange((s) => { hydrate(s); });
 
     return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
     };
   }, []);
 
   const user = session?.user ?? null;
-  const role: UserRole =
-    (user?.app_metadata?.role as UserRole) ?? 'user';
 
-  const value: AuthContextType = {
-    session,
-    user,
-    loading,
-    role,
-  };
+  const value: AuthContextType = { session, user, loading, role };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

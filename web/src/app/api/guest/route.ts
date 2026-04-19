@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/serverAuth';
+import { requireAdmin, getClientIp, enforceOrigin } from '@/lib/serverAuth';
+import { guestTokenLimiter } from '@/lib/rateLimiter';
+import { timingSafeCompare } from '@/lib/secrets';
 
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin();
@@ -21,10 +23,19 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { token } = await request.json();
+  const originErr = enforceOrigin(request);
+  if (originErr) return originErr;
+
+  const ip = getClientIp(request);
+  const { success } = await guestTokenLimiter.limit(ip);
+  if (!success) {
+    return NextResponse.json({ error: 'Too many attempts' }, { status: 429 });
+  }
+
+  const { token } = await request.json().catch(() => ({ token: null }));
   const validToken = process.env.GUEST_VIEW_TOKEN;
 
-  if (!validToken || !token || token !== validToken) {
+  if (!validToken || typeof token !== 'string' || !timingSafeCompare(validToken, token)) {
     return NextResponse.json({ error: 'Invalid token' }, { status: 403 });
   }
 
@@ -34,9 +45,7 @@ export async function POST(request: NextRequest) {
     sameSite: 'strict' as const,
     path: '/',
   };
-  // httpOnly cookie for middleware validation
   response.cookies.set('guest_token', token, { ...cookieOpts, httpOnly: true });
-  // readable cookie for client-side GuestContext
   response.cookies.set('guest_mode', '1', cookieOpts);
 
   return response;

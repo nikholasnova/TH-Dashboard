@@ -1,7 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let mockSupabase: ReturnType<typeof createMockSupabase> | null;
 let resolveQueue: Array<{ data: unknown; error: unknown }>;
+
+const originalFetch = globalThis.fetch;
+function mockFetch(response: { ok: boolean; status?: number; json: () => unknown }) {
+  const wrapped = {
+    ok: response.ok,
+    status: response.status ?? (response.ok ? 200 : 500),
+    json: async () => response.json(),
+  };
+  const spy = vi.fn(async () => wrapped as unknown as Response);
+  globalThis.fetch = spy as unknown as typeof fetch;
+  return spy;
+}
 
 function createMockChain() {
   const chain: Record<string, unknown> = {};
@@ -60,6 +72,10 @@ describe('deployments queries', () => {
     vi.clearAllMocks();
     resolveQueue = [];
     mockSupabase = createMockSupabase();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   describe('getDeployments', () => {
@@ -140,9 +156,9 @@ describe('deployments queries', () => {
   });
 
   describe('createDeployment', () => {
-    it('creates a deployment with all fields', async () => {
+    it('POSTs to /api/deployments and returns the deployment', async () => {
       const dep = { id: 1, name: 'Patio' };
-      enqueue(dep);
+      const spy = mockFetch({ ok: true, json: () => ({ deployment: dep }) });
       const result = await createDeployment({
         device_id: 'node1',
         name: 'Patio',
@@ -152,105 +168,61 @@ describe('deployments queries', () => {
         started_at: '2024-01-01T00:00:00Z',
       });
       expect(result).toEqual(dep);
-      expect(mockSupabase!._chain.insert).toHaveBeenCalledWith(expect.objectContaining({
-        device_id: 'node1',
-        name: 'Patio',
-        location: 'Backyard',
-        notes: 'Test',
-        zip_code: '85142',
-        started_at: '2024-01-01T00:00:00Z',
+      expect(spy).toHaveBeenCalledWith('/api/deployments', expect.objectContaining({
+        method: 'POST',
       }));
     });
 
-    it('creates with null notes and zip when omitted', async () => {
-      enqueue({ id: 1 });
-      await createDeployment({ device_id: 'node1', name: 'Test', location: 'Lab' });
-      expect(mockSupabase!._chain.insert).toHaveBeenCalledWith(expect.objectContaining({
-        notes: null,
-        zip_code: null,
-      }));
-    });
-
-    it('returns null when supabase is null', async () => {
-      mockSupabase = null;
-      expect(await createDeployment({ device_id: 'x', name: 'X', location: 'X' })).toBeNull();
-    });
-
-    it('returns null on error', async () => {
-      enqueue(null, { message: 'Error' });
-      expect(await createDeployment({ device_id: 'x', name: 'X', location: 'X' })).toBeNull();
+    it('throws with server error message when POST fails', async () => {
+      mockFetch({ ok: false, status: 400, json: () => ({ error: 'Bad input' }) });
+      await expect(
+        createDeployment({ device_id: 'x', name: 'X', location: 'X' })
+      ).rejects.toThrow('Bad input');
     });
   });
 
   describe('updateDeployment', () => {
-    it('updates deployment fields', async () => {
+    it('PATCHes /api/deployments with the id + fields', async () => {
       const dep = { id: 1, name: 'Updated' };
-      enqueue(dep);
+      const spy = mockFetch({ ok: true, json: () => ({ deployment: dep }) });
       expect(await updateDeployment(1, { name: 'Updated' })).toEqual(dep);
-      expect(mockSupabase!._chain.update).toHaveBeenCalledWith({ name: 'Updated' });
-    });
-
-    it('normalizes zip_code when non-null', async () => {
-      enqueue({ id: 1 });
-      await updateDeployment(1, { zip_code: '85142-1234' });
-      expect(mockSupabase!._chain.update).toHaveBeenCalledWith(expect.objectContaining({
-        zip_code: '85142',
+      expect(spy).toHaveBeenCalledWith('/api/deployments', expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ id: 1, name: 'Updated' }),
       }));
     });
 
-    it('passes null zip_code through without normalization', async () => {
-      enqueue({ id: 1 });
-      await updateDeployment(1, { zip_code: null });
-      expect(mockSupabase!._chain.update).toHaveBeenCalledWith(expect.objectContaining({
-        zip_code: null,
-      }));
-    });
-
-    it('returns null when supabase is null', async () => {
-      mockSupabase = null;
-      expect(await updateDeployment(1, { name: 'X' })).toBeNull();
-    });
-
-    it('returns null on error', async () => {
-      enqueue(null, { message: 'Error' });
-      expect(await updateDeployment(1, { name: 'X' })).toBeNull();
+    it('throws on server error', async () => {
+      mockFetch({ ok: false, status: 500, json: () => ({ error: 'DB error' }) });
+      await expect(updateDeployment(1, { name: 'X' })).rejects.toThrow('DB error');
     });
   });
 
   describe('endDeployment', () => {
-    it('sets ended_at and returns deployment', async () => {
+    it('PATCHes with ended_at', async () => {
       const dep = { id: 1, ended_at: '2024-01-01' };
-      enqueue(dep);
+      const spy = mockFetch({ ok: true, json: () => ({ deployment: dep }) });
       expect(await endDeployment(1)).toEqual(dep);
-      expect(mockSupabase!._chain.update).toHaveBeenCalled();
-      expect(mockSupabase!._chain.eq).toHaveBeenCalledWith('id', 1);
-    });
-
-    it('returns null when supabase is null', async () => {
-      mockSupabase = null;
-      expect(await endDeployment(1)).toBeNull();
-    });
-
-    it('returns null on error', async () => {
-      enqueue(null, { message: 'Error' });
-      expect(await endDeployment(1)).toBeNull();
+      expect(spy).toHaveBeenCalledWith('/api/deployments', expect.objectContaining({
+        method: 'PATCH',
+      }));
+      const body = JSON.parse((spy.mock.calls[0][1] as { body: string }).body);
+      expect(body.id).toBe(1);
+      expect(typeof body.ended_at).toBe('string');
     });
   });
 
   describe('deleteDeployment', () => {
-    it('deletes via rpc and returns true', async () => {
-      enqueue(null);
+    it('DELETEs /api/deployments?id=N and returns true', async () => {
+      const spy = mockFetch({ ok: true, json: () => ({ success: true }) });
       expect(await deleteDeployment(1)).toBe(true);
-      expect(mockSupabase!.rpc).toHaveBeenCalledWith('delete_deployment_cascade', { p_deployment_id: 1 });
-    });
-
-    it('returns false when supabase is null', async () => {
-      mockSupabase = null;
-      expect(await deleteDeployment(1)).toBe(false);
+      expect(spy).toHaveBeenCalledWith('/api/deployments?id=1', expect.objectContaining({
+        method: 'DELETE',
+      }));
     });
 
     it('returns false on error', async () => {
-      enqueue(null, { message: 'Error' });
+      mockFetch({ ok: false, status: 500, json: () => ({ error: 'DB error' }) });
       expect(await deleteDeployment(1)).toBe(false);
     });
   });

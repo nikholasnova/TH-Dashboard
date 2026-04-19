@@ -1,5 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { timingSafeCompare } from '@/lib/secrets';
+
+export const runtime = 'nodejs';
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -28,7 +31,7 @@ export async function middleware(request: NextRequest) {
   // Allow guest token access (read-only mode, no Supabase account)
   const guestToken = request.cookies.get('guest_token')?.value;
   const validGuestToken = process.env.GUEST_VIEW_TOKEN;
-  if (guestToken && validGuestToken && guestToken === validGuestToken) {
+  if (timingSafeCompare(guestToken, validGuestToken)) {
     return supabaseResponse;
   }
 

@@ -442,6 +442,19 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Idempotency: keepalive runs every 10 min; refuse reruns under 5 min.
+  const { data: claimed } = await supabase.rpc('claim_cron_run', {
+    p_route: 'keepalive',
+    p_min_interval_ms: 5 * 60 * 1000,
+  });
+  if (!claimed) {
+    return NextResponse.json({
+      ok: true,
+      skipped: 'idempotent',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   try {
     const monitoring = await runMonitoring(supabase);
     return NextResponse.json({

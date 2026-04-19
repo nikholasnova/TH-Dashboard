@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import type { User } from '@supabase/supabase-js';
+import { timingSafeCompare } from './secrets';
 
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
@@ -69,8 +70,15 @@ export function getServiceRoleClient():
 export function verifyCronSecret(request: NextRequest): NextResponse | null {
   const expected = process.env.CRON_SECRET;
   const provided = request.headers.get('authorization')?.replace('Bearer ', '');
-  if (!expected || provided !== expected) {
+  if (!timingSafeCompare(expected, provided)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  // Defense-in-depth on Vercel: require the Vercel cron user-agent.
+  if (process.env.VERCEL === '1') {
+    const ua = request.headers.get('user-agent') || '';
+    if (!ua.includes('vercel-cron')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
   return null;
 }
@@ -85,8 +93,26 @@ export async function requireAdmin(): Promise<
       response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
     };
   }
-  const role = user.app_metadata?.role ?? 'user';
-  if (role !== 'admin') {
+  const { client: supabase } = getServiceRoleClient();
+  if (!supabase) {
+    return {
+      user: null,
+      response: NextResponse.json({ error: 'Server misconfigured' }, { status: 500 }),
+    };
+  }
+  const { data, error } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  if (error) {
+    console.error('role lookup failed:', error);
+    return {
+      user: null,
+      response: NextResponse.json({ error: 'Server error' }, { status: 500 }),
+    };
+  }
+  if (data?.role !== 'admin') {
     return {
       user: null,
       response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }),
@@ -97,24 +123,31 @@ export async function requireAdmin(): Promise<
 
 export function getClientIp(source: Headers | NextRequest): string {
   const h = source instanceof Headers ? source : source.headers;
-  return (
-    h.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    h.get('x-real-ip') ||
-    'unknown'
-  );
+  const vercelIp = h.get('x-vercel-forwarded-for')?.split(',')[0]?.trim();
+  if (vercelIp) return vercelIp;
+  if (process.env.VERCEL !== '1') {
+    return (
+      h.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      h.get('x-real-ip') ||
+      'unknown'
+    );
+  }
+  return 'unknown';
 }
 
-export function createRateLimiter(opts: { windowMs: number }) {
-  const map = new Map<string, number[]>();
-  return function checkLimit(key: string, max: number): boolean {
-    const now = Date.now();
-    const timestamps = (map.get(key) || []).filter(
-      (t) => now - t < opts.windowMs
-    );
-    if (timestamps.length === 0) map.delete(key);
-    if (timestamps.length >= max) return false;
-    timestamps.push(now);
-    map.set(key, timestamps);
-    return true;
-  };
+export function enforceOrigin(req: Request | NextRequest): NextResponse | null {
+  const method = req.method.toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return null;
+  // Only enforce in production. Dev and test environments may make
+  // requests without an Origin header (curl, fetch from tests).
+  if (process.env.NODE_ENV !== 'production') return null;
+  const origin = req.headers.get('origin');
+  const allowed = [process.env.NEXT_PUBLIC_SITE_URL].filter(
+    (x): x is string => Boolean(x)
+  );
+  if (!origin || !allowed.includes(origin)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  return null;
 }
+

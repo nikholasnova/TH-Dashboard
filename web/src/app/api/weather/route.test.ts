@@ -31,6 +31,7 @@ function makeDeploymentsQuery(response: DeploymentsResponse) {
 function makeMockSupabase(params: {
   deployments: DeploymentsResponse;
   existingCounts?: number[];
+  claimCronRun?: boolean;
 }) {
   const existingCounts = [...(params.existingCounts || [])];
   const insertedRows: Array<Record<string, unknown>> = [];
@@ -59,8 +60,15 @@ function makeMockSupabase(params: {
     throw new Error(`Unexpected table: ${table}`);
   });
 
+  const rpc = vi.fn(async (name: string) => {
+    if (name === 'claim_cron_run') {
+      return { data: params.claimCronRun ?? true, error: null };
+    }
+    return { data: null, error: null };
+  });
+
   return {
-    client: { from },
+    client: { from, rpc },
     insertedRows,
   };
 }

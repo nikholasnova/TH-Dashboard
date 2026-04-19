@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getServerUser } from '@/lib/serverAuth';
+import { getServerUser, enforceOrigin } from '@/lib/serverAuth';
 import { getServerClient } from '@/lib/supabase/server';
+import { nlFilterLimiter } from '@/lib/rateLimiter';
 import type { NLFilterResponse } from '@/components/DataExplorer/filterTypes';
 
 export const maxDuration = 20;
@@ -49,9 +50,17 @@ function parseJson(text: string): NLFilterResponse {
 }
 
 export async function POST(req: Request) {
+  const originErr = enforceOrigin(req);
+  if (originErr) return originErr;
+
   const user = await getServerUser();
   if (!user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { success } = await nlFilterLimiter.limit(user.id);
+  if (!success) {
+    return Response.json({ error: 'Rate limit exceeded' }, { status: 429 });
   }
 
   const apiKey = process.env.GOOGLE_API_KEY;

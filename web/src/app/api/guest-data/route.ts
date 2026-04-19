@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/server';
-import { getClientIp, createRateLimiter } from '@/lib/serverAuth';
+import { getClientIp, enforceOrigin } from '@/lib/serverAuth';
+import { guestDataLimiter } from '@/lib/rateLimiter';
+import { timingSafeCompare } from '@/lib/secrets';
 import type { SupabaseClient } from '@supabase/supabase-js';
-
-// IP-based rate limiter: 5 requests per 10 seconds
-const GUEST_RATE_WINDOW_MS = 10_000;
-const GUEST_RATE_MAX = 5;
-const checkGuestRateLimit = createRateLimiter({ windowMs: GUEST_RATE_WINDOW_MS });
 
 const ALLOWED_ACTIONS = new Set([
   'dashboard_live',
@@ -24,16 +21,18 @@ const ALLOWED_ACTIONS = new Set([
 ]);
 
 export async function POST(request: NextRequest) {
-  // Validate guest token
+  const originErr = enforceOrigin(request);
+  if (originErr) return originErr;
+
   const guestToken = request.cookies.get('guest_token')?.value;
   const validToken = process.env.GUEST_VIEW_TOKEN;
-  if (!guestToken || !validToken || guestToken !== validToken) {
+  if (!timingSafeCompare(guestToken, validToken)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Rate limit by IP
   const ip = getClientIp(request);
-  if (!checkGuestRateLimit(ip, GUEST_RATE_MAX)) {
+  const { success } = await guestDataLimiter.limit(ip);
+  if (!success) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please slow down.' },
       { status: 429 }

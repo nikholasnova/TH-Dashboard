@@ -14,6 +14,8 @@ const startChatMock = vi.fn((input: StartChatInput) => {
 });
 const getGenerativeModelMock = vi.fn(function () { return { startChat: startChatMock }; });
 const GoogleGenerativeAIMock = vi.fn(function () { return { getGenerativeModel: getGenerativeModelMock }; });
+const authChatLimitMock = vi.fn(async () => ({ success: true }));
+const guestChatLimitMock = vi.fn(async () => ({ success: true }));
 
 vi.mock('@/lib/serverAuth', async () => {
   const actual = await vi.importActual<typeof import('@/lib/serverAuth')>('@/lib/serverAuth');
@@ -22,6 +24,11 @@ vi.mock('@/lib/serverAuth', async () => {
     getServerUser: getServerUserMock,
   };
 });
+
+vi.mock('@/lib/rateLimiter', () => ({
+  authChatLimiter: { limit: authChatLimitMock },
+  guestChatLimiter: { limit: guestChatLimitMock },
+}));
 
 vi.mock('@/lib/aiTools', () => ({
   executeTool: executeToolMock,
@@ -186,24 +193,18 @@ describe('/api/chat route', () => {
     expect(await res.json()).toEqual({ error: 'API key not configured' });
   });
 
-  it('enforces per-user rate limits', async () => {
+  it('returns 429 when the rate limiter denies the request', async () => {
     getServerUserMock.mockResolvedValue({ id: 'user-1' });
-    sendMessageStreamMock.mockImplementation(() => Promise.resolve(makeStreamResult('ok')));
+    authChatLimitMock.mockResolvedValueOnce({ success: false });
     const { POST } = await import('./route');
 
-    const req = () =>
-      new Request('http://localhost/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: 'hello' }),
-      });
+    const req = new Request('http://localhost/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'hello' }),
+    });
 
-    for (let i = 0; i < 30; i += 1) {
-      const res = await POST(req());
-      expect(res.status).toBe(200);
-    }
-
-    const limited = await POST(req());
+    const limited = await POST(req);
     expect(limited.status).toBe(429);
     expect(await limited.json()).toEqual({
       error: 'Rate limit exceeded. Please wait a few minutes.',

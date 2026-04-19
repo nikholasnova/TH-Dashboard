@@ -24,35 +24,34 @@ export async function createDevice(device: {
   color: string;
   sort_order?: number;
 }): Promise<Device | null> {
-  if (!supabase) return null;
-  const { data, error } = await supabase
-    .from('devices')
-    .insert(device)
-    .select()
-    .single();
-  if (error) {
-    console.error('Error creating device:', error);
-    throw error;
+  const res = await fetch('/api/devices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(device),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to create device (${res.status})`);
   }
-  return data;
+  const { device: created } = await res.json();
+  return created ?? null;
 }
 
 export async function updateDevice(
   id: string,
   updates: Partial<Pick<Device, 'display_name' | 'color' | 'is_active' | 'monitor_enabled' | 'sort_order'>>
 ): Promise<Device | null> {
-  if (!supabase) return null;
-  const { data, error } = await supabase
-    .from('devices')
-    .update(updates)
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) {
-    console.error('Error updating device:', error);
-    throw error;
+  const res = await fetch('/api/devices', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, ...updates }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to update device (${res.status})`);
   }
-  return data;
+  const { device } = await res.json();
+  return device ?? null;
 }
 
 export async function getDeviceAlertStates(deviceIds: string[]): Promise<DeviceAlertState[]> {
@@ -69,14 +68,11 @@ export async function getDeviceAlertStates(deviceIds: string[]): Promise<DeviceA
 }
 
 export async function deactivateDevice(id: string): Promise<boolean> {
-  if (!supabase) return false;
-  const { error } = await supabase
-    .from('devices')
-    .update({ is_active: false })
-    .eq('id', id);
-  if (error) {
-    console.error('Error deactivating device:', error);
+  try {
+    await updateDevice(id, { is_active: false });
+    return true;
+  } catch (err) {
+    console.error('Error deactivating device:', err);
     return false;
   }
-  return true;
 }

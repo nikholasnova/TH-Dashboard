@@ -113,6 +113,19 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Idempotency: weather runs every 15 min; refuse reruns under 10 min.
+  const { data: claimed } = await supabase.rpc('claim_cron_run', {
+    p_route: 'weather',
+    p_min_interval_ms: 10 * 60 * 1000,
+  });
+  if (!claimed) {
+    return NextResponse.json({
+      ok: true,
+      skipped: 'idempotent',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   try {
     // Query active deployments that have a zip code set
     const { data: deployments, error: deployError } = await supabase
