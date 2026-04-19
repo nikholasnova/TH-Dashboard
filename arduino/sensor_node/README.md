@@ -144,7 +144,7 @@ Temperature is stored in Celsius in the database and converted to Fahrenheit in 
 
 **LCD blank or garbled** — Adjust contrast pot. Verify all pin connections match the defines in code.
 
-**Data not in Supabase** — Check serial monitor (115200 baud) for POST errors. Verify URL, anon key, and that `readings` table exists with anon INSERT policy. Also confirm the device is registered in the web dashboard.
+**Data not in Supabase** — Check serial monitor (115200 baud) for POST errors. Verify URL, anon key, and that `readings` table exists with the validated anon INSERT policy. The policy requires `device_id` to match `^[a-z0-9_-]{1,32}$` (lowercase letters/digits/`_`/`-`, max 32 chars, no `weather_` prefix) and rejects out-of-range temperature/humidity. Also confirm the device is registered in the web dashboard.
 
 **"Send failed - retaining buffer"** — Upload failed but data is kept. The node will retry with backoff. Check WiFi and Supabase connectivity.
 

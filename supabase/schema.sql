@@ -15,12 +15,11 @@ CREATE INDEX IF NOT EXISTS idx_readings_device_time
 
 ALTER TABLE readings ENABLE ROW LEVEL SECURITY;
 
--- Keep anon INSERT so device firmware can post directly.
+-- Anon INSERT for device firmware is defined later in this file, after
+-- the source / deployment_id / zip_code / observed_at columns are added
+-- (the policy's WITH CHECK references them).
 DROP POLICY IF EXISTS "Allow anonymous insert" ON readings;
-CREATE POLICY "Allow anonymous insert" ON readings
-  FOR INSERT
-  TO anon
-  WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow anonymous insert validated" ON readings;
 
 DROP POLICY IF EXISTS "Allow authenticated select" ON readings;
 CREATE POLICY "Allow authenticated select" ON readings
@@ -60,29 +59,41 @@ DROP POLICY IF EXISTS "Allow authenticated select" ON deployments;
 DROP POLICY IF EXISTS "Allow authenticated insert" ON deployments;
 DROP POLICY IF EXISTS "Allow authenticated update" ON deployments;
 DROP POLICY IF EXISTS "Allow admin delete" ON deployments;
+DROP POLICY IF EXISTS "Admins can insert deployments" ON deployments;
+DROP POLICY IF EXISTS "Admins can update deployments" ON deployments;
+DROP POLICY IF EXISTS "Admins can delete deployments" ON deployments;
+-- Ghost anon policies that existed in some early prod states — drop them if present.
+DROP POLICY IF EXISTS "Allow anonymous select" ON deployments;
+DROP POLICY IF EXISTS "Allow anonymous insert" ON deployments;
+DROP POLICY IF EXISTS "Allow anonymous update" ON deployments;
+DROP POLICY IF EXISTS "Allow anonymous delete" ON deployments;
 
 CREATE POLICY "Allow authenticated select" ON deployments
   FOR SELECT TO authenticated
   USING (auth.uid() IS NOT NULL);
 
-CREATE POLICY "Allow authenticated insert" ON deployments
+-- Writes require admin role (looked up in user_roles, not from JWT claim, so
+-- role changes take effect immediately without waiting for JWT refresh).
+CREATE POLICY "Admins can insert deployments" ON deployments
   FOR INSERT TO authenticated
-  WITH CHECK (auth.uid() IS NOT NULL);
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+  ));
 
-CREATE POLICY "Allow authenticated update" ON deployments
+CREATE POLICY "Admins can update deployments" ON deployments
   FOR UPDATE TO authenticated
-  USING (auth.uid() IS NOT NULL)
-  WITH CHECK (auth.uid() IS NOT NULL);
+  USING (EXISTS (
+    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+  ));
 
-CREATE POLICY "Allow admin delete" ON deployments
+CREATE POLICY "Admins can delete deployments" ON deployments
   FOR DELETE TO authenticated
-  USING (
-    auth.uid() IS NOT NULL
-    AND coalesce(
-      current_setting('request.jwt.claims', true)::json->>'user_role',
-      'user'
-    ) = 'admin'
-  );
+  USING (EXISTS (
+    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+  ));
 
 -- Alert state for keepalive monitoring and email notifications.
 CREATE TABLE IF NOT EXISTS device_alert_state (
@@ -386,7 +397,8 @@ GRANT EXECUTE ON FUNCTION public.get_deployments_with_counts(TEXT, BOOLEAN) TO a
 -- Cascade-delete a deployment and its associated readings in one call.
 -- SECURITY DEFINER lets authenticated callers delete readings even though
 -- the readings RLS policy restricts DELETE to service_role.
--- Admin role is enforced inside the function via JWT claims.
+-- Admin role is looked up in user_roles (not JWT) so role changes take effect
+-- immediately and the check matches delete_reading_by_id's approach.
 CREATE OR REPLACE FUNCTION delete_deployment_cascade(p_deployment_id BIGINT)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -397,14 +409,11 @@ DECLARE
   v_device_id TEXT;
   v_started_at TIMESTAMPTZ;
   v_ended_at TIMESTAMPTZ;
-  v_role TEXT;
 BEGIN
-  -- Enforce admin-only access
-  v_role := coalesce(
-    current_setting('request.jwt.claims', true)::json->>'user_role',
-    'user'
-  );
-  IF v_role <> 'admin' THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = auth.uid() AND role = 'admin'
+  ) THEN
     RAISE EXCEPTION 'Only admins can delete deployments';
   END IF;
 
@@ -439,7 +448,8 @@ GRANT EXECUTE ON FUNCTION public.delete_deployment_cascade(BIGINT) TO authentica
 -- Scoped deletion of readings by device and time range.
 -- Used by the Data Cleanup UI on the deployments page.
 -- SECURITY DEFINER so it bypasses RLS (readings DELETE is service_role only).
--- Admin role is enforced inside the function via JWT claims.
+-- Admin role is looked up in user_roles (not JWT) so role changes take effect
+-- immediately and the check matches delete_reading_by_id's approach.
 CREATE OR REPLACE FUNCTION delete_readings_range(
   p_device_id TEXT,
   p_start TIMESTAMPTZ,
@@ -454,14 +464,11 @@ AS $$
 DECLARE
   v_count BIGINT := 0;
   v_sub BIGINT;
-  v_role TEXT;
 BEGIN
-  -- Enforce admin-only access
-  v_role := coalesce(
-    current_setting('request.jwt.claims', true)::json->>'user_role',
-    'user'
-  );
-  IF v_role <> 'admin' THEN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = auth.uid() AND role = 'admin'
+  ) THEN
     RAISE EXCEPTION 'Only admins can delete data';
   END IF;
 
@@ -591,7 +598,9 @@ CREATE TABLE IF NOT EXISTS devices (
 );
 
 CREATE OR REPLACE FUNCTION update_devices_updated_at()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
+RETURNS TRIGGER LANGUAGE plpgsql
+SET search_path = public
+AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
 $$;
 
@@ -606,11 +615,35 @@ CREATE INDEX IF NOT EXISTS idx_devices_monitor ON devices (monitor_enabled, is_a
 ALTER TABLE devices ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Allow authenticated all on devices" ON devices;
-CREATE POLICY "Allow authenticated all on devices" ON devices
-  FOR ALL
-  TO authenticated
-  USING (auth.uid() IS NOT NULL)
-  WITH CHECK (auth.uid() IS NOT NULL);
+DROP POLICY IF EXISTS "Signed-in can read devices" ON devices;
+DROP POLICY IF EXISTS "Admins can insert devices" ON devices;
+DROP POLICY IF EXISTS "Admins can update devices" ON devices;
+DROP POLICY IF EXISTS "Admins can delete devices" ON devices;
+
+CREATE POLICY "Signed-in can read devices" ON devices
+  FOR SELECT TO authenticated
+  USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Admins can insert devices" ON devices
+  FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+  ));
+
+CREATE POLICY "Admins can update devices" ON devices
+  FOR UPDATE TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+  ));
+
+CREATE POLICY "Admins can delete devices" ON devices
+  FOR DELETE TO authenticated
+  USING (EXISTS (
+    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+  ));
 
 -- Seed known defaults
 INSERT INTO devices (id, display_name, color, sort_order) VALUES
@@ -651,11 +684,16 @@ CREATE POLICY "Allow authenticated select app_settings" ON app_settings
   USING (auth.uid() IS NOT NULL);
 
 DROP POLICY IF EXISTS "Allow authenticated update app_settings" ON app_settings;
-CREATE POLICY "Allow authenticated update app_settings" ON app_settings
+DROP POLICY IF EXISTS "Admins can update app_settings" ON app_settings;
+CREATE POLICY "Admins can update app_settings" ON app_settings
   FOR UPDATE
   TO authenticated
-  USING (auth.uid() IS NOT NULL)
-  WITH CHECK (auth.uid() IS NOT NULL);
+  USING (EXISTS (
+    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+  ));
 
 INSERT INTO app_settings (key, value) VALUES
   ('device_auto_register', 'false')
@@ -790,7 +828,9 @@ CREATE POLICY "Users read own role"
 
 -- Custom Access Token Hook: injects user_role into JWT claims
 CREATE OR REPLACE FUNCTION public.custom_access_token_hook(event jsonb)
-RETURNS jsonb LANGUAGE plpgsql STABLE AS $$
+RETURNS jsonb LANGUAGE plpgsql STABLE
+SET search_path = public
+AS $$
 DECLARE
   claims    jsonb;
   user_role text;
@@ -811,3 +851,109 @@ GRANT USAGE ON SCHEMA public TO supabase_auth_admin;
 GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO supabase_auth_admin;
 GRANT SELECT ON TABLE public.user_roles TO supabase_auth_admin;
 REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook FROM authenticated, anon, public;
+
+-- ============================================================
+-- Hardened anon INSERT on readings + weather-write trigger.
+-- Defined here because WITH CHECK references source / deployment_id /
+-- zip_code / observed_at, which are added by ALTER TABLE above.
+-- ============================================================
+CREATE POLICY "Allow anonymous insert validated" ON readings
+  FOR INSERT
+  TO anon
+  WITH CHECK (
+    device_id ~ '^[a-z0-9_-]{1,32}$'
+    AND device_id NOT LIKE 'weather_%'
+    AND temperature >= -50 AND temperature <= 100
+    AND humidity >= 0 AND humidity <= 100
+    AND source = 'sensor'
+    AND deployment_id IS NULL
+    AND zip_code IS NULL
+    AND observed_at IS NULL
+  );
+
+-- Belt-and-suspenders: a BEFORE INSERT trigger also blocks anon from
+-- writing weather_* rows. The RLS policy above already rejects these, but
+-- the trigger raises a clearer error code (42501) and is robust if the
+-- policy is ever relaxed in a future migration.
+CREATE OR REPLACE FUNCTION reject_anon_weather_writes()
+RETURNS TRIGGER LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF current_setting('request.jwt.claims', true)::json->>'role' = 'anon'
+     AND NEW.device_id LIKE 'weather_%' THEN
+    RAISE EXCEPTION 'anon may not write weather rows'
+      USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_reject_anon_weather_writes ON readings;
+CREATE TRIGGER trg_reject_anon_weather_writes
+  BEFORE INSERT ON readings
+  FOR EACH ROW EXECUTE FUNCTION reject_anon_weather_writes();
+
+-- ============================================================
+-- Cron idempotency: routes claim a slot before running to avoid duplicate
+-- work when a cron provider fires the same endpoint twice in a row (which
+-- would email-flood, burn weather-API quota, etc.). Only service_role
+-- calls this RPC; RLS on cron_runs rejects everyone else.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS cron_runs (
+  route TEXT PRIMARY KEY,
+  last_run_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE cron_runs ENABLE ROW LEVEL SECURITY;
+-- No policies: service_role bypasses RLS; everyone else is blocked.
+
+CREATE OR REPLACE FUNCTION claim_cron_run(
+  p_route TEXT,
+  p_min_interval_ms INT
+) RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_cutoff TIMESTAMPTZ := NOW() - (p_min_interval_ms || ' milliseconds')::interval;
+  v_claimed BOOLEAN := FALSE;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('cron:' || p_route));
+
+  INSERT INTO cron_runs (route, last_run_at)
+  VALUES (p_route, NOW())
+  ON CONFLICT (route) DO UPDATE
+    SET last_run_at = NOW()
+    WHERE cron_runs.last_run_at < v_cutoff
+  RETURNING TRUE INTO v_claimed;
+
+  RETURN COALESCE(v_claimed, FALSE);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION claim_cron_run(TEXT, INT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION claim_cron_run(TEXT, INT) TO service_role;
+
+-- ============================================================
+-- Role-change audit log. Every admin-driven role change (invite, promote,
+-- demote, delete) writes a row. No policies: service_role only.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS role_change_audit (
+  id BIGSERIAL PRIMARY KEY,
+  actor_id UUID NOT NULL,
+  target_id UUID NOT NULL,
+  old_role TEXT,
+  new_role TEXT NOT NULL,
+  action TEXT NOT NULL CHECK (action IN ('invite', 'promote', 'demote', 'delete')),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_role_change_audit_target
+  ON role_change_audit (target_id, changed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_role_change_audit_actor
+  ON role_change_audit (actor_id, changed_at DESC);
+
+ALTER TABLE role_change_audit ENABLE ROW LEVEL SECURITY;
+-- No policies: service_role only.

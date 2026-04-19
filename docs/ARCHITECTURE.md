@@ -90,14 +90,18 @@ RLS enabled on all tables.
 
 | Table | `anon` | `authenticated` | `service_role` |
 |-------|--------|-----------------|----------------|
-| `readings` | INSERT | SELECT | DELETE |
-| `deployments` | — | SELECT, INSERT, UPDATE (DELETE admin-only via JWT role claim) | — |
-| `devices` | — | Full CRUD | — |
-| `app_settings` | — | SELECT, UPDATE | — |
+| `readings` | INSERT (validated: device_id regex `^[a-z0-9_-]{1,32}$`, no `weather_` prefix, temp -50..100, humidity 0..100, `source='sensor'`, `deployment_id/zip_code/observed_at` must be null) | SELECT | DELETE |
+| `deployments` | — | SELECT; INSERT/UPDATE/DELETE admin-only (checked against `user_roles`, not JWT) | — |
+| `devices` | — | SELECT; INSERT/UPDATE/DELETE admin-only (checked against `user_roles`) | — |
+| `app_settings` | — | SELECT; UPDATE admin-only | — |
 | `device_alert_state` | — | SELECT | (service_role bypasses RLS; keepalive upserts via service_role) |
 | `user_roles` | — | SELECT own row | Full CRUD (service_role manages roles) |
+| `cron_runs` | — | — | Full access (service_role only; used by `claim_cron_run` RPC for cron idempotency) |
+| `role_change_audit` | — | — | Full access (service_role only; `/api/users` writes an audit row per role change) |
 
-`/api/weather` uses service_role + `CRON_SECRET`.
+Writes also have a belt-and-suspenders trigger (`reject_anon_weather_writes`) that blocks anon from inserting `weather_*` rows even if the policy above were ever relaxed.
+
+`/api/weather` uses service_role + `CRON_SECRET` and now also claims its cron slot via `claim_cron_run` to avoid duplicate weather fetches and email floods if the provider double-fires.
 
 ### 4.3 RPC Functions
 
@@ -109,9 +113,10 @@ RLS enabled on all tables.
 | `get_deployment_readings(deployment_id, limit?)` | Raw readings within a deployment window |
 | `get_deployments_with_counts(device_id?, active_only?)` | Deployments with reading counts |
 | `get_dashboard_live(device_ids[], sparkline_start, bucket_min?)` | Batched latest readings + sparkline per N devices |
-| `delete_deployment_cascade(deployment_id)` | Cascade-delete deployment and its readings (admin-only, enforced via JWT role claim) |
-| `delete_readings_range(device_id, start, end, include_weather?)` | Scoped deletion of readings by device and time range (admin-only, enforced via JWT role claim) |
+| `delete_deployment_cascade(deployment_id)` | Cascade-delete deployment and its readings (admin-only, enforced via `user_roles` lookup on `auth.uid()`) |
+| `delete_readings_range(device_id, start, end, include_weather?)` | Scoped deletion of readings by device and time range (admin-only, enforced via `user_roles` lookup on `auth.uid()`) |
 | `delete_reading_by_id(p_id)` | Single-row delete used by the Data Explorer review flow (admin-only, enforced via `user_roles` lookup on `auth.uid()`) |
+| `claim_cron_run(route, min_interval_ms)` | Cron idempotency guard. Called from `/api/keepalive` and `/api/weather` at the top of each request; returns TRUE only if enough time has passed since the last successful claim. Service-role only. |
 
 Weather data lives in `readings`, so all RPCs work with weather device IDs (e.g., `weather_node1`).
 
@@ -180,7 +185,7 @@ erDiagram
 
 All pages require Supabase Auth session (`AuthGate`). The root layout wraps the app in `ThemeProvider` > `AuthProvider` > `PostHogProviderWrapper` > `DevicesProvider` > `ChatPageContextProvider`, making the device list, analytics, and chat context available everywhere.
 
-Auth supports two roles: `admin` and `user`. Roles are stored in a `user_roles` table and injected into the JWT via a Custom Access Token Hook. Both roles can read all data. Admins can delete deployments and readings; users cannot (enforced at the RLS and RPC level via JWT role claims, not just UI). Admin-only UI includes user management and device management. A middleware layer (`middleware.ts`) refreshes sessions and redirects unauthenticated users to `/login`.
+Auth supports two roles: `admin` and `user`. Roles are stored in a `user_roles` table and injected into the JWT via a Custom Access Token Hook. Both roles can read all data. Admins can delete deployments and readings; users cannot — enforced at the RLS and RPC layer via a direct `user_roles` lookup on `auth.uid()` (so role changes take effect immediately rather than waiting for JWT refresh). Admin-only UI includes user management and device management. A middleware layer (`middleware.ts`) refreshes sessions and redirects unauthenticated users to `/login`. Every admin-driven role change (invite, promote, demote, delete) writes a row to `role_change_audit`.
 
 Guest read-only access is supported via a token-based link (`/view?token=...`). Guests bypass Supabase auth entirely -- the middleware validates a `guest_token` cookie against `GUEST_VIEW_TOKEN`. Guest data requests are proxied through `/api/guest-data`, which validates the cookie and fetches via the service-role client. Guests have hardened rate limits (5 req/10s for data, 5 msg/15min for chat). All write operations are blocked: guests have no Supabase session, and the UI hides all create/edit/delete controls.
 
@@ -247,7 +252,7 @@ Optional PostHog integration provides product analytics (autocapture, session re
 - System prompt includes efficiency rules prioritizing single-call patterns (e.g., one `get_device_stats` call for device comparisons).
 - Streaming via `TransformStream` with `__STATUS__` markers for tool-call progress.
 - Client-side word drip renders streamed text at ~48 words/sec for smooth token-by-token display.
-- In-memory rate limiting: 30 requests per 15 min per user (resets on deploy).
+- Rate limiting via Upstash Redis (free plan). Per-bucket limits: `/api/chat` auth'd = 30/15min/user, `/api/chat` guest = 5/15min/IP, `/api/guest-data` = 5/10s/IP, `/api/nl-filter` = 20/15min/user, `/api/guest-token` = 5/10min/IP. Fails closed in production if Upstash env vars are missing.
 - Page context injected into system prompt from `ChatPageContextProvider`.
 - Returns Fahrenheit fields and `America/Phoenix` local time.
 - Accessed via floating `ChatShell` component with open/close animation, auto-scroll, and scroll-for-more indicator.
@@ -317,9 +322,10 @@ Optional PostHog integration provides product analytics (autocapture, session re
 
 | Boundary | Mechanism |
 |----------|-----------|
-| Device | Anon key, INSERT-only |
-| Browser | Anon client + authenticated session for reads/RPC |
-| Server | Service role on server only; `/api/chat` checks auth; `/api/users` requires admin role; cron routes check `CRON_SECRET` |
+| Device | Anon key, INSERT-only into `readings`, validated at the RLS layer (regex + range + null enforcement on server-set columns). Belt-and-suspenders trigger also rejects `weather_*` inserts from anon. |
+| Browser | Anon client for the Supabase SDK (auth flow, session refresh). Post-login reads go through the user's JWT (`authenticated` role). Mutations for `devices` / `deployments` go through server routes (`/api/devices`, `/api/deployments`) that call `requireAdmin` before touching the DB. |
+| Server | Service role on server only. Admin-gated routes (`/api/users`, `/api/devices`, `/api/deployments`, `/api/guest` GET) call `requireAdmin` which looks up `user_roles` for the current user (robust to stale JWTs). Cron routes (`/api/keepalive`, `/api/weather`) check `CRON_SECRET` via timing-safe compare and `claim_cron_run` before running. All writable routes rate-limited via Upstash (fails closed in prod). |
+| Browser transport | Security headers set in `next.config.ts`: HSTS, `X-Frame-Options: DENY`, `Referrer-Policy`, and `Content-Security-Policy-Report-Only` (due to be flipped to enforced once one week of clean violation reports passes). |
 
 ## 10) Source Files
 

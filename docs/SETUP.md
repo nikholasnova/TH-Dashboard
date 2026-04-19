@@ -306,10 +306,22 @@ Make sure your latest code is pushed (do not commit `secrets.h` or `.env.local` 
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Your service role key |
 | `CRON_SECRET` | The random string you generated |
+| `KV_REST_API_URL` | Upstash Redis REST URL (see section 6.3) |
+| `KV_REST_API_TOKEN` | Upstash Redis REST token (see section 6.3) |
 
 5. Click **Deploy**.
 
-### 6.3 Cron Jobs
+### 6.3 Rate Limiting (Upstash Redis — Required for Production)
+
+`/api/chat`, `/api/guest-data`, `/api/guest-token`, and `/api/nl-filter` use Upstash Redis to rate-limit requests and fail closed in production if Upstash is not configured. Provisioning is free:
+
+1. In your Vercel project, open **Storage** > **Create** > **Upstash Redis** and pick the **Free** plan.
+2. Link the database to this project. Vercel auto-injects `KV_REST_API_URL` and `KV_REST_API_TOKEN` into all environments.
+3. Redeploy so the running deployment picks up the new env vars.
+
+In local development the limiter is a no-op when the env vars are missing, so you don't need Upstash for local work.
+
+### 6.4 Cron Jobs
 
 The repo includes a `web/vercel.json` that configures two scheduled jobs:
 
@@ -477,6 +489,7 @@ All variables go in `web/.env.local` for local development and in Vercel's proje
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only, keep secret) |
 | `CRON_SECRET` | Random string to protect the `/api/keepalive` and `/api/weather` routes |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis REST URL and token. Required in production — rate limiters fail closed without these. Vercel auto-sets them when you link an Upstash database to the project. Not required locally. |
 
 ### Optional
 
@@ -523,7 +536,7 @@ Use this checklist to confirm each piece is working:
 | "WiFi Failed!" | Verify SSID and password in `secrets.h`. The R4 WiFi only supports 2.4GHz networks. |
 | LCD is blank or garbled | Adjust the contrast potentiometer. Double-check all LCD pin connections. |
 | "Send failed - retaining buffer" | Upload failed but data is kept. The node retries automatically. Check WiFi and that your Supabase URL/key are correct. |
-| Data not appearing in Supabase | Open Serial Monitor at 115200 baud and look for error codes. Verify the `readings` table exists and the anon INSERT policy is in place. |
+| Data not appearing in Supabase | Open Serial Monitor at 115200 baud and look for error codes. Verify the `readings` table exists and the validated anon INSERT policy is in place. If the serial log shows HTTP 401/403 on send, check that your Arduino's `device_id` matches the `^[a-z0-9_-]{1,32}$` regex the policy enforces (lowercase letters, digits, `_` or `-`, max 32 chars, no `weather_` prefix). |
 
 ### Web App Issues
 
