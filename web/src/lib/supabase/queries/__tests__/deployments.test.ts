@@ -10,7 +10,7 @@ function mockFetch(response: { ok: boolean; status?: number; json: () => unknown
     status: response.status ?? (response.ok ? 200 : 500),
     json: async () => response.json(),
   };
-  const spy = vi.fn(async () => wrapped as unknown as Response);
+  const spy = vi.fn<typeof fetch>(async () => wrapped as unknown as Response);
   globalThis.fetch = spy as unknown as typeof fetch;
   return spy;
 }
