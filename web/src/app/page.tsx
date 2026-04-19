@@ -187,7 +187,7 @@ export default function Dashboard() {
       : false;
 
   return (
-    <PageLayout title="Dashboard" onManageNodes={() => setShowDeviceManager(true)}>
+    <PageLayout title="Dashboard" onManageNodes={isGuest ? undefined : () => setShowDeviceManager(true)}>
       <ViewportScaler ready={!isLoading}>
       {isLoading ? (
         <div className="flex items-center justify-center py-32">
@@ -255,12 +255,14 @@ export default function Dashboard() {
         <div className="py-12">
           <h2 className="text-xl font-semibold text-[var(--fg)] mb-2">No devices configured yet</h2>
           <p className="text-sm text-[var(--fg-muted)] mb-4">Register a sensor node to start streaming readings.</p>
-          <button
-            onClick={() => setShowDeviceManager(true)}
-            className="btn-glass px-4 py-2 text-sm"
-          >
-            Add your first node
-          </button>
+          {!isGuest && (
+            <button
+              onClick={() => setShowDeviceManager(true)}
+              className="btn-glass px-4 py-2 text-sm"
+            >
+              Add your first node
+            </button>
+          )}
         </div>
       ) : (
         <div className={`grid ${gridColsFor(devices.length)} gap-6 sm:gap-8`}>
