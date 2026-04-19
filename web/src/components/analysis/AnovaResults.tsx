@@ -110,7 +110,7 @@ function AnovaCard({ result }: { result: AnovaResult }) {
           ) : result.significant ? (
             <p className="text-sm text-[var(--foreground-muted)]">Post-hoc analysis unavailable.</p>
           ) : (
-            <div className="p-3 rounded-lg bg-[var(--hover-bg)] border border-[var(--divider)]">
+            <div className="p-3 rounded-lg bg-[var(--hover-bg)]">
               <p className="text-sm text-[var(--foreground-muted)]">
                 No significant difference found between groups (F = {result.f_statistic.toFixed(2)}, p = {formatPValue(result.p_value)}).
                 Pairwise post-hoc tests are not needed.

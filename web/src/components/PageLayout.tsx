@@ -26,7 +26,7 @@ export function PageLayout({ title, children, onManageNodes }: PageLayoutProps) 
               {onManageNodes && (
                 <button
                   onClick={onManageNodes}
-                  className="w-11 h-11 rounded-full bg-[var(--active-bg)] border border-[var(--hairline-strong)] flex items-center justify-center text-[var(--fg-dim)] hover:text-[var(--fg)] transition-colors"
+                  className="w-11 h-11 rounded-full bg-[var(--active-bg)] flex items-center justify-center text-[var(--fg-dim)] hover:text-[var(--fg)] hover:bg-[var(--hover-bg)] transition-colors"
                   aria-label="Manage nodes"
                 >
                   {gearIcon}

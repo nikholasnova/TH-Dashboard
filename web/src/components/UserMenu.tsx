@@ -69,14 +69,14 @@ export function UserMenu() {
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="w-10 h-10 rounded-full bg-[var(--active-bg)] border border-[var(--btn-border-hover)] flex items-center justify-center text-[var(--foreground-secondary)] font-semibold text-sm hover:bg-[var(--active-bg)] hover:border-[var(--btn-border-hover)] transition-colors"
+          className="w-11 h-11 rounded-full bg-[var(--active-bg)] flex items-center justify-center text-[var(--foreground-secondary)] font-semibold text-sm hover:bg-[var(--hover-bg)] transition-colors"
           aria-label="User menu"
         >
           {initials}
         </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 bg-[var(--glass-bg-strong)] backdrop-blur-xl border border-[var(--divider)] rounded-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xl">
+        <div className="absolute right-0 mt-2 w-64 bg-[var(--glass-bg-strong)] backdrop-blur-xl rounded-2xl p-4 z-50 animate-in fade-in slide-in-from-top-2 duration-200 shadow-xl">
           <div className="pb-3 mb-3 border-b border-[var(--divider)]">
             <p className="text-xs text-[var(--foreground-muted)] mb-1">Signed in as</p>
             <p className="text-sm text-[var(--foreground)] font-medium truncate">{email}</p>

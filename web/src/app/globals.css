@@ -2,17 +2,17 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  /* Surface hierarchy — neutral dark grey */
-  --surface-0: #1C1D1E;
-  --surface-1: #2E2F30;
-  --surface-2: #3D3E40;
+  /* Surface hierarchy — subtly warm dark grey */
+  --surface-0: #1D1C1B;
+  --surface-1: #2F2F2D;
+  --surface-2: #3E3E3B;
   --hairline: rgba(255, 255, 255, 0.28);
   --hairline-strong: rgba(255, 255, 255, 0.42);
 
-  /* Foreground scale — neutral near-white */
-  --fg: #F5F5F3;
-  --fg-dim: #C9C9C5;
-  --fg-muted: #A3A39F;
+  /* Foreground scale — subtly warm near-white */
+  --fg: #F5F4F0;
+  --fg-dim: #C9C7C2;
+  --fg-muted: #A3A29E;
 
   /* Single accent — alert / out-of-range only */
   --accent: #C89B4A;
@@ -243,7 +243,6 @@ body {
    Callers still write className="glass-card"; this class re-skins them. */
 .glass-card {
   background: var(--surface-1);
-  border: 1px solid var(--hairline);
   border-radius: 10px;
 }
 
@@ -285,7 +284,6 @@ body {
 /* Flat inner surface */
 .surface {
   background: var(--surface-1);
-  border: 1px solid var(--hairline);
   border-radius: 8px;
 }
 

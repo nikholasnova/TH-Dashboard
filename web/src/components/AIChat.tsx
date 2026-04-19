@@ -677,14 +677,13 @@ export function AIChat() {
           placeholder="Ask about your data..."
           disabled={isLoading}
           rows={1}
-          className="flex-1 px-5 py-3 rounded-2xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] transition-colors disabled:opacity-50 resize-none max-h-32 leading-relaxed"
+          className="flex-1 px-5 py-3 rounded-2xl bg-[var(--input-bg)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none transition-colors disabled:opacity-50 resize-none h-12 min-h-12 max-h-32 leading-6"
         />
         {isLoading ? (
           <button
             type="button"
             onClick={() => abortControllerRef.current?.abort()}
-            className="btn-glass px-6 py-3 text-sm font-semibold text-red-400 shrink-0"
-            style={{ borderColor: 'rgba(248, 113, 113, 0.3)' }}
+            className="btn-glass px-6 h-12 !rounded-2xl text-sm font-semibold text-red-400 shrink-0"
           >
             Stop
           </button>
@@ -692,7 +691,7 @@ export function AIChat() {
           <button
             type="submit"
             disabled={!input.trim()}
-            className="btn-glass px-6 py-3 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            className="btn-glass px-6 h-12 !rounded-2xl text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
             Ask
           </button>

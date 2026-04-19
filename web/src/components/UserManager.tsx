@@ -194,7 +194,7 @@ export function UserManager({ isOpen, onClose }: UserManagerProps) {
                 return (
                   <div
                     key={u.id}
-                    className="p-4 rounded-xl bg-[var(--hover-bg)] border border-[var(--divider)]"
+                    className="p-4 rounded-xl bg-[var(--hover-bg)]"
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0">

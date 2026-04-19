@@ -42,7 +42,7 @@ export function ChatShell() {
     'fixed z-50 flex flex-col transition-[width,height,inset,right,max-height] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
     isFullscreen
       ? 'inset-0'
-      : 'right-0 sm:right-6 w-full sm:w-[36rem] md:w-[40rem] lg:w-[44rem] xl:w-[48rem] 2xl:w-[56rem] h-[75svh] sm:h-[34rem] md:h-[38rem] lg:h-[42rem] xl:h-[46rem] sm:max-h-[82vh]',
+      : 'left-3 right-3 w-auto sm:left-auto sm:right-6 sm:w-[36rem] md:w-[40rem] lg:w-[44rem] xl:w-[48rem] 2xl:w-[56rem] h-[75svh] sm:h-[34rem] md:h-[38rem] lg:h-[42rem] xl:h-[46rem] sm:max-h-[82vh] rounded-2xl',
   ].join(' ');
 
   const containerStyle = isFullscreen
@@ -55,11 +55,11 @@ export function ChatShell() {
 
   const headerClass = isFullscreen
     ? 'flex justify-between items-center px-4 py-2 bg-[var(--surface-1)]'
-    : 'flex justify-between items-center px-4 py-2 bg-[var(--surface-1)] border border-[var(--hairline)] border-b-0 rounded-t-xl sm:rounded-t-2xl';
+    : 'flex justify-between items-center px-4 py-2 bg-[var(--surface-1)] rounded-t-2xl';
 
   const bodyClass = isFullscreen
     ? 'flex-1 min-h-0 bg-[var(--surface-1)] overflow-hidden flex flex-col'
-    : 'flex-1 min-h-0 bg-[var(--surface-1)] border border-[var(--hairline)] border-t-0 rounded-b-2xl overflow-hidden flex flex-col overscroll-contain';
+    : 'flex-1 min-h-0 bg-[var(--surface-1)] rounded-b-2xl overflow-hidden flex flex-col overscroll-contain';
 
   return (
     <>

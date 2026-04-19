@@ -32,7 +32,7 @@ function DecompChart({ label, data, color }: DecompChartProps) {
       <div>
         <p className="text-[var(--foreground-muted)] text-xs mb-1">{label}</p>
         <div
-          className="bg-[var(--hover-bg)] rounded-lg border border-[var(--divider)] flex items-center justify-center"
+          className="bg-[var(--hover-bg)] rounded-lg flex items-center justify-center"
           style={{ height: CHART_HEIGHT }}
         >
           <span className="text-xs text-[var(--foreground-muted)]">No data</span>
@@ -88,7 +88,7 @@ function DecompChart({ label, data, color }: DecompChartProps) {
     <div>
       <p className="text-[var(--foreground-muted)] text-xs mb-1">{label}</p>
       <div
-        className="bg-[var(--hover-bg)] rounded-lg border border-[var(--divider)] relative"
+        className="bg-[var(--hover-bg)] rounded-lg relative"
         style={{ height: CHART_HEIGHT }}
       >
         <svg

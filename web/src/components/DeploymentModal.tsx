@@ -319,7 +319,7 @@ export function DeploymentModal({
                 </div>
 
                 {isEditing ? (
-                  <div className="space-y-4 p-5 rounded-xl bg-[var(--hover-bg)] border border-[var(--divider)]">
+                  <div className="space-y-4 p-5 rounded-xl bg-[var(--hover-bg)]">
                     <div>
                       <label className="block text-sm text-[var(--foreground-muted)] mb-2">Name</label>
                       <input
@@ -419,7 +419,7 @@ export function DeploymentModal({
                     </div>
                   </div>
                 ) : (
-                  <div className="p-5 rounded-xl bg-[var(--hover-bg)] border border-[var(--divider)]">
+                  <div className="p-5 rounded-xl bg-[var(--hover-bg)]">
                     <p className="text-xl font-semibold text-[var(--foreground)] mb-1">{currentDeployment.name}</p>
                     <p className="text-[var(--foreground-muted)] mb-3">{currentDeployment.location}</p>
                     {currentDeployment.notes && (
@@ -489,7 +489,7 @@ export function DeploymentModal({
             )}
 
             {!currentDeployment && !isViewingSpecific && (
-              <div className="mb-8 p-5 rounded-xl bg-[var(--hover-bg)] border border-[var(--divider)] text-center">
+              <div className="mb-8 p-5 rounded-xl bg-[var(--hover-bg)] text-center">
                 <p className="text-[var(--foreground-muted)]">No active deployment for this device.</p>
               </div>
             )}

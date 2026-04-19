@@ -6,6 +6,7 @@ import type { FilterState, RangePreset, SourceFilter } from './filterTypes';
 import { DEFAULT_FILTER } from './filterTypes';
 import { resolveDeviceColor } from '@/lib/deviceColors';
 import { SegmentedNav } from '../SegmentedNav';
+import { InlineSelect } from '../DeviceDeploymentFilter';
 
 interface FilterBarProps {
   state: FilterState;
@@ -33,7 +34,9 @@ const SOURCE_OPTIONS: { value: SourceFilter; label: string }[] = [
 ];
 
 const inputClass =
-  'h-14 bg-transparent border border-[var(--hairline-strong)] rounded-md px-4 text-sm text-[var(--fg)] hover:bg-[var(--hover-bg)] transition-colors';
+  'h-11 bg-transparent border-0 border-b border-[var(--hairline)] pl-0 pr-1 text-sm tracking-tight text-[var(--fg)] focus:outline-none focus:border-[var(--fg)] transition-colors [color-scheme:dark]';
+
+const numberInputClass = `${inputClass} w-16`;
 
 function countActiveFilters(state: FilterState): number {
   let n = 0;
@@ -103,10 +106,10 @@ export function FilterBar({ state, onChange, devices, deployments, anomalyCount,
                     key={d.id}
                     type="button"
                     onClick={() => toggleDevice(d.id)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex items-center gap-2 ${
+                    className={`text-xs px-3 py-1.5 rounded-full transition-colors flex items-center gap-2 ${
                       active
-                        ? 'border-[var(--btn-border-hover)] bg-[var(--active-bg)] text-[var(--fg)]'
-                        : 'border-[var(--input-border)] text-[var(--fg-muted)] hover:text-[var(--fg)]'
+                        ? 'bg-[var(--active-bg)] text-[var(--fg)]'
+                        : 'text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--hover-bg)]'
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full" style={{ background: resolveDeviceColor(d) }} />
@@ -175,7 +178,7 @@ export function FilterBar({ state, onChange, devices, deployments, anomalyCount,
                 placeholder="min"
                 value={state.minTempF}
                 onChange={(e) => onChange({ ...state, minTempF: e.target.value })}
-                className={`${inputClass} w-20`}
+                className={numberInputClass}
               />
               <span className="text-xs text-[var(--fg-muted)]">to</span>
               <input
@@ -184,7 +187,7 @@ export function FilterBar({ state, onChange, devices, deployments, anomalyCount,
                 placeholder="max"
                 value={state.maxTempF}
                 onChange={(e) => onChange({ ...state, maxTempF: e.target.value })}
-                className={`${inputClass} w-20`}
+                className={numberInputClass}
               />
             </div>
 
@@ -196,7 +199,7 @@ export function FilterBar({ state, onChange, devices, deployments, anomalyCount,
                 placeholder="min"
                 value={state.minHumidity}
                 onChange={(e) => onChange({ ...state, minHumidity: e.target.value })}
-                className={`${inputClass} w-20`}
+                className={numberInputClass}
               />
               <span className="text-xs text-[var(--fg-muted)]">to</span>
               <input
@@ -205,27 +208,27 @@ export function FilterBar({ state, onChange, devices, deployments, anomalyCount,
                 placeholder="max"
                 value={state.maxHumidity}
                 onChange={(e) => onChange({ ...state, maxHumidity: e.target.value })}
-                className={`${inputClass} w-20`}
+                className={numberInputClass}
               />
             </div>
 
             {deployments.length > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <span className="text-xs font-medium text-[var(--fg-muted)] uppercase tracking-wider">Deployment</span>
-                <select
-                  value={state.deploymentId ?? ''}
-                  onChange={(e) =>
-                    onChange({ ...state, deploymentId: e.target.value ? Number(e.target.value) : null })
+                <InlineSelect
+                  value={state.deploymentId != null ? String(state.deploymentId) : ''}
+                  onChange={(v) =>
+                    onChange({ ...state, deploymentId: v ? Number(v) : null })
                   }
-                  className={inputClass}
+                  placeholder="Any"
+                  className="w-40"
                 >
-                  <option value="">Any</option>
                   {deployments.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
                     </option>
                   ))}
-                </select>
+                </InlineSelect>
               </div>
             )}
           </div>

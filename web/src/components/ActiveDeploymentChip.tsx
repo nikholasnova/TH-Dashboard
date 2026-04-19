@@ -8,7 +8,7 @@ interface ActiveDeploymentChipProps {
 export function ActiveDeploymentChip({ name, location, onClear, className = '' }: ActiveDeploymentChipProps) {
   return (
     <div
-      className={`px-4 py-2 rounded-lg bg-[var(--active-bg)] border border-[var(--divider)] inline-flex items-center gap-2 ${className}`}
+      className={`px-4 py-2 rounded-lg bg-[var(--active-bg)] inline-flex items-center gap-2 ${className}`}
     >
       <span className="text-sm text-[var(--foreground)]">
         Showing: {name}

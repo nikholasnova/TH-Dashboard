@@ -162,7 +162,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
 
         <div className="space-y-3 mb-6">
           {allDevices.map((device) => (
-            <div key={device.id} className="p-4 rounded-xl bg-[var(--hover-bg)] border border-[var(--divider)]">
+            <div key={device.id} className="p-4 rounded-xl bg-[var(--hover-bg)]">
               {editingId === device.id ? (
                 <div className="space-y-3">
                   <div>

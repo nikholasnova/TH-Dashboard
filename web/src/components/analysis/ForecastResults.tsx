@@ -22,7 +22,7 @@ function ForecastChart({ result, color }: ForecastChartProps) {
   if (historical.values.length < 2) {
     return (
       <div
-        className="bg-[var(--hover-bg)] rounded-lg border border-[var(--divider)] flex items-center justify-center"
+        className="bg-[var(--hover-bg)] rounded-lg flex items-center justify-center"
         style={{ height: CHART_HEIGHT }}
       >
         <span className="text-xs text-[var(--foreground-muted)]">No data</span>
@@ -86,7 +86,7 @@ function ForecastChart({ result, color }: ForecastChartProps) {
 
   return (
     <div
-      className="bg-[var(--hover-bg)] rounded-lg border border-[var(--divider)] relative"
+      className="bg-[var(--hover-bg)] rounded-lg relative"
       style={{ height: CHART_HEIGHT }}
     >
       <svg

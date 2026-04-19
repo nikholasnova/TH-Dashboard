@@ -78,7 +78,7 @@ function ScatterPlot({ scatterData, slope, intercept }: ScatterPlotProps) {
   return (
     <div>
       <div
-        className="relative bg-[var(--hover-bg)] border border-[var(--divider)] rounded-lg overflow-hidden"
+        className="relative bg-[var(--hover-bg)] rounded-lg overflow-hidden"
         style={{ height: PLOT_HEIGHT }}
       >
         {scatterData.map((d, i) => (
@@ -205,7 +205,7 @@ function CorrelationCard({ result }: CorrelationCardProps) {
             </tbody>
           </table>
 
-          <div className="mt-3 p-3 rounded-lg bg-[var(--hover-bg)] border border-[var(--divider)]">
+          <div className="mt-3 p-3 rounded-lg bg-[var(--hover-bg)]">
             <p className="text-sm text-[var(--foreground)] font-medium">{strength}</p>
             {significant ? (
               <p className="text-xs mt-1 text-green-400">
