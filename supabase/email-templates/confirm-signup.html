@@ -1,37 +1,43 @@
 <!--
   Supabase Auth "Confirm signup" template.
-  Paste into: Supabase Dashboard -> Authentication -> Email Templates -> Confirm signup.
-
-  Subject suggestion: Confirm your email for the IoT Dashboard
+  Paste into Supabase Dashboard -> Authentication -> Email Templates -> Confirm signup.
 
   Variables: {{ .ConfirmationURL }}, {{ .Email }}
+  Subject:   Confirm your email for the IoT Dashboard
+
+  Design: light-first with prefers-color-scheme:dark override. See
+  README.md for the rendering strategy across clients.
 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
-<meta name="supported-color-schemes" content="dark">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
 <meta name="x-apple-disable-message-reformatting">
 <title>Confirm your email</title>
 <style>
-  :root { color-scheme: dark; supported-color-schemes: dark; }
-  body { color-scheme: dark; }
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  body { color-scheme: light dark; }
 
   @media (prefers-color-scheme: dark) {
     .e-bg { background-color: #1D1C1B !important; }
-    .e-card { background-color: #2F2F2D !important; }
+    .e-card { background-color: #2F2F2D !important; border-color: rgba(255,255,255,0.12) !important; }
+    .e-divider { border-top-color: rgba(255,255,255,0.12) !important; }
     .e-fg { color: #F5F4F0 !important; }
     .e-muted { color: #A3A29E !important; }
     .e-dim { color: #C9C7C2 !important; }
-    .e-cta { background-color: #8FB58F !important; color: #1D1C1B !important; }
     .e-banner { background-color: #8FB58F !important; color: #1D1C1B !important; }
+    .e-cta { background-color: #8FB58F !important; color: #1D1C1B !important; }
   }
 
   @media only screen and (max-width: 480px) {
-    .outer-pad { padding: 16px 10px !important; }
+    .outer-pad { padding: 0 !important; }
+    .e-card { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+    .e-banner { border-radius: 0 !important; }
+    .footer-round { border-radius: 0 !important; }
     .row-pad { padding-left: 18px !important; padding-right: 18px !important; }
     .eyebrow-row { padding: 20px 18px 4px 18px !important; }
     .title { font-size: 22px !important; }
@@ -43,21 +49,21 @@
   a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
 </style>
 </head>
-<body class="e-bg" style="margin:0;padding:0;background:#1D1C1B;font-family:Georgia,'Times New Roman',ui-serif,serif;color:#F5F4F0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="e-bg" style="background:#1D1C1B;">
+<body bgcolor="#F5F4F0" class="e-bg" style="margin:0;padding:0;background-color:#F5F4F0;font-family:Georgia,'Times New Roman',ui-serif,serif;color:#1D1C1B;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F5F4F0" class="e-bg" style="background-color:#F5F4F0;">
 <tr><td align="center" class="outer-pad" style="padding:32px 16px;">
-<table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0" class="e-card" style="background:#2F2F2D;border:1px solid rgba(255,255,255,0.18);border-radius:10px;max-width:540px;width:100%;">
+<table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0" class="e-card" style="background-color:#FDFCF8;border:1px solid rgba(0,0,0,0.08);border-radius:10px;max-width:540px;width:100%;">
 
 <tr><td class="e-banner" style="background:#8FB58F;padding:12px 28px;color:#1D1C1B;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border-radius:10px 10px 0 0;font-family:Georgia,'Times New Roman',ui-serif,serif;">Confirm your email</td></tr>
 
 <tr><td class="eyebrow-row" style="padding:24px 28px 4px 28px;">
-<div class="e-muted" style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;font-weight:600;font-family:Georgia,'Times New Roman',ui-serif,serif;">IoT Temp/Humidity Dashboard</div>
-<div class="title e-fg" style="font-size:26px;font-weight:500;color:#F5F4F0;line-height:1.25;letter-spacing:-0.01em;font-family:Georgia,'Times New Roman',ui-serif,serif;">Welcome &mdash; one click to finish</div>
+<div class="e-muted" style="font-size:10px;color:#6B6966;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;font-weight:600;font-family:Georgia,'Times New Roman',ui-serif,serif;">IoT Temp/Humidity Dashboard</div>
+<div class="title e-fg" style="font-size:26px;font-weight:500;color:#1D1C1B;line-height:1.25;letter-spacing:-0.01em;font-family:Georgia,'Times New Roman',ui-serif,serif;">Welcome &mdash; one click to finish</div>
 </td></tr>
 
 <tr><td class="row-pad" style="padding:16px 28px;">
-<div class="body-text e-fg" style="font-size:14px;line-height:1.6;color:#F5F4F0;font-family:Georgia,'Times New Roman',ui-serif,serif;">
-Confirm the email address <span class="e-dim" style="color:#C9C7C2;">{{ .Email }}</span> so we know it's really you. Your account becomes active as soon as you click the button.
+<div class="body-text e-fg" style="font-size:14px;line-height:1.6;color:#1D1C1B;font-family:Georgia,'Times New Roman',ui-serif,serif;">
+Confirm the email address <span class="e-dim" style="color:#3E3E3B;">{{ .Email }}</span> so we know it's really you. Your account becomes active as soon as you click the button.
 </div>
 </td></tr>
 
@@ -65,12 +71,12 @@ Confirm the email address <span class="e-dim" style="color:#C9C7C2;">{{ .Email }
 <a href="{{ .ConfirmationURL }}" class="cta e-cta" style="display:inline-block;background:#8FB58F;color:#1D1C1B;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600;font-size:14px;font-family:Georgia,'Times New Roman',ui-serif,serif;letter-spacing:-0.01em;line-height:1.3;">Confirm my email &rarr;</a>
 </td></tr>
 
-<tr><td class="row-pad fallback-link e-muted" style="padding:4px 28px 18px 28px;font-size:12px;color:#A3A29E;font-family:Georgia,'Times New Roman',ui-serif,serif;line-height:1.5;">
+<tr><td class="row-pad fallback-link e-muted" style="padding:4px 28px 18px 28px;font-size:12px;color:#6B6966;font-family:Georgia,'Times New Roman',ui-serif,serif;line-height:1.5;">
 Not working? Paste this into your browser:<br>
-<a href="{{ .ConfirmationURL }}" class="e-dim" style="color:#C9C7C2;text-decoration:underline;word-break:break-all;">{{ .ConfirmationURL }}</a>
+<a href="{{ .ConfirmationURL }}" class="e-dim" style="color:#3E3E3B;text-decoration:underline;word-break:break-all;">{{ .ConfirmationURL }}</a>
 </td></tr>
 
-<tr><td class="row-pad e-muted" style="padding:12px 28px;border-top:1px solid rgba(255,255,255,0.12);border-radius:0 0 10px 10px;font-size:11px;color:#A3A29E;font-family:Georgia,'Times New Roman',ui-serif,serif;line-height:1.5;">
+<tr><td class="row-pad e-muted footer-round e-divider" style="padding:12px 28px;border-top:1px solid rgba(0,0,0,0.08);border-radius:0 0 10px 10px;font-size:11px;color:#6B6966;font-family:Georgia,'Times New Roman',ui-serif,serif;line-height:1.5;">
 Didn't sign up? You can safely ignore this email &mdash; no account is created until confirmed.
 </td></tr>
 

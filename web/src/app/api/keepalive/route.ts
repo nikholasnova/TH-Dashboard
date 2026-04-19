@@ -338,14 +338,14 @@ function buildAlertHtml(p: {
 <meta name="x-apple-disable-message-reformatting">
 <title>IoT Monitor</title>
 <style>
-  /* Signal dark-only design to the UA and Gmail / Apple Mail. */
-  :root { color-scheme: dark; supported-color-schemes: dark; }
-  body { color-scheme: dark; }
+  /* Signal to UA that this email is designed exclusively for dark display.
+     "only dark" tells the client "do NOT auto-adapt to light mode." */
+  :root { color-scheme: only dark; supported-color-schemes: dark; }
+  body { color-scheme: only dark; }
 
-  /* Gmail dark mode re-inverts "light" emails; re-assert our colors in
-     prefers-color-scheme:dark so we lock the palette instead of Gmail
-     flipping it. The !important is what bypasses Gmail's inline override. */
-  @media (prefers-color-scheme: dark) {
+  /* Extra Gmail protection: even if bgcolor + inline !important get rewritten,
+     these class-based rules with !important re-assert the palette. */
+  @media screen and (prefers-color-scheme: dark) {
     .e-bg { background-color: #1D1C1B !important; }
     .e-card { background-color: #2F2F2D !important; }
     .e-fg { color: #F5F4F0 !important; }
@@ -358,25 +358,27 @@ function buildAlertHtml(p: {
     .e-banner-recovery { background-color: #8FB58F !important; color: #1D1C1B !important; }
   }
 
-  /* Mobile polish (Apple Mail / iOS Mail / Gmail web support these). */
+  /* Mobile: card goes edge-to-edge so no body-bg area is visible for Gmail
+     to invert. Also tightens type + turns CTA into a full-width block. */
   @media only screen and (max-width: 480px) {
-    .outer-pad { padding: 16px 10px !important; }
+    .outer-pad { padding: 0 !important; }
+    .e-card { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+    .banner-pad { border-radius: 0 !important; padding: 14px 18px !important; font-size: 10px !important; }
+    .footer { font-size: 11px !important; border-radius: 0 !important; }
     .row-pad { padding-left: 18px !important; padding-right: 18px !important; }
-    .banner-pad { padding: 12px 18px !important; font-size: 9.5px !important; }
     .device-title { font-size: 20px !important; }
     .device-subtitle { font-size: 13px !important; display: inline-block !important; }
     .section-body { font-size: 15px !important; }
     .metric-label, .metric-value { font-size: 14px !important; padding: 8px 0 !important; }
     .cta { display: block !important; text-align: center !important; padding: 14px 20px !important; font-size: 15px !important; }
     .cta-row { padding-left: 18px !important; padding-right: 18px !important; }
-    .footer { font-size: 11px !important; }
   }
   /* iOS blue link override */
   a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
 </style>
 </head>
-<body class="e-bg" style="margin:0;padding:0;background:#1D1C1B;font-family:${serifStack};color:#F5F4F0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="e-bg" style="background:#1D1C1B;">
+<body bgcolor="#1D1C1B" class="e-bg" style="margin:0;padding:0;background-color:#1D1C1B !important;font-family:${serifStack};color:#F5F4F0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#1D1C1B" class="e-bg" style="background-color:#1D1C1B !important;">
 <tr><td align="center" class="outer-pad" style="padding:32px 16px;">
 <table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0" class="e-card" style="background:#2F2F2D;border:1px solid rgba(255,255,255,0.18);border-radius:10px;max-width:540px;width:100%;">
 <tr><td class="banner-pad e-banner-${p.kind}" style="background:${meta.color};padding:12px 28px;color:#1D1C1B;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border-radius:10px 10px 0 0;font-family:${serifStack};">${escapeHtml(meta.label)}</td></tr>

@@ -1,41 +1,43 @@
 <!--
   Supabase Auth "Reauthentication" template.
-  Paste into: Supabase Dashboard -> Authentication -> Email Templates -> Reauthentication.
-
-  Subject suggestion: Security check for your IoT Dashboard account
+  Paste into Supabase Dashboard -> Authentication -> Email Templates -> Reauthentication.
 
   Variables: {{ .Token }}
+  Subject:   Security check for your IoT Dashboard account
 
   Unlike the other auth emails, reauthentication returns a 6-digit code, not a
-  clickable link. The user types the code back into the app to prove possession
-  of the email.
+  clickable link. The user types the code back into the app.
 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
-<meta name="supported-color-schemes" content="dark">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
 <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
 <meta name="x-apple-disable-message-reformatting">
 <title>Security check</title>
 <style>
-  :root { color-scheme: dark; supported-color-schemes: dark; }
-  body { color-scheme: dark; }
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  body { color-scheme: light dark; }
 
   @media (prefers-color-scheme: dark) {
     .e-bg { background-color: #1D1C1B !important; }
-    .e-card { background-color: #2F2F2D !important; }
+    .e-card { background-color: #2F2F2D !important; border-color: rgba(255,255,255,0.12) !important; }
+    .e-divider { border-top-color: rgba(255,255,255,0.12) !important; }
     .e-fg { color: #F5F4F0 !important; }
     .e-muted { color: #A3A29E !important; }
     .e-dim { color: #C9C7C2 !important; }
-    .e-token { background-color: rgba(255,255,255,0.06) !important; color: #F5F4F0 !important; }
     .e-banner { background-color: #C89B4A !important; color: #1D1C1B !important; }
+    .e-token { background-color: rgba(255,255,255,0.06) !important; color: #F5F4F0 !important; }
   }
 
   @media only screen and (max-width: 480px) {
-    .outer-pad { padding: 16px 10px !important; }
+    .outer-pad { padding: 0 !important; }
+    .e-card { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+    .e-banner { border-radius: 0 !important; }
+    .footer-round { border-radius: 0 !important; }
     .row-pad { padding-left: 18px !important; padding-right: 18px !important; }
     .eyebrow-row { padding: 20px 18px 4px 18px !important; }
     .title { font-size: 22px !important; }
@@ -45,33 +47,33 @@
   a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
 </style>
 </head>
-<body class="e-bg" style="margin:0;padding:0;background:#1D1C1B;font-family:Georgia,'Times New Roman',ui-serif,serif;color:#F5F4F0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="e-bg" style="background:#1D1C1B;">
+<body bgcolor="#F5F4F0" class="e-bg" style="margin:0;padding:0;background-color:#F5F4F0;font-family:Georgia,'Times New Roman',ui-serif,serif;color:#1D1C1B;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F5F4F0" class="e-bg" style="background-color:#F5F4F0;">
 <tr><td align="center" class="outer-pad" style="padding:32px 16px;">
-<table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0" class="e-card" style="background:#2F2F2D;border:1px solid rgba(255,255,255,0.18);border-radius:10px;max-width:540px;width:100%;">
+<table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0" class="e-card" style="background-color:#FDFCF8;border:1px solid rgba(0,0,0,0.08);border-radius:10px;max-width:540px;width:100%;">
 
 <tr><td class="e-banner" style="background:#C89B4A;padding:12px 28px;color:#1D1C1B;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border-radius:10px 10px 0 0;font-family:Georgia,'Times New Roman',ui-serif,serif;">Security check</td></tr>
 
 <tr><td class="eyebrow-row" style="padding:24px 28px 4px 28px;">
-<div class="e-muted" style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;font-weight:600;font-family:Georgia,'Times New Roman',ui-serif,serif;">IoT Temp/Humidity Dashboard</div>
-<div class="title e-fg" style="font-size:26px;font-weight:500;color:#F5F4F0;line-height:1.25;letter-spacing:-0.01em;font-family:Georgia,'Times New Roman',ui-serif,serif;">Your verification code</div>
+<div class="e-muted" style="font-size:10px;color:#6B6966;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;font-weight:600;font-family:Georgia,'Times New Roman',ui-serif,serif;">IoT Temp/Humidity Dashboard</div>
+<div class="title e-fg" style="font-size:26px;font-weight:500;color:#1D1C1B;line-height:1.25;letter-spacing:-0.01em;font-family:Georgia,'Times New Roman',ui-serif,serif;">Your verification code</div>
 </td></tr>
 
 <tr><td class="row-pad" style="padding:16px 28px 4px 28px;">
-<div class="body-text e-fg" style="font-size:14px;line-height:1.6;color:#F5F4F0;font-family:Georgia,'Times New Roman',ui-serif,serif;">
+<div class="body-text e-fg" style="font-size:14px;line-height:1.6;color:#1D1C1B;font-family:Georgia,'Times New Roman',ui-serif,serif;">
 We're confirming a sensitive change on your account. Enter this code in the app to continue.
 </div>
 </td></tr>
 
 <tr><td align="center" class="row-pad" style="padding:20px 28px;">
-<div class="token-value e-token" style="display:inline-block;font-family:'SF Mono',Menlo,Consolas,ui-monospace,monospace;font-size:34px;font-weight:600;letter-spacing:0.2em;color:#F5F4F0;padding:16px 24px;background:rgba(255,255,255,0.06);border-radius:8px;">{{ .Token }}</div>
+<div class="token-value e-token" style="display:inline-block;font-family:'SF Mono',Menlo,Consolas,ui-monospace,monospace;font-size:34px;font-weight:600;letter-spacing:0.2em;color:#1D1C1B;padding:16px 24px;background:rgba(0,0,0,0.06);border-radius:8px;">{{ .Token }}</div>
 </td></tr>
 
-<tr><td class="row-pad e-muted" style="padding:4px 28px 16px 28px;font-size:12px;color:#A3A29E;font-family:Georgia,'Times New Roman',ui-serif,serif;line-height:1.5;text-align:center;">
+<tr><td class="row-pad e-muted" style="padding:4px 28px 16px 28px;font-size:12px;color:#6B6966;font-family:Georgia,'Times New Roman',ui-serif,serif;line-height:1.5;text-align:center;">
 Valid for a limited time. Don't share this code with anyone.
 </td></tr>
 
-<tr><td class="row-pad e-muted" style="padding:12px 28px;border-top:1px solid rgba(255,255,255,0.12);border-radius:0 0 10px 10px;font-size:11px;color:#A3A29E;font-family:Georgia,'Times New Roman',ui-serif,serif;line-height:1.5;">
+<tr><td class="row-pad e-muted footer-round e-divider" style="padding:12px 28px;border-top:1px solid rgba(0,0,0,0.08);border-radius:0 0 10px 10px;font-size:11px;color:#6B6966;font-family:Georgia,'Times New Roman',ui-serif,serif;line-height:1.5;">
 Didn't request this? Ignore the email &mdash; the code will simply expire. If you think someone else has access to your account, change your password.
 </td></tr>
 
