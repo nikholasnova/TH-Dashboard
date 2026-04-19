@@ -6,6 +6,7 @@ import { celsiusToFahrenheit } from '@/lib/supabase';
 import type { AnomalyFlag } from '@/lib/anomalies';
 import { Sparkline } from '../Sparkline';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
+import { resolveDeviceColor } from '@/lib/deviceColors';
 
 type SortKey = 'created_at' | 'device_id' | 'temperature' | 'humidity' | 'source';
 type SortDir = 'asc' | 'desc';
@@ -187,7 +188,7 @@ export function ReadingsTable({ readings, contextReadings, flags, devices, canDe
 
   if (readings.length === 0) {
     return (
-      <div className="glass-card p-10 text-center text-[var(--foreground-muted)]">
+      <div className="py-16 text-center text-[var(--fg-muted)] border-t border-[var(--hairline)]">
         <p className="text-sm">No readings match the current filters.</p>
       </div>
     );
@@ -205,7 +206,7 @@ export function ReadingsTable({ readings, contextReadings, flags, devices, canDe
   );
 
   return (
-    <div className="glass-card overflow-hidden">
+    <div className="border-t border-[var(--hairline)] overflow-hidden">
       {selectedCount > 0 && canDelete && (
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--divider)] bg-[var(--hover-bg)]">
           <span className="text-sm text-[var(--foreground)]">{selectedCount} selected</span>
@@ -285,7 +286,7 @@ export function ReadingsTable({ readings, contextReadings, flags, devices, canDe
                       <span className="inline-flex items-center gap-2">
                         <span
                           className="w-2 h-2 rounded-full"
-                          style={{ background: device?.color ?? 'var(--foreground-muted)' }}
+                          style={{ background: device ? resolveDeviceColor(device) : 'var(--fg-muted)' }}
                         />
                         <span className="text-[var(--foreground)]">{device?.display_name ?? r.device_id}</span>
                       </span>

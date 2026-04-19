@@ -5,6 +5,7 @@ import { createDevice, updateDevice } from '@/lib/supabase';
 import { useDevices } from '@/contexts/DevicesContext';
 import { useSession } from './AuthProvider';
 import posthog from 'posthog-js';
+import { COLOR_PALETTE, resolveDeviceColor } from '@/lib/deviceColors';
 
 interface DeviceManagerProps {
   isOpen: boolean;
@@ -12,17 +13,6 @@ interface DeviceManagerProps {
 }
 
 const DEVICE_ID_PATTERN = /^[a-z0-9_-]{1,32}$/;
-
-const COLOR_PALETTE = [
-  '#111111',
-  '#374151',
-  '#6b7280',
-  '#9ca3af',
-  '#d1d5db',
-  '#4b5563',
-  '#1f2937',
-  '#a3a3a3',
-];
 
 export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
   const { allDevices, refresh } = useDevices();
@@ -232,7 +222,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                 <div className="flex items-center gap-3">
                   <div
                     className="w-4 h-4 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: device.color }}
+                    style={{ backgroundColor: resolveDeviceColor(device) }}
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-[var(--foreground)] font-medium truncate">{device.display_name}</p>
@@ -257,7 +247,7 @@ export function DeviceManager({ isOpen, onClose }: DeviceManagerProps) {
                     </div>
                   </button>
                   <button
-                    onClick={() => startEditing(device.id, device.display_name, device.color)}
+                    onClick={() => startEditing(device.id, device.display_name, resolveDeviceColor(device))}
                     disabled={isSaving}
                     className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors flex-shrink-0"
                     title="Edit"

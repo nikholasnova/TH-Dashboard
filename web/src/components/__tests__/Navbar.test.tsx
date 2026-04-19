@@ -5,6 +5,7 @@ let mockPathname = '/';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }),
 }));
 
 vi.mock('../UserMenu', () => ({
@@ -29,21 +30,21 @@ describe('Navbar', () => {
     mockPathname = '/';
     render(<Navbar />);
     const liveLinks = screen.getAllByText('Live');
-    expect(liveLinks[0].closest('a')?.className).toContain('nav-active');
+    expect(liveLinks[0].closest('a')?.className).toContain('font-semibold');
   });
 
   it('marks prefix match as active for non-root routes', () => {
     mockPathname = '/charts/export';
     render(<Navbar />);
     const chartLinks = screen.getAllByText('Charts');
-    expect(chartLinks[0].closest('a')?.className).toContain('nav-active');
+    expect(chartLinks[0].closest('a')?.className).toContain('font-semibold');
   });
 
   it('does not mark "/" active when on other routes', () => {
     mockPathname = '/charts';
     render(<Navbar />);
     const liveLinks = screen.getAllByText('Live');
-    expect(liveLinks[0].closest('a')?.className).not.toContain('nav-active');
+    expect(liveLinks[0].closest('a')?.className).not.toContain('font-semibold');
   });
 
   it('renders UserMenu', () => {

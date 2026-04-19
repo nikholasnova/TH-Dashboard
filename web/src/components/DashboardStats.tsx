@@ -16,15 +16,13 @@ export function DashboardStats({ stats, loading, deployments }: DashboardStatsPr
 
   if (loading) {
     return (
-      <div className="glass-card p-3 sm:p-4 animate-pulse">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--divider)]">
-          {[0, 1, 2, 3].map(i => (
-            <div key={i} className="lg:px-6 first:lg:pl-0 last:lg:pr-0">
-              <div className="h-3 w-24 bg-[var(--hover-bg)] rounded mb-2 opacity-50" />
-              <div className="h-6 w-20 bg-[var(--hover-bg)] rounded opacity-50" />
-            </div>
-          ))}
-        </div>
+      <div className="animate-pulse grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+        {[0, 1, 2, 3].map(i => (
+          <div key={i}>
+            <div className="h-3 w-24 bg-[var(--hover-bg)] rounded mb-2 opacity-50" />
+            <div className="h-6 w-20 bg-[var(--hover-bg)] rounded opacity-50" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -64,9 +62,9 @@ export function DashboardStats({ stats, loading, deployments }: DashboardStatsPr
   if (sensorStats.length === 0) return null;
 
   return (
-    <div className="glass-card p-3 sm:p-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 lg:gap-0 lg:divide-x lg:divide-[var(--divider)]">
-        <div className="lg:px-6 first:lg:pl-0 last:lg:pr-0">
+    <div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+        <div>
           <p className="eyebrow mb-2">Avg Temperature</p>
           <div className="space-y-0.5">
             {sensorStats.map(s => {
@@ -80,7 +78,7 @@ export function DashboardStats({ stats, loading, deployments }: DashboardStatsPr
           </div>
         </div>
 
-        <div className="lg:px-6">
+        <div>
           <p className="eyebrow mb-2">High / Low</p>
           {highF !== null && lowF !== null ? (
             <p className="text-lg sm:text-base text-[var(--foreground)] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -93,7 +91,7 @@ export function DashboardStats({ stats, loading, deployments }: DashboardStatsPr
           )}
         </div>
 
-        <div className="lg:px-6">
+        <div>
           <p className="eyebrow mb-2">Uptime (24h)</p>
           {uptimePct != null ? (
             <div>
@@ -118,7 +116,7 @@ export function DashboardStats({ stats, loading, deployments }: DashboardStatsPr
           )}
         </div>
 
-        <div className="lg:px-6 last:lg:pr-0">
+        <div>
           <p className="eyebrow mb-2">Sensor Accuracy</p>
           {avgPctError !== null ? (
             <div>

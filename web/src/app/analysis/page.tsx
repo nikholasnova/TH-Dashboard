@@ -271,11 +271,11 @@ export default function AnalysisPage() {
   };
 
   return (
-    <PageLayout title="Python Statistical Analysis" subtitle="Run scientific analyses on sensor data using Python">
+    <PageLayout title="Analysis">
           <div className="mb-6">{renderPyodideStatus()}</div>
 
-          <div className="glass-card p-4 sm:p-6 mb-6">
-            <h2 className="text-lg font-semibold text-[var(--foreground)] mb-4">
+          <div className="py-6 border-t border-[var(--hairline)] first:border-t-0 mb-6">
+            <h2 className="text-lg font-semibold text-[var(--fg)] mb-4">
               Configuration
             </h2>
 
@@ -417,9 +417,9 @@ export default function AnalysisPage() {
             )}
           </div>
 
-          <div className="glass-card p-4 sm:p-8">
+          <div className="py-6 border-t border-[var(--hairline)]">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-[var(--foreground)]">Results</h2>
+              <h2 className="text-lg font-semibold text-[var(--fg)]">Results</h2>
               {results && !isRunning && (
                 <button
                   onClick={() => setResults(null)}

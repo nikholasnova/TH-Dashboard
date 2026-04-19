@@ -22,9 +22,9 @@ describe('PageLayout', () => {
     expect(screen.getByText('Content')).toBeInTheDocument();
   });
 
-  it('renders title in mobile header', () => {
+  it('renders title heading', () => {
     render(<PageLayout title="Dashboard">Content</PageLayout>);
-    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    expect(screen.getAllByText('Dashboard').length).toBeGreaterThan(0);
   });
 
   it('renders manage nodes button when prop provided', () => {

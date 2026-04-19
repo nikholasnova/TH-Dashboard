@@ -28,7 +28,7 @@ describe('DeviceDeploymentFilter', () => {
         onDeploymentChange={vi.fn()}
       />
     );
-    expect(screen.getByText('All Devices')).toBeInTheDocument();
+    expect(screen.getByText('All devices')).toBeInTheDocument();
     expect(screen.getByText('Node 1')).toBeInTheDocument();
     expect(screen.getByText('Node 2')).toBeInTheDocument();
   });
@@ -43,7 +43,7 @@ describe('DeviceDeploymentFilter', () => {
         onDeploymentChange={vi.fn()}
       />
     );
-    expect(screen.getByText('All Deployments')).toBeInTheDocument();
+    expect(screen.getByText('All deployments')).toBeInTheDocument();
     expect(screen.getByText('Patio (node1)')).toBeInTheDocument();
     expect(screen.getByText('Kitchen (node2)')).toBeInTheDocument();
   });

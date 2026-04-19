@@ -4,7 +4,6 @@ import { UserMenu } from '@/components/UserMenu';
 
 interface PageLayoutProps {
   title?: string;
-  subtitle?: string;
   children: React.ReactNode;
   onManageNodes?: () => void;
 }
@@ -21,14 +20,13 @@ export function PageLayout({ title, children, onManageNodes }: PageLayoutProps) 
     <AuthGate>
       <div className="min-h-screen sm:pb-0" style={{ paddingBottom: 'var(--bottom-spacing)' }}>
         <div className="container-responsive">
-          {/* Mobile page header */}
           <div className="sm:hidden flex items-center justify-between mb-4 pt-1">
-            <h1 className="text-lg font-bold text-[var(--foreground)]">{title}</h1>
+            <h1 className="text-lg font-bold tracking-tight text-[var(--fg)]">{title}</h1>
             <div className="flex items-center gap-2">
               {onManageNodes && (
                 <button
                   onClick={onManageNodes}
-                  className="w-11 h-11 rounded-full bg-[var(--active-bg)] border border-[var(--btn-border-hover)] flex items-center justify-center text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
+                  className="w-11 h-11 rounded-full bg-[var(--active-bg)] border border-[var(--hairline-strong)] flex items-center justify-center text-[var(--fg-dim)] hover:text-[var(--fg)] transition-colors"
                   aria-label="Manage nodes"
                 >
                   {gearIcon}
@@ -39,6 +37,7 @@ export function PageLayout({ title, children, onManageNodes }: PageLayoutProps) 
           </div>
 
           <Navbar />
+
           <div id="main-content">{children}</div>
         </div>
       </div>

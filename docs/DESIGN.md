@@ -295,7 +295,7 @@ The app also includes a `global-error.tsx` boundary for unhandled exceptions, an
 
 ### Testing Strategy
 
-The test suite has 328 tests across 35 test files, covering API routes, components, library utilities, Supabase queries, and context providers.
+The test suite has 331 tests across 35 test files, covering API routes, components, library utilities, Supabase queries, and context providers.
 
 Tests use Jest with React Testing Library. API route tests mock the Supabase client and verify the correct queries are made, the response format is correct, and error cases return appropriate status codes. Component tests verify that the right elements render for each state and that user interactions trigger the expected callbacks.
 

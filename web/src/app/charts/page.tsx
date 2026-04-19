@@ -19,6 +19,8 @@ import { useDeployments } from '@/hooks/useDeployments';
 import { useDevices } from '@/contexts/DevicesContext';
 import { ExportModal } from '@/components/ExportModal';
 import { svgContainerToPng } from '@/lib/exportChart';
+import { resolveDeviceColor, humidityVariant } from '@/lib/deviceColors';
+import { SegmentedNav } from '@/components/SegmentedNav';
 
 const ResponsiveLine = dynamic(
   () => import('@nivo/line').then((m) => m.ResponsiveLine),
@@ -136,13 +138,6 @@ const NivoChart = memo(function NivoChart({
   );
 });
 
-function lightenColor(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const lighten = (v: number) => Math.min(255, v + 60);
-  return `#${lighten(r).toString(16).padStart(2, '0')}${lighten(g).toString(16).padStart(2, '0')}${lighten(b).toString(16).padStart(2, '0')}`;
-}
 
 export default function ChartsPage() {
   const [samples, setSamples] = useState<ChartSample[]>([]);
@@ -287,11 +282,12 @@ export default function ChartsPage() {
     if (metric === 'both') {
       series = activeDevices.flatMap(device => {
         const deviceSamples = validSamples.filter(r => r.device_id === device.id);
+        const baseColor = resolveDeviceColor(device);
         return [
           {
             id: `${device.id}:temp`,
             label: `${device.display_name} Temp`,
-            color: device.color,
+            color: baseColor,
             data: compactPoints(deviceSamples.map(r => {
               const tempF = celsiusToFahrenheit(r.temperature_avg);
               return makePoint(r.bucket_ts, tempF, { rawValue: tempF, unit: '°F' });
@@ -300,7 +296,7 @@ export default function ChartsPage() {
           {
             id: `${device.id}:humidity`,
             label: `${device.display_name} Humidity`,
-            color: lightenColor(device.color),
+            color: humidityVariant(baseColor),
             data: compactPoints(deviceSamples.map(r =>
               makePoint(r.bucket_ts, normalizeHumidity(r.humidity_avg), { rawValue: r.humidity_avg, unit: '%' })
             )),
@@ -311,7 +307,7 @@ export default function ChartsPage() {
       series = activeDevices.map(device => ({
         id: device.id,
         label: device.display_name,
-        color: device.color,
+        color: resolveDeviceColor(device),
         data: compactPoints(
           validSamples
             .filter(r => r.device_id === device.id)
@@ -333,25 +329,26 @@ export default function ChartsPage() {
   }, [samples, metric, devices, deviceFilter]);
 
   return (
-    <PageLayout title="Charts" subtitle="Historical data visualization">
+    <PageLayout title="Charts">
         <FilterToolbar timeRange={timeRange} deployments={deployments}>
-          <div className="glass-card p-2 flex gap-1">
-            <button onClick={() => setMetric('temperature')} data-label="Temp"
-              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-colors ${metric === 'temperature' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
-              Temp
-            </button>
-            <button onClick={() => setMetric('humidity')} data-label="Humidity"
-              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-colors ${metric === 'humidity' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
-              Humidity
-            </button>
-            <button onClick={() => setMetric('both')} data-label="Both"
-              className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-colors ${metric === 'both' ? 'nav-active text-[var(--foreground)] font-semibold' : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'}`}>
-              Both
-            </button>
-          </div>
+          <SegmentedNav
+            layoutGroupId="chart-metric"
+            value={metric}
+            onChange={(v) => setMetric(v as MetricType)}
+            options={[
+              { value: 'temperature', label: 'Temp' },
+              { value: 'humidity', label: 'Humidity' },
+              { value: 'both', label: 'Both' },
+            ]}
+          />
 
-          <button onClick={() => setIsExportModalOpen(true)}
-            className="btn-glass px-4 py-3 sm:px-5 sm:py-2.5 text-sm sm:text-sm w-full sm:w-auto">
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="h-14 px-4 inline-flex items-center gap-2 text-sm font-semibold text-[var(--fg)] border border-[var(--hairline-strong)] rounded-md hover:bg-[var(--hover-bg)] transition-colors sm:ml-auto w-full sm:w-auto"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
             Export CSV
           </button>
         </FilterToolbar>
@@ -373,7 +370,7 @@ export default function ChartsPage() {
                 const rangeLabel = selectedRange === -1 ? 'custom' : String(selectedRange);
                 svgContainerToPng(chartContainerRef.current, `chart-${metric}-${rangeLabel}-${new Date().toISOString().slice(0, 10)}.png`);
               }}
-              className="btn-glass px-3 py-1.5 text-xs text-[var(--foreground-muted)] hover:text-[var(--primary)] transition-colors flex items-center gap-1.5"
+              className="inline-flex items-center gap-2 text-xs text-[var(--fg-muted)] hover:text-[var(--fg)] transition-colors px-2 py-1"
               title="Download chart as PNG"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -383,16 +380,16 @@ export default function ChartsPage() {
             </button>
           </div>
         )}
-        <div className="glass-card p-3 sm:p-8" ref={chartContainerRef}>
+        <div className="pt-6 border-t border-[var(--hairline)]" ref={chartContainerRef}>
           {isLoading ? (
             <div className="h-[360px] sm:h-[500px]">
               <LoadingSpinner message="Loading chart data..." className="h-full" />
             </div>
           ) : !hasData ? (
             <div className="h-[360px] sm:h-[500px] flex items-center justify-center fade-in">
-              <div className="text-center">
-                <p className="text-lg sm:text-xl text-[var(--foreground-muted)] font-medium">No data available</p>
-                <p className="text-sm text-[var(--foreground-muted)]/60 mt-2">Data will appear once sensors start reporting</p>
+              <div>
+                <p className="text-base text-[var(--fg-dim)]">No readings in this window.</p>
+                <p className="text-xs text-[var(--fg-muted)] mt-1">Try a wider time range.</p>
               </div>
             </div>
           ) : (

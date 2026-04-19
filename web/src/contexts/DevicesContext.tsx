@@ -8,8 +8,8 @@ import { useGuest } from '@/contexts/GuestContext';
 import { guestGetDevices } from '@/lib/supabase/guestQueries';
 
 const FALLBACK_DEVICES: Device[] = [
-  { id: 'node1', display_name: 'Node 1', color: '#374151', is_active: true, monitor_enabled: true, sort_order: 1, created_at: '', updated_at: '' },
-  { id: 'node2', display_name: 'Node 2', color: '#16a34a', is_active: true, monitor_enabled: true, sort_order: 2, created_at: '', updated_at: '' },
+  { id: 'node1', display_name: 'Node 1', color: '#9FB0C7', is_active: true, monitor_enabled: true, sort_order: 1, created_at: '', updated_at: '' },
+  { id: 'node2', display_name: 'Node 2', color: '#C9A984', is_active: true, monitor_enabled: true, sort_order: 2, created_at: '', updated_at: '' },
 ];
 
 interface DevicesContextValue {

@@ -68,16 +68,15 @@ describe('LiveReadingCard', () => {
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 
-  it('shows live indicator with updated timestamp when reading is fresh', () => {
-    const { container } = render(
+  it('shows time-ago when reading is fresh', () => {
+    render(
       <LiveReadingCard
         deviceId="node1"
         deviceName="Node 1"
         reading={baseReading}
       />
     );
-    expect(container.querySelector('.live-indicator')).toBeInTheDocument();
-    expect(screen.getByText(/Updated/)).toBeInTheDocument();
+    expect(screen.getByText(/ago|now/i)).toBeInTheDocument();
   });
 
   it('shows Offline badge when reading is stale', () => {
@@ -89,10 +88,10 @@ describe('LiveReadingCard', () => {
         lastRefresh={new Date()}
       />
     );
-    expect(screen.getByText('Offline')).toBeInTheDocument();
+    expect(screen.getAllByText('Offline').length).toBeGreaterThan(0);
   });
 
-  it('shows Device Offline with last seen time for stale reading', () => {
+  it('shows last seen time for stale reading', () => {
     render(
       <LiveReadingCard
         deviceId="node1"
@@ -101,7 +100,6 @@ describe('LiveReadingCard', () => {
         lastRefresh={new Date()}
       />
     );
-    expect(screen.getByText('Device Offline')).toBeInTheDocument();
     expect(screen.getByText(/Last seen/)).toBeInTheDocument();
   });
 
@@ -166,7 +164,7 @@ describe('LiveReadingCard', () => {
     );
     // The weather comparison uses hidden sm:block, so query the DOM directly
     const weatherTexts = container.querySelectorAll('[class*="sm:block"]');
-    const hasWeatherComparison = Array.from(weatherTexts).some(el => el.textContent?.includes('vs Official'));
+    const hasWeatherComparison = Array.from(weatherTexts).some(el => el.textContent?.includes('Weather:'));
     expect(hasWeatherComparison).toBe(true);
   });
 

@@ -22,14 +22,13 @@ export function DeviceDeploymentFilter({
     : deployments;
 
   return (
-    <div className="glass-card p-3 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
-      <span className="text-xs text-[var(--foreground-muted)] font-medium">Filters:</span>
+    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3">
       <select
         value={deviceFilter}
         onChange={(e) => onDeviceChange(e.target.value)}
-        className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full sm:w-auto sm:min-w-[100px]"
+        className="h-14 bg-transparent border border-[var(--hairline-strong)] rounded-md px-4 text-sm text-[var(--fg)] w-full sm:w-44 hover:bg-[var(--hover-bg)] transition-colors"
       >
-        <option value="">All Devices</option>
+        <option value="">All devices</option>
         {devices.map((d) => (
           <option key={d.id} value={d.id}>
             {d.display_name}
@@ -39,9 +38,9 @@ export function DeviceDeploymentFilter({
       <select
         value={deploymentFilter}
         onChange={(e) => onDeploymentChange(e.target.value)}
-        className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full sm:w-auto sm:min-w-[180px]"
+        className="h-14 bg-transparent border border-[var(--hairline-strong)] rounded-md px-4 text-sm text-[var(--fg)] w-full sm:w-64 hover:bg-[var(--hover-bg)] transition-colors"
       >
-        <option value="">All Deployments</option>
+        <option value="">All deployments</option>
         {filteredDeployments.map((dep) => (
           <option key={dep.id} value={dep.id.toString()}>
             {dep.name} ({dep.device_id})

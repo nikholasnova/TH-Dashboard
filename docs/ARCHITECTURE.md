@@ -111,6 +111,7 @@ RLS enabled on all tables.
 | `get_dashboard_live(device_ids[], sparkline_start, bucket_min?)` | Batched latest readings + sparkline per N devices |
 | `delete_deployment_cascade(deployment_id)` | Cascade-delete deployment and its readings (admin-only, enforced via JWT role claim) |
 | `delete_readings_range(device_id, start, end, include_weather?)` | Scoped deletion of readings by device and time range (admin-only, enforced via JWT role claim) |
+| `delete_reading_by_id(p_id)` | Single-row delete used by the Data Explorer review flow (admin-only, enforced via `user_roles` lookup on `auth.uid()`) |
 
 Weather data lives in `readings`, so all RPCs work with weather device IDs (e.g., `weather_node1`).
 
@@ -225,7 +226,16 @@ Optional PostHog integration provides product analytics (autocapture, session re
 - Per-section CSV download buttons for all analysis results.
 - All computation runs client-side.
 
-### 5.6 AI Chat (`POST /api/chat`)
+### 5.6 Data Explorer (`/data`)
+
+- Paginated raw-readings browser backed by `getFilteredReadings`, which paginates the Supabase REST query in 1000-row pages up to a 50k ceiling.
+- Filters: device, date range (preset or custom), source (sensor/weather/both), temp/humidity min/max, deployment, anomalies-only.
+- Natural-language search via `POST /api/nl-filter`: Gemini 2.5 Flash parses a plain-English query ("hot readings on node2 yesterday") into a strict `FilterState` JSON schema and applies it to the filter bar. Falls back gracefully if the key is missing (501) or the query can't be parsed.
+- Anomaly flagging (`web/src/lib/anomalies.ts`): per-device neighbor-delta spike detection for temperature and humidity, plus hard out-of-range checks against DHT20 spec bounds. Anomalous rows are marked with a chip and can be filtered to.
+- Admin row-level delete: individual reading delete via `delete_reading_by_id(BIGINT)` RPC (SECURITY DEFINER, admin-only via `user_roles` lookup). Bulk-select + delete uses the same RPC per row.
+- CSV export of the currently visible filtered set (honors every filter and sort order).
+
+### 5.7 AI Chat (`POST /api/chat`)
 
 - Authenticated route using Gemini 2.5 Flash with function-calling.
 - 7 tools: `get_deployments`, `get_deployment_stats`, `get_readings`, `get_device_stats`, `get_chart_data`, `get_report_data`, `get_weather`.
@@ -242,7 +252,7 @@ Optional PostHog integration provides product analytics (autocapture, session re
 - Returns Fahrenheit fields and `America/Phoenix` local time.
 - Accessed via floating `ChatShell` component with open/close animation, auto-scroll, and scroll-for-more indicator.
 
-### 5.7 Keepalive (`GET /api/keepalive`)
+### 5.8 Keepalive (`GET /api/keepalive`)
 
 - `CRON_SECRET`-protected, runs every 10 min.
 - Reads monitored devices from the `devices` table (`is_active = true` and `monitor_enabled = true`). Falls back to `MONITORED_DEVICE_IDS` env var if set.
@@ -250,7 +260,7 @@ Optional PostHog integration provides product analytics (autocapture, session re
 - Sends one alert per state transition via Resend (no repeat spam).
 - Optional recovery alert on return to `ok`.
 
-### 5.8 Weather Ingestion (`GET /api/weather`)
+### 5.9 Weather Ingestion (`GET /api/weather`)
 
 - Every-15-min cron (`0,15,30,45 * * * *`), `CRON_SECRET`-protected.
 - Reads active deployments with non-null `zip_code`.
@@ -319,8 +329,9 @@ Optional PostHog integration provides product analytics (autocapture, session re
 | Schema | `supabase/schema.sql` |
 | Supabase client | `web/src/lib/supabase/` (types, client, server, queries) |
 | Device management | `web/src/components/DeviceManager.tsx`, `web/src/contexts/DevicesContext.tsx`, `web/src/lib/supabase/queries/devices.ts` |
-| Pages | `web/src/app/{page,charts,compare,deployments,analysis}/page.tsx` |
+| Pages | `web/src/app/{page,charts,compare,data,deployments,analysis}/page.tsx` |
 | AI | `web/src/app/api/chat/route.ts`, `web/src/lib/aiTools.ts`, `web/src/components/ChatShell.tsx`, `web/src/lib/chatContext.tsx` |
+| Data Explorer | `web/src/app/data/page.tsx`, `web/src/components/DataExplorer/*`, `web/src/app/api/nl-filter/route.ts`, `web/src/lib/anomalies.ts` |
 | Keepalive | `web/src/app/api/keepalive/route.ts` |
 | Weather | `web/src/app/api/weather/route.ts`, `web/src/lib/weatherZip.ts`, `web/src/lib/weatherCompare.ts` |
 | Analysis | `web/src/lib/pyodide.ts`, `web/src/lib/analysisRunner.ts` |

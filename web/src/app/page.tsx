@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { LiveReadingCard } from '@/components/LiveReadingCard';
 import { DeploymentModal } from '@/components/DeploymentModal';
 import { DeviceManager } from '@/components/DeviceManager';
@@ -18,11 +17,11 @@ import { ViewportScaler } from '@/components/ViewportScaler';
 import { useSession } from '@/components/AuthProvider';
 import { useGuest } from '@/contexts/GuestContext';
 
-function getGridClasses(count: number): string {
-  if (count <= 1) return 'grid-cols-1 max-w-2xl mx-auto';
+function gridColsFor(count: number): string {
+  if (count <= 1) return 'grid-cols-1';
   if (count === 2) return 'grid-cols-1 md:grid-cols-2';
   if (count === 3) return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
-  return 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4';
+  return 'grid-cols-1 md:grid-cols-2 xl:grid-cols-4';
 }
 
 interface DeviceData {
@@ -184,7 +183,7 @@ export default function Dashboard() {
       : false;
 
   return (
-    <PageLayout title="Dashboard" subtitle="Real-time temperature & humidity monitoring" onManageNodes={() => setShowDeviceManager(true)}>
+    <PageLayout title="Dashboard" onManageNodes={() => setShowDeviceManager(true)}>
       <ViewportScaler ready={!isLoading}>
       {isLoading ? (
         <div className="flex items-center justify-center py-32">
@@ -196,7 +195,7 @@ export default function Dashboard() {
       ) : (
       <>
       {!isGuest && (
-      <div className="hidden sm:flex justify-end mb-2 gap-2">
+      <div className="hidden sm:flex justify-end mb-12 gap-2">
         {role === 'admin' && (
           <button
             onClick={() => setShowUserManager(true)}
@@ -229,63 +228,59 @@ export default function Dashboard() {
           return dev?.display_name ?? p.device_id;
         });
         return (
-          <div className="glass-card p-3 sm:p-4 mb-4 flex items-center justify-between" style={{ borderLeft: '4px solid var(--error)' }}>
-            <div className="flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--error)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div className="flex items-center justify-between py-3 px-4 mb-4 border-l-2" style={{ borderLeftColor: 'var(--error)' }}>
+            <div className="flex items-center gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--error)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
-              <span className="text-sm text-[var(--foreground)]">
+              <span className="text-sm text-[var(--fg)]">
                 {problems.length === 1
                   ? `${deviceNames[0]} needs attention (${problems[0].status})`
                   : `${problems.length} devices need attention: ${deviceNames.join(', ')}`}
               </span>
             </div>
-            <button onClick={() => setAlertDismissed(true)} className="text-[var(--foreground-muted)] hover:text-[var(--foreground)] p-1">
+            <button onClick={() => setAlertDismissed(true)} className="text-[var(--fg-muted)] hover:text-[var(--fg)] p-1" aria-label="Dismiss alert">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
           </div>
         );
       })()}
-      <p className="section-label">Live Readings</p>
+
       {devices.length === 0 ? (
-        <div className="glass-card p-8 text-center max-w-lg mx-auto">
-          <p className="text-[var(--foreground-muted)] mb-4">No devices configured yet.</p>
+        <div className="py-12">
+          <h2 className="text-xl font-semibold text-[var(--fg)] mb-2">No devices configured yet</h2>
+          <p className="text-sm text-[var(--fg-muted)] mb-4">Register a sensor node to start streaming readings.</p>
           <button
             onClick={() => setShowDeviceManager(true)}
-            className="btn-glass px-6 py-2"
+            className="btn-glass px-4 py-2 text-sm"
           >
-            Add Your First Node
+            Add your first node
           </button>
         </div>
       ) : (
-      <div className={`grid ${getGridClasses(devices.length)} gap-4 sm:gap-8`}>
-        {devices.map((device) => (
-          <motion.div
-            key={device.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-          >
-            <LiveReadingCard
-              deviceId={device.id}
-              deviceName={device.display_name}
-              reading={deviceData[device.id]?.reading}
-              activeDeployment={deviceData[device.id]?.deployment}
-              isLoading={isLoading}
-              onClick={isGuest ? undefined : () => setSelectedDevice({ id: device.id, name: device.display_name })}
-              onRefresh={() => void fetchLiveAndStats()}
-              lastRefresh={lastRefresh}
-              weatherReading={deviceData[device.id]?.weather}
-              sparklineData={deviceData[device.id]?.sparkline}
-            />
-          </motion.div>
-        ))}
-      </div>
+        <div className={`grid ${gridColsFor(devices.length)} gap-6 sm:gap-8`}>
+          {devices.map((device) => (
+            <div key={device.id} className="px-5 py-6 min-w-0">
+              <LiveReadingCard
+                deviceId={device.id}
+                deviceName={device.display_name}
+                reading={deviceData[device.id]?.reading}
+                activeDeployment={deviceData[device.id]?.deployment}
+                isLoading={isLoading}
+                onClick={isGuest ? undefined : () => setSelectedDevice({ id: device.id, name: device.display_name })}
+                onRefresh={() => void fetchLiveAndStats()}
+                lastRefresh={lastRefresh}
+                weatherReading={deviceData[device.id]?.weather}
+                sparklineData={deviceData[device.id]?.sparkline}
+              />
+            </div>
+          ))}
+        </div>
       )}
 
-      <div className="mt-6">
-        <p className="section-label">24h Overview</p>
+      <div className="mt-10">
+        <h2 className="text-2xl font-semibold tracking-tight text-[var(--fg)] mb-6">24h Overview</h2>
         <DashboardStats stats={stats} loading={statsLoading} deployments={Object.fromEntries(devices.map(d => [d.id, deviceData[d.id]?.deployment ?? null]))} />
       </div>
 

@@ -14,6 +14,7 @@ import { FilterToolbar } from '@/components/FilterToolbar';
 import { useTimeRange } from '@/hooks/useTimeRange';
 import { useDeployments } from '@/hooks/useDeployments';
 import { ViewportScaler } from '@/components/ViewportScaler';
+import { resolveDeviceColor } from '@/lib/deviceColors';
 
 function formatDelta(values: (number | null | undefined)[], decimals = 1): string {
   const valid = values.filter((v): v is number => v != null);
@@ -160,7 +161,7 @@ export default function ComparePage() {
   }), [devices, statsByDevice]);
 
   return (
-    <PageLayout title="Compare" subtitle="Side-by-side sensor statistics">
+    <PageLayout title="Compare">
       <ViewportScaler>
         <FilterToolbar timeRange={timeRange} deployments={deployments} />
 
@@ -174,8 +175,8 @@ export default function ComparePage() {
         )}
 
         <div className={isLoading ? 'opacity-50' : 'fade-in'}>
-            {/* Delta summary cards — desktop only */}
-              <div className="hidden sm:grid sm:grid-cols-4 gap-4 mb-6">
+            {/* Delta summary — desktop only */}
+              <div className="hidden sm:grid sm:grid-cols-4 gap-8 pt-10 mb-10 border-t border-[var(--hairline)]">
                 {(() => {
                   const validTemps = deviceColumns.filter(c => c.tempAvgF != null);
                   const tempSpread = validTemps.length >= 2
@@ -193,37 +194,37 @@ export default function ComparePage() {
 
                   return (
                     <>
-                      <div className="surface p-4">
+                      <div>
                         <p className="eyebrow mb-1">Temp Spread</p>
-                        <p className="text-2xl font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        <p className="text-2xl font-semibold text-[var(--fg)] metric">
                           {tempSpread != null ? `${tempSpread.toFixed(1)}°F` : '—'}
                         </p>
-                        <p className="text-xs text-[var(--foreground-muted)] mt-1">between sensor averages</p>
+                        <p className="text-xs text-[var(--fg-muted)] mt-1">between sensor averages</p>
                       </div>
-                      <div className="surface p-4">
+                      <div>
                         <p className="eyebrow mb-1">Most Accurate</p>
-                        <p className="text-2xl font-semibold text-[var(--foreground)]">
+                        <p className="text-2xl font-semibold text-[var(--fg)]">
                           {mostAccurate ? mostAccurate.device.display_name : '—'}
                         </p>
-                        <p className="text-xs text-[var(--foreground-muted)] mt-1">
+                        <p className="text-xs text-[var(--fg-muted)] mt-1">
                           {mostAccurate ? `${formatPercent(mostAccurate.tempErrorPct)} error vs weather` : 'no weather data'}
                         </p>
                       </div>
-                      <div className="surface p-4">
+                      <div>
                         <p className="eyebrow mb-1">Overall Range</p>
-                        <p className="text-2xl font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        <p className="text-2xl font-semibold text-[var(--fg)] metric">
                           {overallHigh != null && overallLow != null
-                            ? <><span className="text-[var(--warning)]">{overallHigh.toFixed(1)}°</span>{' / '}<span className="text-[var(--info)]">{overallLow.toFixed(1)}°</span></>
+                            ? <><span className="text-[var(--warning)]">{overallHigh.toFixed(1)}°</span>{' / '}<span className="text-[var(--fg-dim)]">{overallLow.toFixed(1)}°</span></>
                             : '—'}
                         </p>
-                        <p className="text-xs text-[var(--foreground-muted)] mt-1">high / low across all sensors</p>
+                        <p className="text-xs text-[var(--fg-muted)] mt-1">high / low across all sensors</p>
                       </div>
-                      <div className="surface p-4">
+                      <div>
                         <p className="eyebrow mb-1">Total Readings</p>
-                        <p className="text-2xl font-semibold text-[var(--foreground)]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                        <p className="text-2xl font-semibold text-[var(--fg)] metric">
                           {totalReadings.toLocaleString()}
                         </p>
-                        <p className="text-xs text-[var(--foreground-muted)] mt-1">across {deviceColumns.length} sensor{deviceColumns.length !== 1 ? 's' : ''}</p>
+                        <p className="text-xs text-[var(--fg-muted)] mt-1">across {deviceColumns.length} sensor{deviceColumns.length !== 1 ? 's' : ''}</p>
                       </div>
                     </>
                   );
@@ -244,7 +245,7 @@ export default function ComparePage() {
 
                   return (
                     <>
-                      <div className="surface p-4 sm:p-5">
+                      <div className="py-5 sm:py-6">
                         <p className="eyebrow mb-3">Temperature Range Overlap</p>
                         <div className="space-y-2.5" style={{ minHeight: deviceColumns.length * 32 }}>
                           {tempCols.map(col => {
@@ -253,13 +254,13 @@ export default function ComparePage() {
                             return (
                               <div key={col.device.id}>
                                 <div className="flex justify-between text-xs text-[var(--foreground-muted)] mb-1">
-                                  <span style={{ color: col.device.color }}>{col.device.display_name}</span>
+                                  <span style={{ color: resolveDeviceColor(col.device) }}>{col.device.display_name}</span>
                                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.tempMinF)}° – {formatValue(col.tempMaxF)}°</span>
                                 </div>
                                 <div className="h-2.5 w-full bg-[var(--hover-bg)] rounded-full relative">
                                   <div
                                     className="absolute h-full rounded-full"
-                                    style={{ left: `${left}%`, width: `${Math.max(width, 2)}%`, backgroundColor: col.device.color, opacity: 0.7 }}
+                                    style={{ left: `${left}%`, width: `${Math.max(width, 2)}%`, backgroundColor: resolveDeviceColor(col.device), opacity: 0.9 }}
                                   />
                                 </div>
                               </div>
@@ -271,7 +272,7 @@ export default function ComparePage() {
                           <span>{tempGlobalMax.toFixed(1)}°F</span>
                         </div>
                       </div>
-                      <div className="surface p-4 sm:p-5">
+                      <div className="py-5 sm:py-6">
                         <p className="eyebrow mb-3">Humidity Range Overlap</p>
                         <div className="space-y-2.5" style={{ minHeight: deviceColumns.length * 32 }}>
                           {humCols.map(col => {
@@ -280,13 +281,13 @@ export default function ComparePage() {
                             return (
                               <div key={col.device.id}>
                                 <div className="flex justify-between text-xs text-[var(--foreground-muted)] mb-1">
-                                  <span style={{ color: col.device.color }}>{col.device.display_name}</span>
+                                  <span style={{ color: resolveDeviceColor(col.device) }}>{col.device.display_name}</span>
                                   <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatValue(col.sensor?.humidity_min)}% – {formatValue(col.sensor?.humidity_max)}%</span>
                                 </div>
                                 <div className="h-2.5 w-full bg-[var(--hover-bg)] rounded-full relative">
                                   <div
                                     className="absolute h-full rounded-full"
-                                    style={{ left: `${left}%`, width: `${Math.max(width, 2)}%`, backgroundColor: col.device.color, opacity: 0.7 }}
+                                    style={{ left: `${left}%`, width: `${Math.max(width, 2)}%`, backgroundColor: resolveDeviceColor(col.device), opacity: 0.9 }}
                                   />
                                 </div>
                               </div>
@@ -307,7 +308,7 @@ export default function ComparePage() {
             <div className="sm:hidden space-y-4">
               {deviceColumns.map(col => (
                 <div key={col.device.id} className="surface p-4">
-                  <h3 className="text-base font-semibold mb-3" style={{ color: col.device.color }}>
+                  <h3 className="text-base font-semibold mb-3" style={{ color: resolveDeviceColor(col.device) }}>
                     {col.device.display_name}
                   </h3>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3">
@@ -346,7 +347,7 @@ export default function ComparePage() {
 
             {/* Desktop: side-by-side tables */}
             <div className="hidden sm:grid sm:grid-cols-2 sm:gap-6">
-            <div className="surface p-4 sm:p-6">
+            <div className="py-4 sm:py-6">
               <h2 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-3 sm:mb-4">Temperature (°F)</h2>
               <div className="overflow-x-auto">
               <table className="w-full text-sm sm:text-base">
@@ -354,7 +355,7 @@ export default function ComparePage() {
                   <tr className="border-b border-[var(--divider)]">
                     <th className="text-left py-3 text-[var(--foreground-muted)] font-semibold">Metric</th>
                     {deviceColumns.map(col => (
-                      <th key={col.device.id} className="text-right py-3 font-semibold" style={{ color: col.device.color }}>
+                      <th key={col.device.id} className="text-right py-3 font-semibold" style={{ color: resolveDeviceColor(col.device) }}>
                         {col.device.display_name}
                       </th>
                     ))}
@@ -423,7 +424,7 @@ export default function ComparePage() {
               </div>
             </div>
 
-            <div className="surface p-4 sm:p-6">
+            <div className="py-4 sm:py-6">
               <h2 className="text-xl sm:text-2xl font-semibold text-[var(--foreground)] mb-3 sm:mb-4">Humidity (%)</h2>
               <div className="overflow-x-auto">
               <table className="w-full text-sm sm:text-base">
@@ -431,7 +432,7 @@ export default function ComparePage() {
                   <tr className="border-b border-[var(--divider)]">
                     <th className="text-left py-3 text-[var(--foreground-muted)] font-semibold">Metric</th>
                     {deviceColumns.map(col => (
-                      <th key={col.device.id} className="text-right py-3 font-semibold" style={{ color: col.device.color }}>
+                      <th key={col.device.id} className="text-right py-3 font-semibold" style={{ color: resolveDeviceColor(col.device) }}>
                         {col.device.display_name}
                       </th>
                     ))}

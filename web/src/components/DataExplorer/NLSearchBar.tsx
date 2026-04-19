@@ -75,30 +75,30 @@ export function NLSearchBar({ onApply }: NLSearchBarProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="glass-card p-3 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-      <div className="flex items-center gap-2 flex-1">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--foreground-muted)] shrink-0 ml-1">
+    <form onSubmit={handleSubmit}>
+      <div className="flex items-center gap-3 border-b border-[var(--hairline-strong)] focus-within:border-[var(--fg)] transition-colors py-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--fg-muted)] shrink-0">
           <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder='Ask in plain English — e.g. "hot readings on node2 yesterday"'
-          className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--foreground-muted)] focus:outline-none px-2 py-1.5"
+          placeholder="Search in plain english"
+          className="flex-1 bg-transparent text-base text-[var(--fg)] placeholder:text-[var(--fg-muted)] focus:outline-none py-2"
           disabled={isLoading}
         />
-      </div>
-      <div className="flex items-center gap-2">
-        {error && <span className="text-xs text-[var(--warning)]">{error}</span>}
         <button
           type="submit"
           disabled={isLoading || !query.trim()}
-          className="btn-glass px-4 py-1.5 text-xs font-semibold disabled:opacity-50"
+          className="text-sm font-medium text-[var(--fg-dim)] hover:text-[var(--fg)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors px-2"
         >
-          {isLoading ? 'Thinking…' : 'Apply'}
+          {isLoading ? 'Thinking…' : 'Search'}
         </button>
       </div>
+      {error && (
+        <p className="text-xs text-[var(--warning)] mt-2">{error}</p>
+      )}
     </form>
   );
 }

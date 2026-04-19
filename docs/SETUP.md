@@ -432,7 +432,7 @@ With custom SMTP, Supabase's built-in email rate limit no longer applies.
 
 ### 10.5 Guest Read-Only Access
 
-Admins can generate a guest link that gives read-only access without requiring an account. Guests can view all dashboards, charts, compare, and analysis pages, and use the AI chat. They cannot create, edit, or delete anything.
+Admins can generate a guest link that gives read-only access without requiring an account. Guests can view all dashboards, charts, compare, data, and analysis pages, and use the AI chat. They cannot create, edit, or delete anything.
 
 1. Set `GUEST_VIEW_TOKEN` to a random string in your environment (local `.env.local` and Vercel).
 2. In the dashboard, click your profile icon and select **Copy Guest Link**.
@@ -446,7 +446,7 @@ To revoke access, change the `GUEST_VIEW_TOKEN` value and redeploy. All existing
 |------|----------|-----------------|------------|--------------------------|
 | Admin | Everything | Deployments, devices | Deployments, readings, devices | Yes |
 | User | Everything | Deployments, devices | No (shown "contact admin") | No |
-| Guest (token link) | Dashboards, charts, compare, analysis, AI chat | No | No | No |
+| Guest (token link) | Dashboards, charts, compare, data, analysis, AI chat | No | No | No |
 
 ---
 

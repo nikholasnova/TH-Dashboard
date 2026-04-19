@@ -3,6 +3,7 @@ import {
   DEPLOYMENT_ALL_TIME_LABEL,
   TIME_RANGES,
 } from '@/lib/constants';
+import { SegmentedNav } from './SegmentedNav';
 
 interface TimeRangeSelectorProps {
   selectedRange: number;
@@ -24,21 +25,11 @@ export function TimeRangeSelector({
     : TIME_RANGES;
 
   return (
-    <div className="glass-card p-2 flex gap-1 overflow-x-auto scrollbar-thin">
-      {ranges.map((range) => (
-        <button
-          key={range.hours}
-          onClick={() => onRangeChange(range.hours)}
-          data-label={range.label}
-          className={`nav-pill px-3 py-2 sm:px-5 sm:py-2.5 text-xs sm:text-sm rounded-xl transition-colors whitespace-nowrap shrink-0 ${
-            selectedRange === range.hours
-              ? 'nav-active text-[var(--foreground)] font-semibold'
-              : 'text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:bg-[var(--hover-bg)]'
-          }`}
-        >
-          {range.label}
-        </button>
-      ))}
-    </div>
+    <SegmentedNav
+      layoutGroupId="time-range"
+      value={selectedRange}
+      onChange={onRangeChange}
+      options={ranges.map((r) => ({ value: r.hours, label: r.label }))}
+    />
   );
 }

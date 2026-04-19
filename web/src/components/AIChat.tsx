@@ -604,7 +604,7 @@ export function AIChat() {
         className="flex-1 min-h-0 overflow-y-auto mb-0 flex flex-col pr-3 pb-6 scrollbar-thin scrollbar-hide-mobile"
         style={{
           scrollbarWidth: 'thin',
-          scrollbarColor: 'rgba(0,0,0,0.15) transparent',
+          scrollbarColor: 'var(--scrollbar-thumb) transparent',
           overscrollBehavior: 'contain',
         }}
       >
@@ -648,7 +648,7 @@ export function AIChat() {
       </div>
 
       {/* Bottom fade gradient -- text fades into the input area */}
-      <div className="pointer-events-none h-16 -mt-12 relative z-[1] shrink-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, var(--glass-bg-strong) 75%)' }} />
+      <div className="pointer-events-none h-16 -mt-12 relative z-[1] shrink-0" style={{ background: 'linear-gradient(to bottom, transparent 0%, var(--surface-1) 75%)' }} />
 
       <AnimatePresence>
         {showScrollHint && (

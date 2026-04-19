@@ -39,10 +39,10 @@ export function ChatShell() {
   if (loading || (!user && !isGuest)) return null;
 
   const containerClass = [
-    'fixed z-50 flex flex-col backdrop-blur-xl transition-[width,height,inset,right,max-height] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
+    'fixed z-50 flex flex-col transition-[width,height,inset,right,max-height] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
     isFullscreen
       ? 'inset-0'
-      : 'right-0 sm:right-6 w-full sm:w-[42rem] h-[75svh] sm:h-[42rem] sm:max-h-[82vh]',
+      : 'right-0 sm:right-6 w-full sm:w-[36rem] md:w-[40rem] lg:w-[44rem] xl:w-[48rem] 2xl:w-[56rem] h-[75svh] sm:h-[34rem] md:h-[38rem] lg:h-[42rem] xl:h-[46rem] sm:max-h-[82vh]',
   ].join(' ');
 
   const containerStyle = isFullscreen
@@ -50,15 +50,16 @@ export function ChatShell() {
     : {
         bottom: 'max(var(--bottom-spacing, 0px), 40px)',
         maxHeight: 'calc(100svh - max(var(--bottom-spacing, 0px), 40px))',
+        boxShadow: '0 24px 60px -12px rgba(0, 0, 0, 0.65), 0 8px 20px -4px rgba(0, 0, 0, 0.4)',
       } as React.CSSProperties;
 
   const headerClass = isFullscreen
-    ? 'flex justify-between items-center px-4 py-2 bg-[var(--glass-bg-strong)] border-b border-[var(--glass-border)]'
-    : 'flex justify-between items-center px-4 py-2 bg-[var(--glass-bg-strong)] border border-[var(--glass-border)] border-b-0 rounded-t-xl sm:rounded-t-2xl';
+    ? 'flex justify-between items-center px-4 py-2 bg-[var(--surface-1)] border-b border-[var(--hairline)]'
+    : 'flex justify-between items-center px-4 py-2 bg-[var(--surface-1)] border border-[var(--hairline)] border-b-0 rounded-t-xl sm:rounded-t-2xl';
 
   const bodyClass = isFullscreen
-    ? 'flex-1 min-h-0 bg-[var(--glass-bg-strong)] border-x border-[var(--glass-border)] overflow-hidden flex flex-col'
-    : 'flex-1 min-h-0 bg-[var(--glass-bg-strong)] border border-[var(--glass-border)] border-t-0 rounded-b-2xl overflow-hidden flex flex-col overscroll-contain';
+    ? 'flex-1 min-h-0 bg-[var(--surface-1)] border-x border-[var(--hairline)] overflow-hidden flex flex-col'
+    : 'flex-1 min-h-0 bg-[var(--surface-1)] border border-[var(--hairline)] border-t-0 rounded-b-2xl overflow-hidden flex flex-col overscroll-contain';
 
   return (
     <>

@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { useDevices } from '@/contexts/DevicesContext';
 import { DataCleanupModal } from '@/components/DataCleanupModal';
 import { useGuest } from '@/contexts/GuestContext';
+import { SegmentedNav } from '@/components/SegmentedNav';
 
 type StatusFilter = 'all' | 'active' | 'ended';
 
@@ -74,17 +75,15 @@ export default function DeploymentsPage() {
   };
 
   return (
-    <PageLayout title="Deployments" subtitle="Manage device placement sessions">
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
-          <div className="glass-card p-3 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
-            <span className="text-xs text-[var(--foreground-muted)] font-medium">Filters:</span>
-
+    <PageLayout title="Deployments">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-4 sm:gap-6">
             <select
               value={deviceFilter}
               onChange={(e) => setDeviceFilter(e.target.value)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full sm:w-auto sm:min-w-[100px]"
+              className="h-14 bg-transparent border border-[var(--hairline-strong)] rounded-md px-4 text-sm text-[var(--fg)] w-full sm:w-44 hover:bg-[var(--hover-bg)] transition-colors"
             >
-              <option value="">All Devices</option>
+              <option value="">All devices</option>
               {devices.map((d) => (
                 <option key={d.id} value={d.id}>{d.display_name}</option>
               ))}
@@ -93,45 +92,46 @@ export default function DeploymentsPage() {
             <select
               value={locationFilter}
               onChange={(e) => setLocationFilter(e.target.value)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full sm:w-auto sm:min-w-[120px]"
+              className="h-14 bg-transparent border border-[var(--hairline-strong)] rounded-md px-4 text-sm text-[var(--fg)] w-full sm:w-44 hover:bg-[var(--hover-bg)] transition-colors"
             >
-              <option value="">All Locations</option>
+              <option value="">All locations</option>
               {locations.map((loc) => (
                 <option key={loc} value={loc}>{loc}</option>
               ))}
             </select>
 
-            <select
+            <SegmentedNav
+              layoutGroupId="deployments-status"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className="bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 text-sm text-[var(--foreground)] w-full sm:w-auto sm:min-w-[100px]"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="ended">Ended</option>
-            </select>
+              onChange={(v) => setStatusFilter(v as StatusFilter)}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'active', label: 'Active' },
+                { value: 'ended', label: 'Ended' },
+              ]}
+            />
           </div>
 
           {!isGuest && (
-          <div className="flex gap-3 w-full sm:w-auto">
-            <button
-              onClick={() => setShowCleanupModal(true)}
-              className="btn-glass px-5 py-3 text-sm text-[var(--foreground-muted)] hover:text-[var(--error)] transition-colors w-full sm:w-auto"
-            >
-              Clean Up Data
-            </button>
-            <button
-              onClick={() => setShowNewModal(true)}
-              className="btn-glass px-5 py-3 text-sm font-semibold text-[var(--foreground)] w-full sm:w-auto"
-            >
-              + New Deployment
-            </button>
-          </div>
+            <div className="flex gap-3 w-full sm:w-auto">
+              <button
+                onClick={() => setShowCleanupModal(true)}
+                className="h-14 px-4 text-sm text-[var(--fg-dim)] hover:text-[var(--error)] transition-colors w-full sm:w-auto"
+              >
+                Clean Up Data
+              </button>
+              <button
+                onClick={() => setShowNewModal(true)}
+                className="h-14 px-4 text-sm font-semibold text-[var(--fg)] border border-[var(--hairline-strong)] rounded-md hover:bg-[var(--hover-bg)] transition-colors w-full sm:w-auto"
+              >
+                + New Deployment
+              </button>
+            </div>
           )}
         </div>
 
         {isLoading ? (
-          <div className="glass-card p-12">
+          <div className="py-16">
             <LoadingSpinner message="Loading deployments..." />
           </div>
         ) : deployments.length === 0 ? (
@@ -144,7 +144,7 @@ export default function DeploymentsPage() {
             }
           />
         ) : (
-          <div className="glass-card divide-y divide-[var(--divider)] overflow-hidden">
+          <div className="divide-y divide-[var(--hairline)] border-y border-[var(--hairline)]">
             {deployments.map((dep) => (
               <div
                 key={dep.id}

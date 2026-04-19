@@ -17,32 +17,37 @@ export function FilterToolbar({
   showCustomDates = true,
   children,
 }: FilterToolbarProps) {
+  const showingCustom = showCustomDates && timeRange.isCustom;
   return (
-    <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 mb-4 sm:mb-6">
-      <TimeRangeSelector
-        selectedRange={timeRange.selectedRange}
-        onRangeChange={timeRange.setSelectedRange}
-        showDeploymentAllTime={Boolean(timeRange.deploymentFilter)}
-      />
-      {showCustomDates && timeRange.isCustom && (
-        <CustomDateRange
-          start={timeRange.customStart}
-          end={timeRange.customEnd}
-          onStartChange={timeRange.setCustomStart}
-          onEndChange={timeRange.setCustomEnd}
-          isValid={timeRange.isCustomValid}
+    <div className="mb-4 sm:mb-6">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4">
+        <TimeRangeSelector
+          selectedRange={timeRange.selectedRange}
+          onRangeChange={timeRange.setSelectedRange}
+          showDeploymentAllTime={Boolean(timeRange.deploymentFilter)}
         />
-      )}
-      <div className="hidden sm:block">
-        <DeviceDeploymentFilter
-          deviceFilter={timeRange.deviceFilter}
-          deploymentFilter={timeRange.deploymentFilter}
-          deployments={deployments}
-          onDeviceChange={timeRange.setDeviceFilter}
-          onDeploymentChange={timeRange.setDeploymentFilter}
-        />
+        <div className="hidden sm:block">
+          <DeviceDeploymentFilter
+            deviceFilter={timeRange.deviceFilter}
+            deploymentFilter={timeRange.deploymentFilter}
+            deployments={deployments}
+            onDeviceChange={timeRange.setDeviceFilter}
+            onDeploymentChange={timeRange.setDeploymentFilter}
+          />
+        </div>
+        {children}
       </div>
-      {children}
+      {showingCustom && (
+        <div className="mt-3 sm:mt-4">
+          <CustomDateRange
+            start={timeRange.customStart}
+            end={timeRange.customEnd}
+            onStartChange={timeRange.setCustomStart}
+            onEndChange={timeRange.setCustomEnd}
+            isValid={timeRange.isCustomValid}
+          />
+        </div>
+      )}
     </div>
   );
 }
