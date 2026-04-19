@@ -103,9 +103,14 @@ CREATE TABLE IF NOT EXISTS device_alert_state (
   last_seen_at TIMESTAMPTZ,
   last_alert_type TEXT,
   last_alert_sent_at TIMESTAMPTZ,
+  last_alert_deployment_id TEXT,
   last_recovery_sent_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Idempotent add for existing DBs created before last_alert_deployment_id.
+ALTER TABLE device_alert_state
+  ADD COLUMN IF NOT EXISTS last_alert_deployment_id TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_device_alert_state_status
   ON device_alert_state (status, updated_at DESC);

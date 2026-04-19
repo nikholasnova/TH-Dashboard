@@ -1,12 +1,17 @@
 import type { NextConfig } from "next";
 
+// PostHog is loaded via a managed reverse proxy (NEXT_PUBLIC_POSTHOG_HOST,
+// currently https://novachuk.dev). Both the SDK bundle and all capture
+// endpoints route through that domain, so it has to be in the allowlist.
+// The us.i.posthog.com / us-assets.i.posthog.com entries are left as fallbacks
+// in case someone unsets the proxy env var.
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net https://us-assets.i.posthog.com",
+  "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net https://us-assets.i.posthog.com https://novachuk.dev",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://cdn.jsdelivr.net",
+  "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://cdn.jsdelivr.net https://novachuk.dev",
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",

@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceRoleClient, verifyCronSecret } from '@/lib/serverAuth';
 import type { DeviceAlertState } from '@/lib/supabase';
+import { celsiusToFahrenheit } from '@/lib/supabase/queries/conversions';
 
 type ServiceRoleClient = SupabaseClient;
 
@@ -143,13 +144,25 @@ export function classifyDevice(latest: LatestReading | null, staleMinutes: numbe
 
 export function shouldSendProblemAlert(
   previous: DeviceAlertState | undefined,
-  nextStatus: Exclude<DeviceStatus, 'ok'>
+  nextStatus: Exclude<DeviceStatus, 'ok'>,
+  currentDeploymentId: string
 ): boolean {
   if (!previous) return true;
   if (previous.status === 'ok') return true;
   if (previous.status !== nextStatus) return true;
-  // Same incident state: only alert once (last_alert_sent_at is set on attempt).
+  // Same incident state: re-fire if we haven't alerted from this deployment
+  // yet. Keeps the user in the loop after a redeploy without spamming within
+  // a single deploy window.
+  if (previous.last_alert_deployment_id !== currentDeploymentId) return true;
+  // Edge case: previously never successfully alerted.
   return !previous.last_alert_sent_at;
+}
+
+// VERCEL_DEPLOYMENT_ID is unique per Vercel deployment and changes on every
+// build or redeploy. Local/self-hosted runs fall back to 'local' so reloads
+// don't trigger fake "new deploy" alerts.
+export function getCurrentDeploymentId(): string {
+  return process.env.VERCEL_DEPLOYMENT_ID || 'local';
 }
 
 export function shouldSendRecoveryAlert(
@@ -161,7 +174,223 @@ export function shouldSendRecoveryAlert(
   return previous.status !== 'ok';
 }
 
-async function sendEmail(subject: string, body: string): Promise<ChannelResult> {
+const ALERT_TZ = 'America/Phoenix';
+
+export type DeviceContext = {
+  deviceId: string;
+  displayName: string;
+  deployment: { name: string; location: string; zipCode: string | null } | null;
+};
+
+type AlertKind = 'missing' | 'stale' | 'anomaly' | 'recovery';
+
+// Colors from the dashboard palette (globals.css):
+// --error #C47878, --warning #D1A875, --accent #C89B4A, --success #8FB58F
+const STATUS_META: Record<AlertKind, { label: string; color: string }> = {
+  missing: { label: 'No data', color: '#C47878' },
+  stale: { label: 'Offline / stale', color: '#D1A875' },
+  anomaly: { label: 'Sensor anomaly', color: '#C89B4A' },
+  recovery: { label: 'Back online', color: '#8FB58F' },
+};
+
+function suggestedAction(kind: Exclude<AlertKind, 'recovery'>): string {
+  switch (kind) {
+    case 'missing':
+      return "Confirm the node is powered and on 2.4GHz WiFi. Verify its device_id is registered under Manage Devices and that secrets.h has the right SUPABASE_URL and SUPABASE_ANON_KEY. Open the serial monitor at 115200 baud to see connection errors.";
+    case 'stale':
+      return "Check the node's WiFi link and power. A 2-3 min stall often self-recovers. If it doesn't, power-cycle the Uno R4. Persistent silence usually means WiFi drop or power - the serial monitor will tell you which.";
+    case 'anomaly':
+      return "Readings outside the DHT20's calibrated range usually indicate a wiring or sensor fault. Check SDA/SCL connections, let the sensor stabilize ~100ms after power, and replace the DHT20 if values stay out of range.";
+  }
+}
+
+function formatPhoenixTime(iso: string | null): string {
+  if (!iso) return 'never';
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return 'unknown';
+  const date = d.toLocaleDateString('en-US', {
+    timeZone: ALERT_TZ,
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const time = d.toLocaleTimeString('en-US', {
+    timeZone: ALERT_TZ,
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+  return `${date} \u00b7 ${time} AZ`;
+}
+
+function formatTempBoth(temperatureC: number): string {
+  return `${celsiusToFahrenheit(temperatureC).toFixed(1)} \u00b0F \u00b7 ${temperatureC.toFixed(1)} \u00b0C`;
+}
+
+function formatDeploymentLine(ctx: DeviceContext): string | null {
+  if (!ctx.deployment) return null;
+  const parts = [ctx.deployment.name];
+  if (ctx.deployment.location) parts.push(ctx.deployment.location);
+  if (ctx.deployment.zipCode) parts.push(ctx.deployment.zipCode);
+  return parts.join(' \u00b7 ');
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function getDeviceContexts(
+  supabase: ServiceRoleClient,
+  deviceIds: string[]
+): Promise<Map<string, DeviceContext>> {
+  const result = new Map<string, DeviceContext>();
+  for (const id of deviceIds) {
+    result.set(id, { deviceId: id, displayName: id, deployment: null });
+  }
+  if (deviceIds.length === 0) return result;
+
+  const [devicesRes, deploymentsRes] = await Promise.all([
+    supabase.from('devices').select('id, display_name').in('id', deviceIds),
+    supabase
+      .from('deployments')
+      .select('device_id, name, location, zip_code, started_at')
+      .in('device_id', deviceIds)
+      .is('ended_at', null)
+      .order('started_at', { ascending: false }),
+  ]);
+
+  if (!devicesRes.error && devicesRes.data) {
+    for (const row of devicesRes.data) {
+      const existing = result.get(row.id as string);
+      if (existing) {
+        const displayName = (row.display_name as string | null)?.trim() || (row.id as string);
+        existing.displayName = displayName;
+      }
+    }
+  }
+
+  if (!deploymentsRes.error && deploymentsRes.data) {
+    const seen = new Set<string>();
+    for (const row of deploymentsRes.data) {
+      const deviceId = row.device_id as string;
+      if (seen.has(deviceId)) continue;
+      seen.add(deviceId);
+      const existing = result.get(deviceId);
+      if (existing) {
+        existing.deployment = {
+          name: ((row.name as string | null) || '').trim(),
+          location: ((row.location as string | null) || '').trim(),
+          zipCode: ((row.zip_code as string | null) || '').trim() || null,
+        };
+      }
+    }
+  }
+
+  return result;
+}
+
+function buildAlertHtml(p: {
+  kind: AlertKind;
+  displayName: string;
+  deviceId: string;
+  deploymentLine: string | null;
+  reason: string;
+  metrics: { label: string; value: string }[];
+  action: string;
+  dashboardUrl: string;
+}): string {
+  const meta = STATUS_META[p.kind];
+
+  // Dashboard-matched type stacks. Emails can't reliably load Google Fonts,
+  // so we fall back to the same system families the dashboard uses.
+  const serifStack = "Georgia,'Times New Roman',ui-serif,serif";
+  const monoStack = "'SF Mono',Menlo,Consolas,ui-monospace,monospace";
+
+  const metricRows = p.metrics
+    .map(
+      (m) =>
+        `<tr><td class="metric-label" style="padding:7px 0;color:#A3A29E;font-size:13px;font-family:${serifStack};">${escapeHtml(m.label)}</td><td align="right" class="metric-value" style="padding:7px 0;color:#F5F4F0;font-size:13px;font-family:${monoStack};font-variant-numeric:tabular-nums lining-nums;font-feature-settings:'tnum' 1,'lnum' 1;">${escapeHtml(m.value)}</td></tr>`
+    )
+    .join('');
+
+  const deploymentRow = p.deploymentLine
+    ? `<tr><td class="row-pad" style="padding:0 28px 20px 28px;font-size:13px;color:#A3A29E;font-family:${serifStack};">Deployment: <span style="color:#C9C7C2;">${escapeHtml(p.deploymentLine)}</span></td></tr>`
+    : '';
+
+  const ctaRow = p.dashboardUrl
+    ? `<tr><td class="cta-row" style="padding:4px 28px 24px 28px;"><a href="${escapeHtml(p.dashboardUrl)}" class="cta" style="display:inline-block;background:#C89B4A;color:#1D1C1B;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:600;font-size:14px;font-family:${serifStack};letter-spacing:-0.01em;line-height:1.3;">Open dashboard \u2192</a></td></tr>`
+    : '';
+
+  const sentAt = formatPhoenixTime(new Date().toISOString());
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<meta name="x-apple-disable-message-reformatting">
+<title>IoT Monitor</title>
+<style>
+  /* Mobile polish (Apple Mail / iOS Mail / Gmail web support these).
+     Clients that strip <style> fall back to the inline styles below. */
+  @media only screen and (max-width: 480px) {
+    .outer-pad { padding: 16px 10px !important; }
+    .row-pad { padding-left: 18px !important; padding-right: 18px !important; }
+    .banner-pad { padding: 12px 18px !important; font-size: 9.5px !important; }
+    .device-title { font-size: 20px !important; }
+    .device-subtitle { font-size: 13px !important; display: inline-block !important; }
+    .section-body { font-size: 15px !important; }
+    .metric-label, .metric-value { font-size: 14px !important; padding: 8px 0 !important; }
+    .cta { display: block !important; text-align: center !important; padding: 14px 20px !important; font-size: 15px !important; }
+    .cta-row { padding-left: 18px !important; padding-right: 18px !important; }
+    .footer { font-size: 11px !important; }
+  }
+  /* iOS blue link override */
+  a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#1D1C1B;font-family:${serifStack};color:#F5F4F0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#1D1C1B;">
+<tr><td align="center" class="outer-pad" style="padding:32px 16px;">
+<table role="presentation" width="540" cellpadding="0" cellspacing="0" border="0" style="background:#2F2F2D;border:1px solid rgba(255,255,255,0.18);border-radius:10px;max-width:540px;width:100%;">
+<tr><td class="banner-pad" style="background:${meta.color};padding:12px 28px;color:#1D1C1B;font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border-radius:10px 10px 0 0;font-family:${serifStack};">${escapeHtml(meta.label)}</td></tr>
+<tr><td class="row-pad" style="padding:24px 28px 4px 28px;">
+<div style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;font-weight:600;font-family:${serifStack};">Device</div>
+<div class="device-title" style="font-size:24px;font-weight:500;color:#F5F4F0;line-height:1.25;letter-spacing:-0.01em;font-family:${serifStack};">${escapeHtml(p.displayName)} <span class="device-subtitle" style="font-size:15px;color:#A3A29E;font-weight:400;">(${escapeHtml(p.deviceId)})</span></div>
+</td></tr>
+${deploymentRow}
+<tr><td class="row-pad" style="padding:16px 28px;border-top:1px solid rgba(255,255,255,0.12);">
+<div style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;font-family:${serifStack};">What happened</div>
+<div class="section-body" style="font-size:14px;line-height:1.55;color:#F5F4F0;font-family:${serifStack};">${escapeHtml(p.reason)}</div>
+</td></tr>
+<tr><td class="row-pad" style="padding:2px 28px 14px 28px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${metricRows}</table>
+</td></tr>
+<tr><td class="row-pad" style="padding:16px 28px;border-top:1px solid rgba(255,255,255,0.12);">
+<div style="font-size:10px;color:#A3A29E;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;font-weight:600;font-family:${serifStack};">Suggested action</div>
+<div class="section-body" style="font-size:14px;line-height:1.55;color:#F5F4F0;font-family:${serifStack};">${escapeHtml(p.action)}</div>
+</td></tr>
+${ctaRow}
+<tr><td class="row-pad footer" style="padding:12px 28px;border-top:1px solid rgba(255,255,255,0.12);border-radius:0 0 10px 10px;font-size:11px;color:#A3A29E;font-family:${serifStack};">IoT Temp/Humidity Monitor \u00b7 sent ${escapeHtml(sentAt)}</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+async function sendEmail(
+  subject: string,
+  text: string,
+  html?: string
+): Promise<ChannelResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const toRaw = process.env.ALERT_EMAIL_TO;
   if (!apiKey || !toRaw) {
@@ -178,12 +407,14 @@ async function sendEmail(subject: string, body: string): Promise<ChannelResult> 
 
   const from = process.env.ALERT_EMAIL_FROM || 'IoT Monitor <onboarding@resend.dev>';
   const resend = new Resend(apiKey);
-  const { error } = await resend.emails.send({
+  const payload: { from: string; to: string[]; subject: string; text: string; html?: string } = {
     from,
     to,
     subject,
-    text: body,
-  });
+    text,
+  };
+  if (html) payload.html = html;
+  const { error } = await resend.emails.send(payload);
 
   if (error) {
     return { channel: 'email', ok: false, error: `Resend error: ${error.message}` };
@@ -194,9 +425,10 @@ async function sendEmail(subject: string, body: string): Promise<ChannelResult> 
 
 async function dispatchNotifications(
   subject: string,
-  message: string
+  text: string,
+  html?: string
 ): Promise<NotificationResult> {
-  const attempts = await Promise.all([sendEmail(subject, message)]);
+  const attempts = await Promise.all([sendEmail(subject, text, html)]);
 
   const active = attempts.filter(
     (a) => !a.error || !a.error.toLowerCase().includes('missing')
@@ -211,78 +443,104 @@ async function dispatchNotifications(
   };
 }
 
-function buildProblemAlertMessage(params: {
-  deviceId: string;
+export function buildProblemAlertMessage(params: {
+  context: DeviceContext;
   status: Exclude<DeviceStatus, 'ok'>;
   reason: string;
   latest: LatestReading | null;
   ageMinutes: number | null;
   staleMinutes: number;
-}): { subject: string; body: string } {
+}): { subject: string; text: string; html: string } {
+  const { context, status, reason, latest, ageMinutes, staleMinutes } = params;
+  const meta = STATUS_META[status];
+  const action = suggestedAction(status);
   const dashboardUrl = process.env.ALERT_DASHBOARD_URL || '';
-  const statusTitle =
-    params.status === 'missing'
-      ? 'NO DATA'
-      : params.status === 'stale'
-      ? 'OFFLINE / STALE'
-      : 'SENSOR ANOMALY';
+  const displayName = context.displayName;
+  const lastSeen = formatPhoenixTime(latest?.created_at ?? null);
+  const tempValue = latest ? formatTempBoth(latest.temperature) : 'n/a';
+  const humidityValue = latest ? `${latest.humidity.toFixed(1)} %` : 'n/a';
+  const deploymentLine = formatDeploymentLine(context);
 
-  const lastSeen = params.latest?.created_at
-    ? new Date(params.latest.created_at).toISOString()
-    : 'never';
+  const metrics: { label: string; value: string }[] = [
+    { label: 'Last seen', value: lastSeen },
+    {
+      label: 'Age',
+      value: ageMinutes === null ? 'n/a' : `${ageMinutes.toFixed(1)} min`,
+    },
+    { label: 'Stale threshold', value: `${staleMinutes} min` },
+    { label: 'Temperature', value: tempValue },
+    { label: 'Humidity', value: humidityValue },
+  ];
 
-  const tempLine =
-    params.latest !== null
-      ? `Latest temp: ${params.latest.temperature.toFixed(2)}C`
-      : 'Latest temp: n/a';
-  const humidityLine =
-    params.latest !== null
-      ? `Latest humidity: ${params.latest.humidity.toFixed(2)}%`
-      : 'Latest humidity: n/a';
+  const textLines: (string | null)[] = [
+    `[${meta.label.toUpperCase()}] ${displayName} (${context.deviceId})`,
+    deploymentLine ? `Deployment: ${deploymentLine}` : null,
+    '',
+    `What happened: ${reason}`,
+    ...metrics.map((m) => `${m.label}: ${m.value}`),
+    '',
+    `Suggested action: ${action}`,
+    dashboardUrl ? `Open dashboard: ${dashboardUrl}` : null,
+  ];
+  const text = textLines.filter((l) => l !== null).join('\n');
 
-  const body = [
-    `IoT monitor alert for ${params.deviceId}`,
-    ``,
-    `Status: ${statusTitle}`,
-    `Reason: ${params.reason}`,
-    `Last seen: ${lastSeen}`,
-    `Age: ${params.ageMinutes === null ? 'n/a' : `${params.ageMinutes.toFixed(1)} minutes`}`,
-    `Stale threshold: ${params.staleMinutes} minutes`,
-    tempLine,
-    humidityLine,
-    dashboardUrl ? `Dashboard: ${dashboardUrl}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const html = buildAlertHtml({
+    kind: status,
+    displayName,
+    deviceId: context.deviceId,
+    deploymentLine,
+    reason,
+    metrics,
+    action,
+    dashboardUrl,
+  });
 
-  const subject = `[IoT Alert] ${params.deviceId} ${statusTitle}`;
-  return { subject, body };
+  const subject = `[IoT ${meta.label}] ${displayName}`;
+  return { subject, text, html };
 }
 
-function buildRecoveryAlertMessage(params: {
-  deviceId: string;
+export function buildRecoveryAlertMessage(params: {
+  context: DeviceContext;
   latest: LatestReading | null;
-}): { subject: string; body: string } {
+}): { subject: string; text: string; html: string } {
+  const { context, latest } = params;
+  const meta = STATUS_META.recovery;
   const dashboardUrl = process.env.ALERT_DASHBOARD_URL || '';
-  const lastSeen = params.latest?.created_at
-    ? new Date(params.latest.created_at).toISOString()
-    : 'unknown';
+  const displayName = context.displayName;
+  const lastSeen = formatPhoenixTime(latest?.created_at ?? null);
+  const tempValue = latest ? formatTempBoth(latest.temperature) : 'n/a';
+  const humidityValue = latest ? `${latest.humidity.toFixed(1)} %` : 'n/a';
+  const deploymentLine = formatDeploymentLine(context);
 
-  const body = [
-    `IoT monitor recovery for ${params.deviceId}`,
-    ``,
-    `Status: OK`,
-    `Last seen: ${lastSeen}`,
-    params.latest
-      ? `Latest reading: ${params.latest.temperature.toFixed(2)}C, ${params.latest.humidity.toFixed(2)}%`
-      : 'Latest reading: n/a',
-    dashboardUrl ? `Dashboard: ${dashboardUrl}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const metrics: { label: string; value: string }[] = [
+    { label: 'Last seen', value: lastSeen },
+    { label: 'Temperature', value: tempValue },
+    { label: 'Humidity', value: humidityValue },
+  ];
 
-  const subject = `[IoT Recovery] ${params.deviceId} is reporting again`;
-  return { subject, body };
+  const textLines: (string | null)[] = [
+    `[BACK ONLINE] ${displayName} (${context.deviceId}) is reporting again`,
+    deploymentLine ? `Deployment: ${deploymentLine}` : null,
+    '',
+    ...metrics.map((m) => `${m.label}: ${m.value}`),
+    '',
+    dashboardUrl ? `Open dashboard: ${dashboardUrl}` : null,
+  ];
+  const text = textLines.filter((l) => l !== null).join('\n');
+
+  const html = buildAlertHtml({
+    kind: 'recovery',
+    displayName,
+    deviceId: context.deviceId,
+    deploymentLine,
+    reason: 'The device has started reporting again.',
+    metrics,
+    action: 'No action needed - this is an informational alert.',
+    dashboardUrl,
+  });
+
+  const subject = `[IoT ${meta.label}] ${displayName}`;
+  return { subject, text, html };
 }
 
 async function runMonitoring(supabase: ServiceRoleClient) {
@@ -292,16 +550,20 @@ async function runMonitoring(supabase: ServiceRoleClient) {
   }
   const staleMinutes = parseNumberEnv('ALERT_STALE_MINUTES', DEFAULT_STALE_MINUTES);
   const recoveryEnabled = process.env.ENABLE_RECOVERY_ALERTS !== 'false';
+  const currentDeploymentId = getCurrentDeploymentId();
   const now = new Date();
   const nowIso = now.toISOString();
   const nowMs = now.getTime();
 
-  const latestByDeviceEntries = await Promise.all(
-    monitoredDevices.map(async (deviceId) => [
-      deviceId,
-      await getLatestReading(supabase, deviceId),
-    ] as const)
-  );
+  const [latestByDeviceEntries, contextByDevice] = await Promise.all([
+    Promise.all(
+      monitoredDevices.map(async (deviceId) => [
+        deviceId,
+        await getLatestReading(supabase, deviceId),
+      ] as const)
+    ),
+    getDeviceContexts(supabase, monitoredDevices),
+  ]);
   const latestByDevice = new Map<string, LatestReading | null>(latestByDeviceEntries);
 
   const { data: stateRows, error: stateError } = await supabase
@@ -322,6 +584,9 @@ async function runMonitoring(supabase: ServiceRoleClient) {
 
   for (const deviceId of monitoredDevices) {
     const latest = latestByDevice.get(deviceId) || null;
+    const context =
+      contextByDevice.get(deviceId) ||
+      { deviceId, displayName: deviceId, deployment: null };
     const previous = stateByDevice.get(deviceId);
     const classification = classifyDevice(latest, staleMinutes, nowMs);
 
@@ -331,21 +596,21 @@ async function runMonitoring(supabase: ServiceRoleClient) {
 
     if (classification.status === 'ok') {
       if (shouldSendRecoveryAlert(previous, recoveryEnabled)) {
-        const msg = buildRecoveryAlertMessage({ deviceId, latest });
-        notificationSummary = await dispatchNotifications(msg.subject, msg.body);
+        const msg = buildRecoveryAlertMessage({ context, latest });
+        notificationSummary = await dispatchNotifications(msg.subject, msg.text, msg.html);
         recoveryAlertAttempted = true;
       }
     } else {
-      if (shouldSendProblemAlert(previous, classification.status)) {
+      if (shouldSendProblemAlert(previous, classification.status, currentDeploymentId)) {
         const msg = buildProblemAlertMessage({
-          deviceId,
+          context,
           status: classification.status,
           reason: classification.reason,
           latest,
           ageMinutes: classification.ageMinutes,
           staleMinutes,
         });
-        notificationSummary = await dispatchNotifications(msg.subject, msg.body);
+        notificationSummary = await dispatchNotifications(msg.subject, msg.text, msg.html);
         problemAlertAttempted = true;
       }
     }
@@ -368,6 +633,7 @@ async function runMonitoring(supabase: ServiceRoleClient) {
     if (problemAlertAttempted) {
       stateUpdate.last_alert_type = classification.status;
       stateUpdate.last_alert_sent_at = nowIso;
+      stateUpdate.last_alert_deployment_id = currentDeploymentId;
     }
 
     if (recoveryAlertAttempted) {

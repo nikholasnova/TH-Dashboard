@@ -17,11 +17,15 @@ function makeState(overrides: Partial<DeviceAlertState> = {}): DeviceAlertState 
     last_seen_at: null,
     last_alert_type: null,
     last_alert_sent_at: null,
+    last_alert_deployment_id: null,
     last_recovery_sent_at: null,
     updated_at: '',
     ...overrides,
   };
 }
+
+const DEPLOY_A = 'dpl_aaaa';
+const DEPLOY_B = 'dpl_bbbb';
 
 describe('minutesSince', () => {
   const NOW = new Date('2026-02-10T12:00:00Z').getTime();
@@ -126,36 +130,71 @@ describe('classifyDevice', () => {
 
 describe('shouldSendProblemAlert', () => {
   it('sends alert when no previous state exists', () => {
-    expect(shouldSendProblemAlert(undefined, 'stale')).toBe(true);
+    expect(shouldSendProblemAlert(undefined, 'stale', DEPLOY_A)).toBe(true);
   });
 
   it('sends alert on transition from ok to problem', () => {
-    expect(shouldSendProblemAlert(makeState({ status: 'ok' }), 'stale')).toBe(true);
+    expect(shouldSendProblemAlert(makeState({ status: 'ok' }), 'stale', DEPLOY_A)).toBe(true);
   });
 
   it('sends alert on status type change (stale → anomaly)', () => {
     expect(shouldSendProblemAlert(
-      makeState({ status: 'stale', last_alert_sent_at: '2026-01-01T00:00:00Z' }),
-      'anomaly'
+      makeState({
+        status: 'stale',
+        last_alert_sent_at: '2026-01-01T00:00:00Z',
+        last_alert_deployment_id: DEPLOY_A,
+      }),
+      'anomaly',
+      DEPLOY_A
     )).toBe(true);
   });
 
-  it('skips alert when same problem and alert was already sent', () => {
+  it('skips alert when same problem, already sent, same deployment', () => {
     expect(shouldSendProblemAlert(
-      makeState({ status: 'stale', last_alert_sent_at: '2026-01-01T00:00:00Z' }),
-      'stale'
+      makeState({
+        status: 'stale',
+        last_alert_sent_at: '2026-01-01T00:00:00Z',
+        last_alert_deployment_id: DEPLOY_A,
+      }),
+      'stale',
+      DEPLOY_A
     )).toBe(false);
+  });
+
+  it('re-sends alert when same problem but deployment ID changed (redeploy)', () => {
+    expect(shouldSendProblemAlert(
+      makeState({
+        status: 'stale',
+        last_alert_sent_at: '2026-01-01T00:00:00Z',
+        last_alert_deployment_id: DEPLOY_A,
+      }),
+      'stale',
+      DEPLOY_B
+    )).toBe(true);
+  });
+
+  it('re-sends alert when previous state has null deployment_id', () => {
+    expect(shouldSendProblemAlert(
+      makeState({
+        status: 'stale',
+        last_alert_sent_at: '2026-01-01T00:00:00Z',
+        last_alert_deployment_id: null,
+      }),
+      'stale',
+      DEPLOY_A
+    )).toBe(true);
   });
 
   it('sends alert when same problem and no prior attempt was made', () => {
     expect(shouldSendProblemAlert(
       makeState({ status: 'stale', last_alert_sent_at: null }),
-      'stale'
+      'stale',
+      DEPLOY_A
     )).toBe(true);
   });
 
   it('sends alert on transition from missing to stale', () => {
-    expect(shouldSendProblemAlert(makeState({ status: 'missing' }), 'stale')).toBe(true);
+    expect(shouldSendProblemAlert(makeState({ status: 'missing' }), 'stale', DEPLOY_A)).toBe(true);
   });
 });
 
