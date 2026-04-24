@@ -614,7 +614,7 @@ export function AIChat() {
   const suggestedQuestions = useMemo(() => {
     if (!deploymentNames) return null;
 
-    const questions: string[] = ['Generate a report for my paper'];
+    const questions: string[] = ['Generate a report'];
 
     if (deploymentNames.length >= 2) {
       questions.push(`Compare ${deploymentNames[0].name} and ${deploymentNames[1].name}`);
