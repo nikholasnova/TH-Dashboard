@@ -9,11 +9,14 @@ import { guestGetDeployments } from '@/lib/supabase/guestQueries';
 import { useGuest } from '@/contexts/GuestContext';
 import { useChatPageContext } from '@/lib/chatContext';
 import { BounceDots } from './LoadingSpinner';
+import { ReportOptionsModal, type ReportQuestionPayload } from './ReportOptionsModal';
+import { ReportArtifactCard } from './ReportArtifactCard';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  artifactId?: string;
 }
 
 
@@ -124,6 +127,9 @@ const ChatMessage = memo(function ChatMessage({
             </ReactMarkdown>
           </div>
         )}
+        {msg.role === 'assistant' && msg.artifactId && (
+          <ReportArtifactCard reportId={msg.artifactId} />
+        )}
         {msg.role === 'assistant' && msg.content && (
           <div className={`mt-2 flex items-center gap-3 transition-opacity duration-200 ${
             copiedIndex === index ? 'opacity-100' : 'sm:opacity-0 sm:group-hover:opacity-100'
@@ -221,6 +227,7 @@ export function AIChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<ReportQuestionPayload | null>(null);
   const [deploymentNames, setDeploymentNames] = useState<{ name: string; location: string }[] | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
@@ -483,13 +490,29 @@ export function AIChat() {
             setToolStatus(statusMatch[1]);
           }
 
-          // Build display content: strip complete status lines
-          let displayContent = rawAccumulated.replace(/__STATUS__.+?\n/g, '');
+          // Extract complete __QUESTION__ payloads (for report options modal)
+          const questionRegex = /__QUESTION__(.+?)\n/g;
+          let questionMatch;
+          while ((questionMatch = questionRegex.exec(rawAccumulated)) !== null) {
+            try {
+              const payload = JSON.parse(questionMatch[1]) as ReportQuestionPayload;
+              setPendingQuestion(payload);
+            } catch (err) {
+              console.warn('Failed to parse __QUESTION__ payload:', err);
+            }
+          }
 
-          // Hide any trailing partial __STATUS__ marker
-          const partialIdx = displayContent.lastIndexOf('__STATUS__');
-          if (partialIdx !== -1 && !displayContent.substring(partialIdx).includes('\n')) {
-            displayContent = displayContent.substring(0, partialIdx);
+          // Build display content: strip complete marker lines
+          let displayContent = rawAccumulated
+            .replace(/__STATUS__.+?\n/g, '')
+            .replace(/__QUESTION__.+?\n/g, '');
+
+          // Hide any trailing partial markers
+          for (const marker of ['__STATUS__', '__QUESTION__']) {
+            const idx = displayContent.lastIndexOf(marker);
+            if (idx !== -1 && !displayContent.substring(idx).includes('\n')) {
+              displayContent = displayContent.substring(0, idx);
+            }
           }
 
           // Feed to the drip loop (it will release word-by-word)
@@ -513,12 +536,15 @@ export function AIChat() {
         });
 
         // Final content
-        let finalContent = rawAccumulated.replace(/__STATUS__.+?\n/g, '');
+        let finalContent = rawAccumulated
+          .replace(/__STATUS__.+?\n/g, '')
+          .replace(/__QUESTION__.+?\n/g, '');
         const trailingStatus = finalContent.match(/__STATUS__(.+)$/);
         if (trailingStatus) {
           setToolStatus(trailingStatus[1]);
           finalContent = finalContent.replace(/__STATUS__.+$/, '');
         }
+        finalContent = finalContent.replace(/__QUESTION__.+$/, '');
 
         finalContent = finalContent.trim() || 'Sorry, the response was empty. Please try again or rephrase your question.';
         setMessages((prev) => {
@@ -561,6 +587,22 @@ export function AIChat() {
     e.preventDefault();
     sendMessage(input.trim());
   };
+
+  const handleReportGenerated = useCallback(
+    (res: { report_id: string; filename: string; byte_size: number }) => {
+      setPendingQuestion(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: 'Your report is ready.',
+          artifactId: res.report_id,
+        },
+      ]);
+    },
+    [],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -667,6 +709,12 @@ export function AIChat() {
           </motion.button>
         )}
       </AnimatePresence>
+
+      <ReportOptionsModal
+        payload={pendingQuestion}
+        onClose={() => setPendingQuestion(null)}
+        onGenerated={handleReportGenerated}
+      />
 
       <form onSubmit={handleSubmit} className="flex gap-3 items-end">
         <textarea
