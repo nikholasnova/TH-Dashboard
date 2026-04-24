@@ -614,7 +614,7 @@ export function AIChat() {
   const suggestedQuestions = useMemo(() => {
     if (!deploymentNames) return null;
 
-    const questions: string[] = [];
+    const questions: string[] = ['Generate a report for my paper'];
 
     if (deploymentNames.length >= 2) {
       questions.push(`Compare ${deploymentNames[0].name} and ${deploymentNames[1].name}`);
@@ -624,19 +624,16 @@ export function AIChat() {
       questions.push(`What's the temperature at ${deploymentNames[0].location}?`);
     }
 
-    questions.push('How accurate are my sensors vs. official weather?');
-    questions.push('Generate a report for my paper');
-
     const fallbacks = [
+      'How accurate are my sensors vs. official weather?',
       'Show me temperature trends for the last 7 days',
       'Which location has the highest humidity?',
-      'Show me stats for active deployments',
     ];
-    while (questions.length < 4 && fallbacks.length > 0) {
+    while (questions.length < 3 && fallbacks.length > 0) {
       questions.push(fallbacks.shift()!);
     }
 
-    return questions.slice(0, 4);
+    return questions.slice(0, 3);
   }, [deploymentNames]);
 
   return (
