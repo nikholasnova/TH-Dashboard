@@ -21,6 +21,7 @@ export function ReportArtifactCard({ reportId }: Props) {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [expired, setExpired] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [opening, setOpening] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,15 +45,21 @@ export function ReportArtifactCard({ reportId }: Props) {
     };
   }, [reportId]);
 
+  async function fetchTex(): Promise<string | null> {
+    const res = await fetch(`/api/reports/${reportId}/tex`);
+    if (!res.ok) {
+      setExpired(true);
+      return null;
+    }
+    return res.text();
+  }
+
   async function handleDownloadTex() {
     setDownloading(true);
     try {
-      const res = await fetch(`/api/reports/${reportId}/tex`);
-      if (!res.ok) {
-        setExpired(true);
-        return;
-      }
-      const blob = await res.blob();
+      const tex = await fetchTex();
+      if (tex === null) return;
+      const blob = new Blob([tex], { type: 'text/x-latex;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -64,6 +71,50 @@ export function ReportArtifactCard({ reportId }: Props) {
     }
   }
 
+  async function handleOpenOverleaf() {
+    setOpening(true);
+    try {
+      const tex = await fetchTex();
+      if (tex === null) return;
+
+      // POST raw tex inline via the 'snip' field. Avoids needing a
+      // publicly reachable 'snip_uri' (Overleaf's servers cannot fetch
+      // from localhost during development).
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = 'https://www.overleaf.com/docs';
+      form.target = '_blank';
+      form.rel = 'noopener';
+      form.style.display = 'none';
+
+      const snip = document.createElement('input');
+      snip.type = 'hidden';
+      snip.name = 'snip';
+      snip.value = tex;
+      form.appendChild(snip);
+
+      const engine = document.createElement('input');
+      engine.type = 'hidden';
+      engine.name = 'engine';
+      engine.value = 'pdflatex';
+      form.appendChild(engine);
+
+      if (meta?.filename) {
+        const mainDoc = document.createElement('input');
+        mainDoc.type = 'hidden';
+        mainDoc.name = 'snip_name';
+        mainDoc.value = meta.filename;
+        form.appendChild(mainDoc);
+      }
+
+      document.body.appendChild(form);
+      form.submit();
+      document.body.removeChild(form);
+    } finally {
+      setOpening(false);
+    }
+  }
+
   if (expired) {
     return (
       <div className="mt-3 p-4 rounded-xl border border-[var(--input-border)] bg-[var(--hover-bg)] text-sm text-[var(--foreground-muted)]">
@@ -71,9 +122,6 @@ export function ReportArtifactCard({ reportId }: Props) {
       </div>
     );
   }
-
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const overleafSnipUri = origin ? `${origin}/api/reports/${reportId}/tex` : '';
 
   return (
     <div className="mt-3 p-4 rounded-xl border border-[var(--input-border)] bg-[var(--hover-bg)]">
@@ -97,23 +145,18 @@ export function ReportArtifactCard({ reportId }: Props) {
       <div className="flex flex-wrap gap-2">
         <button
           onClick={handleDownloadTex}
-          disabled={downloading}
+          disabled={downloading || opening}
           className="btn-glass px-4 py-2 text-xs font-semibold text-[var(--foreground)] disabled:opacity-50"
         >
           {downloading ? 'Downloading…' : 'Download .tex'}
         </button>
-        {overleafSnipUri && (
-          <form method="POST" action="https://www.overleaf.com/docs" target="_blank" rel="noopener">
-            <input type="hidden" name="snip_uri" value={overleafSnipUri} />
-            <input type="hidden" name="engine" value="pdflatex" />
-            <button
-              type="submit"
-              className="btn-glass px-4 py-2 text-xs font-semibold text-[var(--success)]"
-            >
-              Open in Overleaf
-            </button>
-          </form>
-        )}
+        <button
+          onClick={handleOpenOverleaf}
+          disabled={downloading || opening}
+          className="btn-glass px-4 py-2 text-xs font-semibold text-[var(--success)] disabled:opacity-50"
+        >
+          {opening ? 'Opening…' : 'Open in Overleaf'}
+        </button>
       </div>
 
       <div className="mt-3 text-[11px] text-[var(--foreground-muted)]">
