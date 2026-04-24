@@ -11,7 +11,6 @@ const NAV_LINKS = [
   { href: '/charts', label: 'Charts', mobileLabel: 'Charts' },
   { href: '/compare', label: 'Compare', mobileLabel: 'Compare' },
   { href: '/data', label: 'Data', mobileLabel: 'Data' },
-  { href: '/analysis', label: 'Analysis', mobileLabel: 'Analysis' },
   { href: '/deployments', label: 'Deployments', mobileLabel: 'Deploy' },
 ];
 
@@ -34,11 +33,6 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   '/data': (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v6a9 3 0 0 0 18 0V5" /><path d="M3 11v6a9 3 0 0 0 18 0v-6" />
-    </svg>
-  ),
-  '/analysis': (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 3h6v7l3 7H6l3-7V3z" /><path d="M10 3h4" /><circle cx="12" cy="14" r="1" />
     </svg>
   ),
   '/deployments': (

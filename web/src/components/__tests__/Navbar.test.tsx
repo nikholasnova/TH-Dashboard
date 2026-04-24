@@ -21,7 +21,7 @@ describe('Navbar', () => {
     expect(screen.getAllByText('Live')).toHaveLength(2); // desktop + mobile
     expect(screen.getAllByText('Charts')).toHaveLength(2);
     expect(screen.getAllByText('Compare')).toHaveLength(2);
-    expect(screen.getAllByText('Analysis')).toHaveLength(2);
+    expect(screen.getAllByText('Data')).toHaveLength(2);
     expect(screen.getAllByText('Deploy')).toHaveLength(1); // mobile only
     expect(screen.getAllByText('Deployments')).toHaveLength(1); // desktop only
   });

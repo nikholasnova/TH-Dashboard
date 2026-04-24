@@ -393,7 +393,7 @@ export async function POST(req: Request) {
     // model treats it as data, not instructions. Fields are validated against
     // an allowlist to block injection.
     const ALLOWED_PAGES = new Set([
-      'dashboard', 'home', 'deployments', 'compare', 'analysis',
+      'dashboard', 'home', 'deployments', 'compare',
       'charts', 'data', 'view', 'login',
     ]);
     if (pageContext && typeof pageContext === 'object') {
