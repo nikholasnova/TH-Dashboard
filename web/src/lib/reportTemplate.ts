@@ -165,6 +165,7 @@ function buildPreamble(opts: ReportOptions): string {
 \\usepackage[utf8]{inputenc}
 \\usepackage[margin=1in]{geometry}
 \\usepackage{needspace}
+\\usepackage{titling}
 \\usepackage{booktabs}
 \\usepackage{longtable}
 \\usepackage{array}
@@ -184,6 +185,10 @@ function buildPreamble(opts: ReportOptions): string {
 \\raggedbottom
 \\emergencystretch=3em
 \\sloppy
+\\setlength{\\droptitle}{-4em}
+\\posttitle{\\par\\end{center}\\vskip 0.2em}
+\\postauthor{\\par\\end{tabular}\\vskip 0.1em\\end{center}}
+\\postdate{\\par\\end{center}\\vskip 0.8em}
 \\definecolor{callout}{HTML}{F5F5F5}
 \\definecolor{calloutrule}{HTML}{B0B0B0}
 \\definecolor{devcolor1}{HTML}{4C72B0}
@@ -205,9 +210,7 @@ function buildPreamble(opts: ReportOptions): string {
 }
 
 \\begin{document}
-\\vspace*{-3em}
 \\maketitle
-\\vspace{-2em}
 `;
 }
 
