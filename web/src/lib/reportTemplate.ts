@@ -21,13 +21,33 @@ export interface ReportProse {
 
 export function latexEscape(raw: string): string {
   if (!raw) return '';
-  // First pass: multi-char Unicode substitutions.
+  // First pass: Unicode substitutions. Covers typographic quotes, em/en
+  // dashes, ellipsis, degree sign, and Greek letters that may appear in
+  // AI prose but aren't in the default Latin Modern T1 font.
   const step1 = raw
     .replace(/—/g, '---')
     .replace(/–/g, '--')
     .replace(/[“”]/g, "''")
     .replace(/[‘’]/g, "'")
-    .replace(/…/g, '\\ldots{}');
+    .replace(/…/g, '\\ldots{}')
+    .replace(/°/g, '\\textdegree{}')
+    .replace(/σ/g, '$\\sigma$')
+    .replace(/μ/g, '$\\mu$')
+    .replace(/α/g, '$\\alpha$')
+    .replace(/β/g, '$\\beta$')
+    .replace(/γ/g, '$\\gamma$')
+    .replace(/δ/g, '$\\delta$')
+    .replace(/θ/g, '$\\theta$')
+    .replace(/λ/g, '$\\lambda$')
+    .replace(/π/g, '$\\pi$')
+    .replace(/ρ/g, '$\\rho$')
+    .replace(/Σ/g, '$\\Sigma$')
+    .replace(/Δ/g, '$\\Delta$')
+    .replace(/±/g, '$\\pm$')
+    .replace(/≤/g, '$\\leq$')
+    .replace(/≥/g, '$\\geq$')
+    .replace(/≈/g, '$\\approx$')
+    .replace(/×/g, '$\\times$');
   // Second pass: single-pass character escape. Using a single regex with a
   // callback prevents the replacement text (e.g. "\textbackslash{}") from
   // being re-matched by a subsequent pass — which was corrupting any input
@@ -142,7 +162,10 @@ const CHART_POINT_CAP = 180;
 
 function buildPreamble(opts: ReportOptions): string {
   return `\\documentclass[11pt]{article}
+\\usepackage[T1]{fontenc}
+\\usepackage[utf8]{inputenc}
 \\usepackage[margin=1in]{geometry}
+\\usepackage{needspace}
 \\usepackage{booktabs}
 \\usepackage{longtable}
 \\usepackage{array}
@@ -157,6 +180,9 @@ function buildPreamble(opts: ReportOptions): string {
 \\hypersetup{colorlinks=false, pdfborder={0 0 0}}
 \\setlength{\\parskip}{0.6em}
 \\setlength{\\parindent}{0pt}
+\\widowpenalty=10000
+\\clubpenalty=10000
+\\raggedbottom
 \\definecolor{callout}{HTML}{F5F5F5}
 \\definecolor{calloutrule}{HTML}{B0B0B0}
 \\definecolor{devcolor1}{HTML}{4C72B0}
@@ -240,7 +266,8 @@ ${bundle.gaps
 
   const narrative = prose.coverage_narrative ?? fallback;
 
-  return `\\section*{Data Collection}
+  return `\\needspace{6\\baselineskip}
+\\section*{Data Collection}
 ${table}
 ${gapsBlock}
 ${narrative}
@@ -287,7 +314,8 @@ ${prose.outlier_narrative ?? outlierFallback}
 `;
   }
 
-  return `\\section*{Statistical Summary}
+  return `\\needspace{8\\baselineskip}
+\\section*{Statistical Summary}
 ${callout}
 
 ${narrative}
@@ -460,7 +488,8 @@ function buildDiurnal(bundle: ReportBundle, prose: ReportProse): string {
 
   const narrative = prose.diurnal_narrative ?? fallback;
 
-  return `\\section*{Diurnal Patterns}
+  return `\\needspace{10\\baselineskip}
+\\section*{Diurnal Patterns}
 ${chart}
 ${narrative}
 `;
@@ -504,18 +533,22 @@ function buildDailyRange(bundle: ReportBundle): string {
         .join(' ');
 
       const safeId = id.replace(/[^a-z0-9]/gi, '');
-      parts.push(`\\addplot[name path=${safeId}min${field}, draw=none] coordinates {${minCoords}};`);
-      parts.push(`\\addplot[name path=${safeId}max${field}, draw=none] coordinates {${maxCoords}};`);
+      // min + max paths: forget plot keeps them out of the legend
       parts.push(
-        `\\addplot[${meta.colorName}, opacity=0.18] fill between[of=${safeId}min${field} and ${safeId}max${field}];`,
+        `\\addplot[name path=${safeId}min${field}, draw=none, forget plot] coordinates {${minCoords}};`,
       );
+      parts.push(
+        `\\addplot[name path=${safeId}max${field}, draw=none, forget plot] coordinates {${maxCoords}};`,
+      );
+      parts.push(
+        `\\addplot[fill=${meta.colorName}, opacity=0.18, forget plot] fill between [of=${safeId}min${field} and ${safeId}max${field}];`,
+      );
+      // Mean line gets the legend entry; use color= explicitly so it doesn't
+      // conflict with the cycle list.
       parts.push(
         `\\addplot[color=${meta.colorName}, mark=*, mark size=1.1pt, thick] coordinates {${avgCoords}};`,
       );
       parts.push(`\\addlegendentry{${latexEscape(meta.display)}}`);
-      // Placeholders so the legend entry lines up with the mean line only
-      parts.push(`\\addlegendimage{empty legend}\\addlegendentry{}`);
-      parts.push(`\\addlegendimage{empty legend}\\addlegendentry{}`);
     }
     return parts;
   }
@@ -561,7 +594,8 @@ ${humSeries}
 
   const fallback = `Daily mean lines are shown per device, with the shaded band spanning the minimum and maximum reading recorded each day.`;
 
-  return `\\section*{Daily Range}
+  return `\\needspace{10\\baselineskip}
+\\section*{Daily Range}
 ${tempChart}
 
 ${humChart}
@@ -651,7 +685,8 @@ ${humHist.series.join('\n')}
 
   const caption = `Each bar counts the number of hour-of-day averages that fell within a 5°F (or 5\\%) bin during the reporting window, with one series per device.`;
 
-  return `\\section*{Distribution}
+  return `\\needspace{10\\baselineskip}
+\\section*{Distribution}
 ${tempChart}
 
 ${humChart}
@@ -802,7 +837,7 @@ function buildAccuracy(bundle: ReportBundle, opts: ReportOptions, prose: ReportP
 \\addlegendentry{Temperature error}
 \\addplot[color=gray, mark=triangle, mark size=1.5pt, dashed] coordinates {${humErrCoords}};
 \\addlegendentry{Humidity error}
-\\addplot[domain=${tempErrors.length > 0 ? pgfplotsDateCoord(tempErrors[0].day) : ''}:${tempErrors.length > 0 ? pgfplotsDateCoord(tempErrors[tempErrors.length - 1].day) : ''}, samples=2, color=gray!60] {0};
+\\addplot[color=gray!60, thin, forget plot] coordinates {(${pgfplotsDateCoord(tempErrors[0].day)}, 0) (${pgfplotsDateCoord(tempErrors[tempErrors.length - 1].day)}, 0)};
 \\end{axis}
 \\end{tikzpicture}
 \\end{center}`;
@@ -826,7 +861,8 @@ ${trendNarrative}
 `;
   }
 
-  return `\\section*{Sensor Accuracy}
+  return `\\needspace{10\\baselineskip}
+\\section*{Sensor Accuracy}
 ${callout}
 
 ${tempChart}
@@ -895,7 +931,8 @@ function buildKeyFindings(bundle: ReportBundle, opts: ReportOptions, prose: Repo
   // AI-produced bullets are already LaTeX-escaped by filterBullets; deterministic
   // fallback bullets are authored here with hand-written LaTeX ($\sigma$, \%, etc).
   // Either way, do NOT re-escape — doing so corrupts backslash commands.
-  return `\\section*{Key Findings}
+  return `\\needspace{6\\baselineskip}
+\\section*{Key Findings}
 \\begin{itemize}
 ${bullets.map((b) => `  \\item ${b}`).join('\n')}
 \\end{itemize}
@@ -912,7 +949,8 @@ function buildAppendixHourly(bundle: ReportBundle): string {
     )
     .join('\n');
 
-  return `\\section*{Appendix A: Hourly Averages}
+  return `\\clearpage
+\\section*{Appendix A: Hourly Averages}
 Average temperature and humidity by hour of day (Arizona time).
 
 \\begin{center}
@@ -945,7 +983,8 @@ function buildAppendixDailyTemp(bundle: ReportBundle, opts: ReportOptions): stri
     ? `\n\\emph{(Sampled evenly; ${withTemp.length} rows total.)}`
     : '';
 
-  return `\\section*{Appendix B: Daily Temperature Comparison}
+  return `\\needspace{12\\baselineskip}
+\\section*{Appendix B: Daily Temperature Comparison}
 Percent error calculated as ((Sensor $-$ Weather) / Weather) $\\times$ 100.
 
 \\begin{center}
@@ -978,7 +1017,8 @@ function buildAppendixDailyHumidity(bundle: ReportBundle, opts: ReportOptions): 
     ? `\n\\emph{(Sampled evenly; ${withHum.length} rows total.)}`
     : '';
 
-  return `\\section*{Appendix C: Daily Humidity Comparison}
+  return `\\needspace{12\\baselineskip}
+\\section*{Appendix C: Daily Humidity Comparison}
 \\begin{center}
 \\begin{tabular}{@{}l r r r@{}}
 \\toprule

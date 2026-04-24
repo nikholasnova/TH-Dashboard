@@ -4,6 +4,11 @@ import { reportLimiter } from '@/lib/rateLimiter';
 import { getBundle, storeTex } from '@/lib/reportStore';
 import { buildTexSource, type ReportOptions } from '@/lib/reportTemplate';
 import { generateReportProse } from '@/lib/reportProse';
+import {
+  executeGetReportBundle,
+  convertReportBundleToF,
+} from '@/lib/aiTools';
+import type { ReportBundle } from '@/lib/supabase/types';
 
 export const maxDuration = 60;
 
@@ -85,27 +90,57 @@ export async function POST(req: Request) {
   }
 
   const answers = (body.answers as Record<string, unknown> | undefined) ?? {};
+
+  // If the user narrowed the device list in the modal, re-fetch a bundle
+  // scoped to just those devices. Otherwise reuse the cached all-devices
+  // bundle from prepare_report.
+  const allIds = (bundle.devices_info ?? []).map((d) => d.id);
+  const rawSelected = Array.isArray(answers.selected_device_ids)
+    ? (answers.selected_device_ids as unknown[]).filter(
+        (v): v is string => typeof v === 'string',
+      )
+    : null;
+  const selectedIds = rawSelected && rawSelected.length > 0
+    ? rawSelected.filter((id) => allIds.includes(id))
+    : null;
+
+  let effectiveBundle: ReportBundle = bundle;
+  if (selectedIds && selectedIds.length > 0 && selectedIds.length < allIds.length) {
+    try {
+      const filtered = await executeGetReportBundle({
+        start: bundle.window.start,
+        end: bundle.window.end,
+        device_ids: selectedIds,
+      });
+      if (filtered.has_sensor_data) {
+        effectiveBundle = convertReportBundleToF(filtered);
+      }
+    } catch (err) {
+      console.error('Failed to re-fetch bundle for narrowed devices:', err);
+    }
+  }
+
   const opts: ReportOptions = {
-    title: safeString(answers.title, `Data Report — ${yyyymmdd(bundle.window.start)} to ${yyyymmdd(bundle.window.end)}`),
+    title: safeString(answers.title, `Data Report — ${yyyymmdd(effectiveBundle.window.start)} to ${yyyymmdd(effectiveBundle.window.end)}`),
     author: safeString(answers.author, defaultAuthor(user)),
     institution: safeString(answers.institution, 'Central Arizona College — EGR102'),
-    include_gaps_note: safeBool(answers.include_gaps_note, bundle.gaps.length > 0),
+    include_gaps_note: safeBool(answers.include_gaps_note, effectiveBundle.gaps.length > 0),
     split_by_device: safeBool(answers.split_by_device, false),
-    include_weather_section: safeBool(answers.include_weather_section, bundle.has_weather_data),
+    include_weather_section: safeBool(answers.include_weather_section, effectiveBundle.has_weather_data),
   };
 
-  const prose = await generateReportProse(bundle, opts);
-  const tex = buildTexSource(bundle, opts, prose);
+  const prose = await generateReportProse(effectiveBundle, opts);
+  const tex = buildTexSource(effectiveBundle, opts, prose);
 
   const reportId = crypto.randomUUID();
-  const filename = `temp-humidity-report-${yyyymmdd(bundle.window.start)}-to-${yyyymmdd(bundle.window.end)}.tex`;
+  const filename = `temp-humidity-report-${yyyymmdd(effectiveBundle.window.start)}-to-${yyyymmdd(effectiveBundle.window.end)}.tex`;
 
   const stored = await storeTex(reportId, tex, {
     filename,
     byte_size: tex.length,
     user_id: user.id,
-    start: bundle.window.start,
-    end: bundle.window.end,
+    start: effectiveBundle.window.start,
+    end: effectiveBundle.window.end,
   });
 
   if (!stored) {

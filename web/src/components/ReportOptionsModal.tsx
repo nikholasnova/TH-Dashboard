@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Modal } from './Modal';
 
 export interface ReportQuestionPayload {
@@ -12,7 +13,9 @@ export interface ReportQuestionPayload {
     include_gaps_note: boolean;
     split_by_device: boolean;
     include_weather_section: boolean;
+    selected_device_ids: string[];
   };
+  available_devices: Array<{ id: string; display_name: string; color: string }>;
   summary: {
     date_range: string;
     days: number;
@@ -38,6 +41,14 @@ interface Props {
 const INPUT_CLASS =
   'w-full px-4 py-3 rounded-xl bg-[var(--input-bg)] border border-[var(--input-border)] text-[var(--foreground)] placeholder-[var(--foreground-muted)] focus:outline-none focus:border-[var(--input-focus-border)] transition-colors';
 
+const PROGRESS_STAGES = [
+  { after: 0, label: 'Fetching sensor data…' },
+  { after: 2500, label: 'Crunching statistics…' },
+  { after: 6500, label: 'Generating prose…' },
+  { after: 13000, label: 'Assembling LaTeX…' },
+  { after: 22000, label: 'Still working, hang tight…' },
+];
+
 export function ReportOptionsModal({ payload, onClose, onGenerated }: Props) {
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
@@ -45,8 +56,10 @@ export function ReportOptionsModal({ payload, onClose, onGenerated }: Props) {
   const [includeGapsNote, setIncludeGapsNote] = useState(true);
   const [splitByDevice, setSplitByDevice] = useState(false);
   const [includeWeatherSection, setIncludeWeatherSection] = useState(true);
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progressStage, setProgressStage] = useState(PROGRESS_STAGES[0].label);
 
   useEffect(() => {
     if (!payload) return;
@@ -56,12 +69,33 @@ export function ReportOptionsModal({ payload, onClose, onGenerated }: Props) {
     setIncludeGapsNote(payload.prefills.include_gaps_note);
     setSplitByDevice(payload.prefills.split_by_device);
     setIncludeWeatherSection(payload.prefills.include_weather_section);
+    setSelectedDeviceIds(payload.prefills.selected_device_ids);
     setSubmitting(false);
     setError(null);
+    setProgressStage(PROGRESS_STAGES[0].label);
   }, [payload]);
 
+  // Advance the progress-stage label while a generation is in flight.
+  useEffect(() => {
+    if (!submitting) return;
+    setProgressStage(PROGRESS_STAGES[0].label);
+    const timers = PROGRESS_STAGES.slice(1).map((stage) =>
+      setTimeout(() => setProgressStage(stage.label), stage.after),
+    );
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+    };
+  }, [submitting]);
+
   const isOpen = payload !== null;
-  const canSubmit = !submitting && title.trim() && author.trim();
+  const canSubmit =
+    !submitting && title.trim() && author.trim() && selectedDeviceIds.length > 0;
+
+  function toggleDevice(id: string) {
+    setSelectedDeviceIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }
 
   async function handleGenerate() {
     if (!payload) return;
@@ -80,6 +114,7 @@ export function ReportOptionsModal({ payload, onClose, onGenerated }: Props) {
             include_gaps_note: includeGapsNote,
             split_by_device: splitByDevice,
             include_weather_section: includeWeatherSection,
+            selected_device_ids: selectedDeviceIds,
           },
         }),
       });
@@ -163,6 +198,64 @@ export function ReportOptionsModal({ payload, onClose, onGenerated }: Props) {
             />
           </div>
 
+          {payload && payload.available_devices.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm text-[var(--foreground-muted)]">
+                  Devices to include
+                </label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedDeviceIds(
+                      selectedDeviceIds.length === payload.available_devices.length
+                        ? []
+                        : payload.available_devices.map((d) => d.id),
+                    )
+                  }
+                  className="text-xs text-[var(--foreground-muted)]/70 hover:text-[var(--foreground)] transition-colors"
+                >
+                  {selectedDeviceIds.length === payload.available_devices.length
+                    ? 'Deselect all'
+                    : 'Select all'}
+                </button>
+              </div>
+              <div className="space-y-1.5 p-3 rounded-xl bg-[var(--hover-bg)]">
+                {payload.available_devices.map((d) => {
+                  const checked = selectedDeviceIds.includes(d.id);
+                  return (
+                    <label
+                      key={d.id}
+                      className="flex items-center gap-3 cursor-pointer text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleDevice(d.id)}
+                        className="w-4 h-4 rounded accent-[var(--brand)]"
+                      />
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: d.color || '#888' }}
+                      />
+                      <span className="text-[var(--foreground)]">
+                        {d.display_name}
+                      </span>
+                      <span className="text-xs text-[var(--foreground-muted)]/60 ml-auto">
+                        {d.id}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {selectedDeviceIds.length === 0 && (
+                <p className="text-xs text-[var(--error)] mt-2">
+                  Select at least one device.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2 pt-2">
             <label className="flex items-center gap-3 cursor-pointer text-sm text-[var(--foreground)]">
               <input
@@ -208,6 +301,21 @@ export function ReportOptionsModal({ payload, onClose, onGenerated }: Props) {
         {error && (
           <div className="mt-5 alert-accent text-[var(--error)]">
             <p className="text-sm">{error}</p>
+          </div>
+        )}
+
+        {submitting && (
+          <div className="mt-5 space-y-2">
+            <div className="text-xs text-[var(--foreground-muted)]">
+              {progressStage}
+            </div>
+            <div className="relative h-1.5 w-full bg-[var(--input-bg)] rounded overflow-hidden">
+              <motion.div
+                className="absolute top-0 left-0 h-full w-1/3 rounded bg-[var(--success)]"
+                animate={{ x: ['-110%', '310%'] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: 'linear' }}
+              />
+            </div>
           </div>
         )}
 

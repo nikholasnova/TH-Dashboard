@@ -338,7 +338,9 @@ export interface PrepareReportResult {
       include_gaps_note: boolean;
       split_by_device: boolean;
       include_weather_section: boolean;
+      selected_device_ids: string[];
     };
+    available_devices: Array<{ id: string; display_name: string; color: string }>;
     summary: {
       date_range: string;
       days: number;
@@ -405,10 +407,12 @@ export async function executePrepareReport(
     };
   }
 
+  // Always fetch the full bundle for the window so the modal can offer all
+  // devices even if the user narrowed in chat. The narrowing becomes the
+  // default checked set rather than a hard filter.
   const bundle = await executeGetReportBundle({
     start: params.start,
     end: params.end,
-    device_ids: params.device_ids,
   });
 
   if (!bundle.has_sensor_data) {
@@ -428,6 +432,11 @@ export async function executePrepareReport(
   }
 
   const totalReadings = bundle.deployments.reduce((s, d) => s + d.reading_count, 0);
+  const allDeviceIds = (bundle.devices_info ?? []).map((d) => d.id);
+  const defaultSelection =
+    params.device_ids && params.device_ids.length > 0
+      ? params.device_ids.filter((id) => allDeviceIds.includes(id))
+      : allDeviceIds;
 
   return {
     status: 'awaiting_input',
@@ -441,7 +450,13 @@ export async function executePrepareReport(
         include_gaps_note: bundle.gaps.length > 0,
         split_by_device: false,
         include_weather_section: bundle.has_weather_data,
+        selected_device_ids: defaultSelection.length > 0 ? defaultSelection : allDeviceIds,
       },
+      available_devices: (bundle.devices_info ?? []).map((d) => ({
+        id: d.id,
+        display_name: d.display_name,
+        color: d.color,
+      })),
       summary: {
         date_range: friendlyDateRange(params.start, params.end),
         days: Math.round(bundle.window.days),

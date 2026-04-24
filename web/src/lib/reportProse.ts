@@ -35,7 +35,9 @@ STRICT RULES — violating any of these invalidates the output:
 
 8. Output PLAIN TEXT only. Never attempt to escape characters for LaTeX. Write "%" (not "\\%"), "&" (not "\\&"), "$" (not "\\$"), "_" (not "\\_"). The server escapes everything before insertion into the document. If you add backslashes yourself the result is double-escaped and prints as literal "\\%" in the PDF.
 
-9. Use sensible decimal precision. The JSON already rounds values for you — do NOT add extra digits. Temperatures and humidity to 1 decimal (e.g. 76.8°F, 18.7%), standard deviation to 2 (σ = 8.06), Pearson r to 2 (r = -0.64), error percentages to 1 (+7.6%). NEVER emit more than 2 decimal places for any number.
+9. Use sensible decimal precision. The JSON already rounds values for you — do NOT add extra digits. Temperatures and humidity to 1 decimal (e.g. 76.8°F, 18.7%), standard deviation to 2 (std dev = 8.06), Pearson r to 2 (r = -0.64), error percentages to 1 (+7.6%). NEVER emit more than 2 decimal places for any number.
+
+10. Use ASCII-friendly notation: write "std dev" not "σ", "mean" not "μ", "degrees F" or "°F" (the degree sign is fine), "+/-" not "±". Greek letters and most special math symbols are not available in the default font.
 
 Return ONLY the JSON object matching the provided schema. No preamble, no markdown fences.`;
 
