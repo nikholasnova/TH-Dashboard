@@ -33,6 +33,7 @@ const guestChatRL = buildLimiter({ limit: 5, window: '15 m', prefix: 'rl:chat-g'
 const authChatRL = buildLimiter({ limit: 30, window: '15 m', prefix: 'rl:chat-a' });
 const nlFilterRL = buildLimiter({ limit: 20, window: '15 m', prefix: 'rl:nlf' });
 const guestDataRL = buildLimiter({ limit: 5, window: '10 s', prefix: 'rl:gd' });
+const reportRL = buildLimiter({ limit: 5, window: '1 h', prefix: 'rl:report' });
 
 type LimitResult = { success: boolean; degraded?: boolean };
 
@@ -59,3 +60,4 @@ export const guestChatLimiter = { limit: (key: string) => safeLimit(guestChatRL,
 export const authChatLimiter = { limit: (key: string) => safeLimit(authChatRL, key) };
 export const nlFilterLimiter = { limit: (key: string) => safeLimit(nlFilterRL, key) };
 export const guestDataLimiter = { limit: (key: string) => safeLimit(guestDataRL, key) };
+export const reportLimiter = { limit: (key: string) => safeLimit(reportRL, key) };

@@ -10,6 +10,15 @@ import {
   getServerClient,
 } from './supabase';
 import { normalizeUsZipCode } from './weatherZip';
+import { storeBundle } from './reportStore';
+
+export interface ToolContext {
+  user?: {
+    id: string;
+    email?: string | null;
+    user_metadata?: Record<string, unknown> | null;
+  } | null;
+}
 
 const TIMEZONE = 'America/Phoenix';
 
@@ -304,6 +313,134 @@ export function convertReportBundleToF(bundle: ReportBundle): ReportBundle {
       ...o,
       value: o.metric === 'temperature' ? (convTemp(o.value) ?? o.value) : o.value,
     })),
+  };
+}
+
+export interface PrepareReportResult {
+  status: 'awaiting_input' | 'error';
+  context_id?: string;
+  question_payload?: {
+    context_id: string;
+    prefills: {
+      title: string;
+      author: string;
+      institution: string;
+      include_gaps_note: boolean;
+      split_by_device: boolean;
+      include_weather_section: boolean;
+    };
+    summary: {
+      date_range: string;
+      days: number;
+      device_count: number;
+      reading_count: number;
+      has_weather: boolean;
+      gap_count: number;
+    };
+  };
+  error?: string;
+}
+
+function authorFromUser(user: ToolContext['user']): string {
+  if (!user) return 'Author';
+  const meta = user.user_metadata ?? {};
+  const displayName = typeof meta.display_name === 'string' ? meta.display_name.trim() : '';
+  if (displayName) return displayName;
+  const fullName = typeof meta.full_name === 'string' ? meta.full_name.trim() : '';
+  if (fullName) return fullName;
+  const email = user.email ?? '';
+  if (email) return email.split('@')[0];
+  return 'Author';
+}
+
+function yyyymmddFromIso(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function friendlyDateRange(startIso: string, endIso: string): string {
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-US', {
+      timeZone: 'America/Phoenix',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  return `${fmt(startIso)} to ${fmt(endIso)}`;
+}
+
+const MAX_REPORT_WINDOW_DAYS = 365;
+
+export async function executePrepareReport(
+  params: { start: string; end: string; device_ids?: string[] },
+  ctx: ToolContext,
+): Promise<PrepareReportResult> {
+  const startDate = new Date(params.start);
+  const endDate = new Date(params.end);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return { status: 'error', error: 'Invalid ISO 8601 timestamps for start/end.' };
+  }
+  if (endDate.getTime() <= startDate.getTime()) {
+    return { status: 'error', error: 'end must be later than start.' };
+  }
+  const rangeDays = (endDate.getTime() - startDate.getTime()) / 86400000;
+  if (rangeDays > MAX_REPORT_WINDOW_DAYS) {
+    return {
+      status: 'error',
+      error: `Window too large. Max ${MAX_REPORT_WINDOW_DAYS} days per report.`,
+    };
+  }
+
+  const bundle = await executeGetReportBundle({
+    start: params.start,
+    end: params.end,
+    device_ids: params.device_ids,
+  });
+
+  if (!bundle.has_sensor_data) {
+    return {
+      status: 'error',
+      error: 'No sensor readings in that time window. Try a different range.',
+    };
+  }
+
+  const contextId = crypto.randomUUID();
+  const stored = await storeBundle(contextId, convertReportBundleToF(bundle));
+  if (!stored) {
+    return {
+      status: 'error',
+      error: 'Report storage is temporarily unavailable. Please try again.',
+    };
+  }
+
+  const totalReadings = bundle.deployments.reduce((s, d) => s + d.reading_count, 0);
+
+  return {
+    status: 'awaiting_input',
+    context_id: contextId,
+    question_payload: {
+      context_id: contextId,
+      prefills: {
+        title: `Data Report — ${yyyymmddFromIso(params.start)} to ${yyyymmddFromIso(params.end)}`,
+        author: authorFromUser(ctx.user),
+        institution: 'Central Arizona College — EGR102',
+        include_gaps_note: bundle.gaps.length > 0,
+        split_by_device: false,
+        include_weather_section: bundle.has_weather_data,
+      },
+      summary: {
+        date_range: friendlyDateRange(params.start, params.end),
+        days: Math.round(bundle.window.days),
+        device_count: bundle.device_count,
+        reading_count: totalReadings > 0 ? totalReadings : bundle.overall_stats.n,
+        has_weather: bundle.has_weather_data,
+        gap_count: bundle.gaps.length,
+      },
+    },
   };
 }
 

@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI, SchemaType, FunctionDeclaration, type EnhancedGenerateContentResponse } from '@google/generative-ai';
-import { executeTool } from '@/lib/aiTools';
+import { executeTool, executePrepareReport, type ToolContext } from '@/lib/aiTools';
 import { getServerUser, getClientIp, enforceOrigin } from '@/lib/serverAuth';
 import { getServerClient } from '@/lib/supabase/server';
 import { getPostHogClient } from '@/lib/posthog-server';
@@ -24,8 +24,9 @@ AVAILABLE TOOLS:
 - get_readings: Get raw readings for a deployment (most recent first, up to 2000)
 - get_device_stats: Get overall stats per device for any time range — not deployment-scoped. Great for broad analysis.
 - get_chart_data: Get time-bucketed averages for trend analysis (e.g. hourly or daily averages)
-- get_report_data: Get ALL deployments with full statistics in one call. Use this first when generating reports or comprehensive analyses.
-- get_report_bundle: Get a full report-ready data bundle for an explicit time window. Returns deployments, per-deployment and overall stats, hourly-of-day averages (Phoenix TZ), daily sensor-vs-weather comparison, Pearson correlation, IQR outliers, and gap detection — all in one call. Prefer this over get_report_data whenever the user specifies a time window.
+- get_report_data: Get ALL deployments with full statistics in one call. Use for broad in-chat summaries covering the entire dataset.
+- get_report_bundle: Get a full report-ready data bundle for a SPECIFIC time window. Returns deployments, per-deployment and overall stats, hourly-of-day averages (Phoenix TZ), daily sensor-vs-weather comparison, Pearson correlation, IQR outliers, and gap detection — all in one call. Prefer this over get_report_data when the user specifies a time window.
+- prepare_report: Open the report-generation flow — fetches the data bundle and signals the client to open a modal so the user can download a LaTeX .tex file. Call this ONLY when the user explicitly asks to generate, create, or download a report / .tex / paper / data document. For any other question, use the stat tools above.
 - get_weather: Get the latest stored weather readings from the database, filtered by zip code or weather device ID. Use this for weather-specific queries.
 
 EFFICIENCY RULES (critical — follow these strictly):
@@ -50,34 +51,9 @@ HOW TO ANSWER COMMON QUESTIONS:
 - When looking up deployments by name or location, do NOT set active_only unless the user explicitly asks for only active/current deployments. Always search all deployments first.
 
 REPORT GENERATION:
-When asked to "generate a report", "write a report for my paper", "create an analysis document", or similar:
-1. First call get_report_data to get the complete data overview
-2. Then call get_chart_data with daily buckets (1440 min) for the full date range to identify trends
-3. Optionally call get_chart_data with hourly buckets (60 min) for the most recent 7 days for finer detail
-4. Synthesize everything into a structured report with these sections:
-
-## Executive Summary
-Brief overview of the monitoring project: how many deployments, total readings, date range, locations monitored.
-
-## Data Collection Overview
-Table of all deployments with their device, location, date range, and reading count.
-
-## Per-Deployment Analysis
-For each deployment: statistics (avg, min, max, std dev for temp and humidity), notable observations.
-
-## Cross-Location Comparison
-Compare deployments at different locations. Include deltas and interpret what the differences mean physically (e.g., "Location A averaged 2.3°F warmer than Location B, likely due to...").
-
-## Trend Analysis
-Describe how temperature and humidity changed over the monitoring period. Reference daily patterns, week-over-week changes, any anomalies or sudden shifts.
-
-## Key Findings
-Numbered list of the most important observations from the data.
-
-## Suggestions for Further Analysis
-What additional data collection or analysis could strengthen the findings.
-
-Format the report in clean Markdown with headers, tables, and bullet points. This is meant as a first draft for an engineering class paper.
+- If the user asks to "generate a report", "create a .tex", "download a report", "make a data report for class", or similar: call prepare_report with start/end as UTC ISO 8601 datetimes. A modal will open client-side so the user can confirm options and download. Do NOT describe report contents, sections, or steps — the modal is self-explanatory.
+- Follow the specific post-call instructions in the tool response (the "note" field).
+- For in-chat summaries ("overview", "what happened last week"): use get_report_bundle (for a specific window) or get_report_data (for everything). Do NOT call prepare_report for these.
 
 GUIDELINES:
 - ALWAYS prefer get_device_stats or get_deployment_stats for comparisons and summaries. These return compact aggregate data (avg, min, max, stddev). Only use get_readings when the user explicitly asks for raw/individual readings.
@@ -192,6 +168,24 @@ const getReportDataDecl: FunctionDeclaration = {
   },
 };
 
+const prepareReportDecl: FunctionDeclaration = {
+  name: 'prepare_report',
+  description: 'Open the report-generation flow for a specific time window. Fetches the data bundle server-side and signals the client to open a modal where the user confirms author/options and downloads a LaTeX .tex file (with an Open-in-Overleaf button for the PDF). Call this ONLY when the user explicitly asks to generate, create, or download a report / .tex / paper. For in-chat summaries or data questions, use get_report_bundle or get_report_data instead.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      start: { type: SchemaType.STRING, description: 'Start of the report window (ISO 8601 UTC datetime). Required.' },
+      end: { type: SchemaType.STRING, description: 'End of the report window (ISO 8601 UTC datetime). Required.' },
+      device_ids: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+        description: 'Optional: restrict the report to specific sensor device IDs.',
+      },
+    },
+    required: ['start', 'end'],
+  },
+};
+
 const getReportBundleDecl: FunctionDeclaration = {
   name: 'get_report_bundle',
   description: 'Get a full report-ready data bundle for an explicit time window. Returns deployments, per-deployment and overall stats, hourly-of-day averages (in Arizona/Phoenix time), daily sensor-vs-weather comparison, Pearson correlation between temp and humidity, IQR outliers on daily averages, and detected gaps (>3h of missing sensor readings inside an active deployment). Temperatures are in Fahrenheit. One call replaces multiple stat/chart queries.',
@@ -271,6 +265,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_chart_data: 'Analyzing trends',
   get_report_data: 'Gathering all deployment data',
   get_report_bundle: 'Building report bundle',
+  prepare_report: 'Preparing report options',
   get_weather: 'Fetching weather data',
 };
 
@@ -451,7 +446,7 @@ export async function POST(req: Request) {
       model: 'gemini-2.5-flash',
       systemInstruction: systemPrompt,
       tools: [{
-        functionDeclarations: [getDeploymentsDecl, getDeploymentStatsDecl, getReadingsDecl, getDeviceStatsDecl, getChartDataDecl, getReportDataDecl, getReportBundleDecl, getWeatherDecl],
+        functionDeclarations: [getDeploymentsDecl, getDeploymentStatsDecl, getReadingsDecl, getDeviceStatsDecl, getChartDataDecl, getReportDataDecl, getReportBundleDecl, prepareReportDecl, getWeatherDecl],
       }],
     });
 
@@ -501,6 +496,54 @@ export async function POST(req: Request) {
 
             const label = TOOL_LABELS[call.name] || call.name;
             await writer.write(encoder.encode(`__STATUS__${label}\n`));
+
+            if (call.name === 'prepare_report') {
+              try {
+                const toolCtx: ToolContext = {
+                  user: user
+                    ? {
+                        id: user.id,
+                        email: user.email ?? null,
+                        user_metadata: (user.user_metadata ?? null) as Record<string, unknown> | null,
+                      }
+                    : null,
+                };
+                const result = await executePrepareReport(
+                  call.args as Parameters<typeof executePrepareReport>[0],
+                  toolCtx,
+                );
+                if (result.status === 'awaiting_input' && result.question_payload) {
+                  await writer.write(
+                    encoder.encode(`__QUESTION__${JSON.stringify(result.question_payload)}\n`),
+                  );
+                }
+                functionResponses.push({
+                  functionResponse: {
+                    name: call.name,
+                    response: {
+                      result: {
+                        status: result.status,
+                        context_id: result.context_id,
+                        error: result.error,
+                        note:
+                          result.status === 'awaiting_input'
+                            ? 'Respond with exactly ONE short sentence acknowledging the report options are ready (e.g. "Review the report options below to generate your report."). Do NOT describe what will be in the report, do NOT mention file formats or Overleaf, do NOT list sections, and do NOT call any more tools. Stop after that single sentence.'
+                            : undefined,
+                      },
+                    },
+                  },
+                });
+              } catch (error) {
+                console.error('prepare_report failed:', error);
+                functionResponses.push({
+                  functionResponse: {
+                    name: call.name,
+                    response: { error: 'Report preparation failed. Please try a different time window.' },
+                  },
+                });
+              }
+              continue;
+            }
 
             try {
               const toolResult = capToolResult(call.name, await executeTool(call.name, call.args as Record<string, unknown>));
