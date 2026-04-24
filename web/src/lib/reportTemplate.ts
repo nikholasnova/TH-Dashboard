@@ -205,7 +205,9 @@ function buildPreamble(opts: ReportOptions): string {
 }
 
 \\begin{document}
+\\vspace*{-3em}
 \\maketitle
+\\vspace{-2em}
 `;
 }
 
