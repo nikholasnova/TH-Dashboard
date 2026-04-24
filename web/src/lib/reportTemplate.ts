@@ -21,10 +21,25 @@ export interface ReportProse {
 
 export function latexEscape(raw: string): string {
   if (!raw) return '';
-  // First pass: Unicode substitutions. Covers typographic quotes, em/en
-  // dashes, ellipsis, degree sign, and Greek letters that may appear in
-  // AI prose but aren't in the default Latin Modern T1 font.
-  const step1 = raw
+  // Step 1: escape LaTeX special chars in the raw input. Single-pass
+  // regex with a callback — the replacement text is NOT re-matched.
+  const escaped = raw.replace(/[\\&%$#_{}~^]/g, (ch) => {
+    switch (ch) {
+      case '\\':
+        return '\\textbackslash{}';
+      case '~':
+        return '\\textasciitilde{}';
+      case '^':
+        return '\\textasciicircum{}';
+      default:
+        return `\\${ch}`;
+    }
+  });
+  // Step 2: substitute Unicode chars that the default font can't render
+  // into ready-made LaTeX commands. Done AFTER step 1 so the backslashes
+  // and braces in the replacements are treated as final LaTeX output,
+  // not as user content to escape again.
+  return escaped
     .replace(/—/g, '---')
     .replace(/–/g, '--')
     .replace(/[“”]/g, "''")
@@ -48,22 +63,6 @@ export function latexEscape(raw: string): string {
     .replace(/≥/g, '$\\geq$')
     .replace(/≈/g, '$\\approx$')
     .replace(/×/g, '$\\times$');
-  // Second pass: single-pass character escape. Using a single regex with a
-  // callback prevents the replacement text (e.g. "\textbackslash{}") from
-  // being re-matched by a subsequent pass — which was corrupting any input
-  // containing a backslash into `\textbackslash\{\}`.
-  return step1.replace(/[\\&%$#_{}~^]/g, (ch) => {
-    switch (ch) {
-      case '\\':
-        return '\\textbackslash{}';
-      case '~':
-        return '\\textasciitilde{}';
-      case '^':
-        return '\\textasciicircum{}';
-      default:
-        return `\\${ch}`;
-    }
-  });
 }
 
 function fmt(n: number | null | undefined, digits = 1, suffix = ''): string {
@@ -183,6 +182,8 @@ function buildPreamble(opts: ReportOptions): string {
 \\widowpenalty=10000
 \\clubpenalty=10000
 \\raggedbottom
+\\emergencystretch=3em
+\\sloppy
 \\definecolor{callout}{HTML}{F5F5F5}
 \\definecolor{calloutrule}{HTML}{B0B0B0}
 \\definecolor{devcolor1}{HTML}{4C72B0}
