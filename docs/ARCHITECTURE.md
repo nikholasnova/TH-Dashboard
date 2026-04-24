@@ -6,7 +6,7 @@ Full data path from sensor read to dashboard consumption.
 
 - Hardware: N Arduino Uno R4 WiFi nodes with DHT20 sensors (I2C) and 16x2 LCDs. The number of nodes is not hardcoded — new devices are registered through the web dashboard or auto-registered on first reading.
 - Cloud: Supabase Postgres (`readings`, `deployments`, `devices`, `app_settings`, `device_alert_state`, `user_roles`, RPC functions) + WeatherAPI.com for every-15-min weather reference.
-- App: Next.js with authenticated dashboard, charts, comparisons, deployment management, device management, AI chat, in-browser Python analysis, and cron-driven weather ingestion.
+- App: Next.js with authenticated dashboard, charts, comparisons, deployment management, device management, AI chat with function calling, chat-driven LaTeX report generation (downloadable .tex + Overleaf hand-off), and cron-driven weather ingestion.
 
 ## 2) Component Topology
 
@@ -113,6 +113,7 @@ Writes also have a belt-and-suspenders trigger (`reject_anon_weather_writes`) th
 | `get_deployment_readings(deployment_id, limit?)` | Raw readings within a deployment window |
 | `get_deployments_with_counts(device_id?, active_only?)` | Deployments with reading counts |
 | `get_dashboard_live(device_ids[], sparkline_start, bucket_min?)` | Batched latest readings + sparkline per N devices |
+| `get_report_bundle(start, end, device_ids?)` | Single-round-trip data bundle for LaTeX report generation: deployments, per-deployment and overall stats, hourly-of-day averages (Phoenix TZ), per-device hourly + daily summaries, daily sensor-vs-weather comparison, Pearson correlation, IQR outliers, and >3h gap detection inside active deployment windows |
 | `delete_deployment_cascade(deployment_id)` | Cascade-delete deployment and its readings (admin-only, enforced via `user_roles` lookup on `auth.uid()`) |
 | `delete_readings_range(device_id, start, end, include_weather?)` | Scoped deletion of readings by device and time range (admin-only, enforced via `user_roles` lookup on `auth.uid()`) |
 | `delete_reading_by_id(p_id)` | Single-row delete used by the Data Explorer review flow (admin-only, enforced via `user_roles` lookup on `auth.uid()`) |
@@ -222,14 +223,16 @@ Optional PostHog integration provides product analytics (autocapture, session re
 - Deletion removes associated readings in the deployment time window.
 - Clean Up Data modal: scoped deletion of readings by device + time range with password re-entry confirmation. Uses `delete_readings_range` RPC.
 
-### 5.5 Analysis (`/analysis`)
+### 5.5 Report Generation (chat-driven, `/api/reports/*`)
 
-- Pyodide runtime loaded from CDN (singleton, cached after first load).
-- Packages: `numpy`, `pandas`, `scipy`, `statsmodels`.
-- Selected deployment readings fetched via Supabase, capped at 5000 rows per deployment.
-- Analyses: descriptive stats (with standard error), correlation, hypothesis testing (95% CI for difference in means), ANOVA with Tukey HSD post-hoc (auto-runs for 3+ deployments), seasonal decomposition, forecasting.
-- Per-section CSV download buttons for all analysis results.
-- All computation runs client-side.
+Replaced an earlier in-browser Pyodide analysis page. The flow is entirely chat-driven now:
+
+- Ask the floating AI chat to generate a report. It asks once for a date range, then calls `prepare_report`, which runs `get_report_bundle` against Supabase, caches the bundle in Redis (30-min TTL), and injects a `__QUESTION__<json>` marker into the chat stream. The marker carries the available devices, pre-fill defaults (title, author from Supabase auth, institution, etc.), and a bundle summary.
+- The client parses the marker and opens `ReportOptionsModal`, which lets the user adjust author/title/options, toggle per-device inclusion (defaults to all), and confirm. Generation skips the chat Gemini entirely — the modal POSTs directly to `/api/reports/generate`.
+- `/api/reports/generate` validates the user, checks `reportLimiter` (5/hour), re-fetches a device-scoped bundle if the user narrowed selection, runs an isolated Gemini 2.5 Flash call (`reportProse.ts`) to produce a structured JSON of analytical prose (with per-section fallbacks and a forbidden-phrase filter that nulls any causal/forward-looking/hardware speculation), and assembles the `.tex` via `reportTemplate.ts`. The `.tex` is stored in Redis for 30 minutes keyed by a 128-bit random id.
+- `ReportArtifactCard` renders inline in the chat with two actions: **Download .tex** (fetches `/api/reports/[id]/tex`, triggers a client blob download) and **Open in Overleaf** (fetches the `.tex` and POSTs it inline via the `snip` form field to `https://www.overleaf.com/docs`, opening a new Overleaf project with the source pre-loaded for PDF compile in the browser).
+- The `.tex` template renders a cover page, Data Collection table, Statistical Summary callout + prose, Diurnal Patterns (multi-node overlay when >1 device), Daily Range (per-device mean with shaded min/max band via `fillbetween`), Distribution histograms, Sensor Accuracy (conditional on weather data), Key Findings bullets, and raw-data appendices. Everything uses `booktabs`/`pgfplots`; Overleaf free-tier compiles it in well under the 20s limit for typical windows.
+- Report bundle data, TeX source, and metadata all live in Upstash Redis with 30-min TTLs. An in-memory fallback map is used in dev when Upstash isn't configured.
 
 ### 5.6 Data Explorer (`/data`)
 
@@ -243,16 +246,16 @@ Optional PostHog integration provides product analytics (autocapture, session re
 ### 5.7 AI Chat (`POST /api/chat`)
 
 - Authenticated route using Gemini 2.5 Flash with function-calling.
-- 7 tools: `get_deployments`, `get_deployment_stats`, `get_readings`, `get_device_stats`, `get_chart_data`, `get_report_data`, `get_weather`.
-- Tools execute via `aiTools.ts` with service-role Supabase client.
+- 9 tools: `get_deployments`, `get_deployment_stats`, `get_readings`, `get_device_stats`, `get_chart_data`, `get_report_data`, `get_report_bundle` (single-RPC bundle for a time window — preferred when the user specifies a range), `prepare_report` (opens the client-side report modal), `get_weather`.
+- Tools execute via `aiTools.ts` with service-role Supabase client. `prepare_report` is special-cased in the route: it writes a `__QUESTION__<json>` marker directly into the response stream and tells Flash (via a `note` in the tool result) to respond with one short acknowledgment sentence and stop.
 - Tool result payloads capped at 30KB to prevent overwhelming model context; large arrays are truncated with guidance to use aggregate tools.
 - Tool loop bounded at 10 iterations; on exhaustion, model is prompted to summarize gathered data rather than failing silently.
 - `get_device_stats` has optional `start`/`end` (defaults to last 30 days) to reduce unnecessary tool calls.
 - `get_readings` supports `order_by` (`created_at`, `temperature`, `humidity`) and `ascending` params for finding extreme values across full datasets.
 - System prompt includes efficiency rules prioritizing single-call patterns (e.g., one `get_device_stats` call for device comparisons).
-- Streaming via `TransformStream` with `__STATUS__` markers for tool-call progress.
+- Streaming via `TransformStream` with `__STATUS__` markers for tool-call progress and `__QUESTION__<json>` markers that the client parses to open the report-options modal.
 - Client-side word drip renders streamed text at ~48 words/sec for smooth token-by-token display.
-- Rate limiting via Upstash Redis (free plan). Per-bucket limits: `/api/chat` auth'd = 30/15min/user, `/api/chat` guest = 5/15min/IP, `/api/guest-data` = 5/10s/IP, `/api/nl-filter` = 20/15min/user, `/api/guest-token` = 5/10min/IP. Fails closed in production if Upstash env vars are missing.
+- Rate limiting via Upstash Redis (free plan). Per-bucket limits: `/api/chat` auth'd = 30/15min/user, `/api/chat` guest = 5/15min/IP, `/api/guest-data` = 5/10s/IP, `/api/nl-filter` = 20/15min/user, `/api/guest-token` = 5/10min/IP, `/api/reports/generate` = 5/hour/user. Fails closed in production if Upstash env vars are missing.
 - Page context injected into system prompt from `ChatPageContextProvider`.
 - Returns Fahrenheit fields and `America/Phoenix` local time.
 - Accessed via floating `ChatShell` component with open/close animation, auto-scroll, and scroll-for-more indicator.
@@ -284,6 +287,9 @@ Optional PostHog integration provides product analytics (autocapture, session re
 | `/api/guest-data` | POST | Guest token cookie | Read-only data proxy for guest users. Accepts `{ action, params }` with an allowlisted set of read-only actions. Fetches via service-role client. Rate-limited to 5 req/10s per IP. |
 | `/api/guest` | GET/POST | Admin (GET) / Public (POST) | Guest link management. GET generates a shareable guest URL (admin-only). POST validates a token and sets guest cookies. |
 | `/api/users` | GET/POST/PATCH/DELETE | Admin only (Supabase session) | User management. GET lists all users with roles. POST invites by email or generates a copy-able invite link (`linkOnly: true`). PATCH updates user role. DELETE removes a user. All mutations require admin role. |
+| `/api/reports/generate` | POST | Supabase session | Accepts `{ context_id, answers }` where `context_id` references a bundle cached by `prepare_report`. Re-fetches a device-scoped bundle if the user narrowed selection, runs the isolated Gemini prose call, assembles the `.tex`, stores it in Redis for 30 min, returns `{ report_id, filename, byte_size }`. Rate-limited to 5/hour/user. |
+| `/api/reports/[id]/tex` | GET | None (ID is a 128-bit capability token) | Serves the generated `.tex` with `text/x-latex` + permissive CORS. Consumed by the client for Download and by the Overleaf inline-form POST. 404 after the 30-min TTL. |
+| `/api/reports/[id]/meta` | GET | Supabase session (ownership check) | Returns `{ filename, byte_size, start, end }` so `ReportArtifactCard` can render file size without loading the full tex. |
 
 ## 6) Data Semantics
 
@@ -316,7 +322,10 @@ Optional PostHog integration provides product analytics (autocapture, session re
 | Missing `WEATHER_API_KEY` | Non-throwing `ok: false` response |
 | WeatherAPI per-ZIP error | Logged, remaining ZIPs continue |
 | Duplicate weather insert | `23505` counted as skipped |
-| Pyodide load failure | Retry action surfaced |
+| Report prose LLM failure / safety block / timeout | `generateReportProse` returns an all-null `ReportProse`; the template falls back to deterministic bullet summaries per section so the report is always publishable |
+| Forbidden-phrase filter trips on AI prose | Offending field nulled, deterministic fallback substituted |
+| Upstash Redis unavailable during report generation | Returns 503 from `/api/reports/generate`; dev environment uses an in-memory fallback map so local work continues |
+| Overleaf `snip` form POST size | Report `.tex` is well under form-post limits for typical windows; long-window reports cap appendix tables at 60 evenly-sampled rows so pgfplots / Overleaf compile stays inside the free-tier 20s timeout |
 
 ## 9) Trust Boundaries
 
@@ -335,12 +344,12 @@ Optional PostHog integration provides product analytics (autocapture, session re
 | Schema | `supabase/schema.sql` |
 | Supabase client | `web/src/lib/supabase/` (types, client, server, queries) |
 | Device management | `web/src/components/DeviceManager.tsx`, `web/src/contexts/DevicesContext.tsx`, `web/src/lib/supabase/queries/devices.ts` |
-| Pages | `web/src/app/{page,charts,compare,data,deployments,analysis}/page.tsx` |
+| Pages | `web/src/app/{page,charts,compare,data,deployments}/page.tsx` |
 | AI | `web/src/app/api/chat/route.ts`, `web/src/lib/aiTools.ts`, `web/src/components/ChatShell.tsx`, `web/src/lib/chatContext.tsx` |
 | Data Explorer | `web/src/app/data/page.tsx`, `web/src/components/DataExplorer/*`, `web/src/app/api/nl-filter/route.ts`, `web/src/lib/anomalies.ts` |
 | Keepalive | `web/src/app/api/keepalive/route.ts` |
 | Weather | `web/src/app/api/weather/route.ts`, `web/src/lib/weatherZip.ts`, `web/src/lib/weatherCompare.ts` |
-| Analysis | `web/src/lib/pyodide.ts`, `web/src/lib/analysisRunner.ts` |
+| Report generation | `web/src/app/api/reports/{generate,[id]/tex,[id]/meta}/route.ts`, `web/src/lib/reportTemplate.ts`, `web/src/lib/reportProse.ts`, `web/src/lib/reportStore.ts`, `web/src/components/ReportOptionsModal.tsx`, `web/src/components/ReportArtifactCard.tsx` |
 | Dashboard extras | `web/src/components/DashboardStats.tsx` |
 | User management | `web/src/app/api/users/route.ts`, `web/src/components/UserManager.tsx` |
 | Auth / roles | `web/src/components/AuthProvider.tsx`, `web/src/lib/serverAuth.ts`, `web/src/middleware.ts` |

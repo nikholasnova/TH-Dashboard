@@ -2,13 +2,13 @@
 
 [![CI](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/ci.yml)
 [![Arduino Build](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/arduino.yml/badge.svg?branch=main)](https://github.com/nikholasnova/TH-Dashboard/actions/workflows/arduino.yml)
-![Tests](https://img.shields.io/badge/tests-331_passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-295_passed-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-72%25_statements-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 A full-stack IoT platform for collecting temperature and humidity from Arduino sensor nodes, comparing readings against local weather references, and analyzing the data through charts, statistics, and AI. Built as an educational project for an intro engineering class.
 
-Arduino Uno R4 WiFi nodes (system is microcontroller agnostic, any wifi capable dev board will work) with DHT20 sensors post averaged readings to Supabase every 3 minutes. The system supports any number of sensor nodes — devices are registered and managed through the web dashboard, so adding a new node is just flashing a sketch and clicking "Add Device." A Vercel cron fetches weather every 15 minutes from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, a searchable raw-readings explorer with natural-language filtering and anomaly flagging, deployment management, in-browser Python analysis via Pyodide, and an AI chat powered by Gemini.
+Arduino Uno R4 WiFi nodes (system is microcontroller agnostic, any wifi capable dev board will work) with DHT20 sensors post averaged readings to Supabase every 3 minutes. The system supports any number of sensor nodes — devices are registered and managed through the web dashboard, so adding a new node is just flashing a sketch and clicking "Add Device." A Vercel cron fetches weather every 15 minutes from WeatherAPI.com for each node's deployment location. The web dashboard shows live data, historical charts, side-by-side comparisons with `% Error` against weather, a searchable raw-readings explorer with natural-language filtering and anomaly flagging, deployment management, and an AI chat (powered by Gemini) that can answer data questions and generate a downloadable LaTeX data-analysis report with one click — opened straight into Overleaf for PDF compile.
 
 ## Architecture
 
@@ -35,9 +35,10 @@ flowchart TB
   end
 
   subgraph app["4) App + Analysis Layer"]
-    ui["Next.js App<br/>Dashboard / Charts / Compare / Data / Analysis"]
+    ui["Next.js App<br/>Dashboard / Charts / Compare / Data / Deployments"]
     chat["POST /api/chat<br/>Gemini tool calls"]
     nl["POST /api/nl-filter<br/>Gemini filter parsing"]
+    reports["POST /api/reports/*<br/>.tex report generation"]
   end
 
   nodes -->|"HTTPS POST /rest/v1/readings"| db
@@ -45,8 +46,10 @@ flowchart TB
   weatherRoute -->|"Insert weather_* rows<br/>source=weather"| db
   ui <-->|"Authenticated SELECT + RPC"| db
   chat -->|"Service-role queries"| db
+  reports -->|"Service-role queries + RPC"| db
   ui -. "Chat requests" .-> chat
   ui -. "NL filter requests" .-> nl
+  ui -. "Report download + Overleaf" .-> reports
 ```
 
 ## Pages
@@ -57,10 +60,10 @@ flowchart TB
 | `/charts` | Historical trends with time range selector, CSV export, Save PNG |
 | `/compare` | Side-by-side stats per device, weather reference, `% Error` |
 | `/data` | Raw readings explorer with natural-language search, collapsible filters, anomaly flagging, admin row-level delete |
-| `/analysis` | In-browser Python stats, ANOVA, confidence intervals, forecasting (Pyodide) |
 | `/deployments` | Manage placement windows and ZIP codes |
 | `/api/chat` | AI chat backend (floating chat shell available on every page) |
 | `/api/nl-filter` | Gemini-backed natural-language → filter parser for `/data` |
+| `/api/reports/*` | Report-generation pipeline (`.tex` assembly + Overleaf hand-off), driven by the `prepare_report` chat tool |
 
 ## Tech Stack
 
@@ -69,14 +72,14 @@ flowchart TB
 | Hardware | Arduino Uno R4 WiFi + DHT20 (I2C) |
 | Database | Supabase Postgres + Auth (multi-user, role-based) + RLS |
 | Web | Next.js 16 (App Router), Vercel |
-| AI | Gemini 2.5 Flash (tool-calling) |
-| Analysis | Pyodide (numpy, pandas, scipy, statsmodels) |
+| AI | Gemini 2.5 Flash (tool-calling + report prose generation) |
+| Reports | LaTeX via Overleaf hand-off (`snip` form POST, no server-side compile) |
 | Weather | WeatherAPI.com (free tier) |
 | Analytics | PostHog (optional, free tier) |
 
 ## Test Coverage
 
-331 tests across 35 test files. Coverage is generated on every push via CI and uploaded as a build artifact.
+295 tests across 33 test files. Coverage is generated on every push via CI and uploaded as a build artifact.
 
 | Category | Statements | Branches | Functions | Lines |
 |----------|-----------|----------|-----------|-------|
@@ -108,8 +111,6 @@ High-coverage areas: Supabase query layer (devices, readings, deployments), API 
 ![Compare — side-by-side node stats, range overlap, weather % error](docs/images/Screenshot%202026-04-18%20at%2017.33.22.png)
 
 ![Data Explorer — natural-language search, collapsible filters, anomaly-flagged readings table](docs/images/Screenshot%202026-04-18%20at%2017.33.36.png)
-
-![Analysis — descriptive statistics via Pyodide](docs/images/Screenshot%202026-04-18%20at%2017.33.59.png)
 
 ![Deployments — manage placement windows, locations, and ZIP codes](docs/images/Screenshot%202026-04-18%20at%2017.34.07.png)
 

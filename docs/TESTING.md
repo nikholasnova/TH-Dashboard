@@ -1,6 +1,6 @@
 # Testing
 
-The web application has 331 tests across 35 test files, using [Vitest](https://vitest.dev/) and [Testing Library](https://testing-library.com/).
+The web application has 295 tests across 33 test files, using [Vitest](https://vitest.dev/) and [Testing Library](https://testing-library.com/).
 
 ## Running Tests
 

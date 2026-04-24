@@ -311,15 +311,15 @@ Make sure your latest code is pushed (do not commit `secrets.h` or `.env.local` 
 
 5. Click **Deploy**.
 
-### 6.3 Rate Limiting (Upstash Redis — Required for Production)
+### 6.3 Rate Limiting + Report Storage (Upstash Redis — Required for Production)
 
-`/api/chat`, `/api/guest-data`, `/api/guest-token`, and `/api/nl-filter` use Upstash Redis to rate-limit requests and fail closed in production if Upstash is not configured. Provisioning is free:
+`/api/chat`, `/api/guest-data`, `/api/guest-token`, `/api/nl-filter`, and `/api/reports/generate` all use Upstash Redis. The chat/guest/NL routes use it for rate limiting and fail closed in production if Upstash is not configured. The report pipeline additionally uses Redis to cache the data bundle (30 min TTL) between the chat-side `prepare_report` tool call and the client-side modal submission, and to stash the generated `.tex` (30 min TTL) for `Download .tex` / `Open in Overleaf`. Provisioning is free:
 
 1. In your Vercel project, open **Storage** > **Create** > **Upstash Redis** and pick the **Free** plan.
 2. Link the database to this project. Vercel auto-injects `KV_REST_API_URL` and `KV_REST_API_TOKEN` into all environments.
 3. Redeploy so the running deployment picks up the new env vars.
 
-In local development the limiter is a no-op when the env vars are missing, so you don't need Upstash for local work.
+In local development the rate limiters are a no-op when the env vars are missing, and the report store falls back to an in-process Map (single-server only, cleared on restart), so you don't need Upstash for local work.
 
 ### 6.4 Cron Jobs
 
@@ -357,7 +357,7 @@ You should get a JSON response with `inserted_count` showing how many weather re
 
 ## 8. Set Up AI Chat (Optional)
 
-The floating chat in the bottom-right corner uses Google Gemini to answer questions about your data (e.g., "What was the average temperature last Tuesday?" or "Compare node1 and node2 this week").
+The floating chat in the bottom-right corner uses Google Gemini to answer questions about your data (e.g., "What was the average temperature last Tuesday?" or "Compare node1 and node2 this week"). The same key powers the chat-driven **LaTeX report generator**: ask the chat to "generate a report," provide a date range, pick devices + options in the modal, and download a fully-formatted `.tex` — or click **Open in Overleaf** to compile the PDF right there in a new tab.
 
 1. Go to [console.cloud.google.com](https://console.cloud.google.com).
 2. Create a project (or use an existing one).
@@ -367,7 +367,7 @@ The floating chat in the bottom-right corner uses Google Gemini to answer questi
    - **Local:** Add `GOOGLE_API_KEY=your-key` to `web/.env.local`.
    - **Vercel:** Add the same variable in your project settings.
 
-The chat is rate-limited to 30 requests per 15 minutes per user.
+The chat is rate-limited to 30 requests per 15 minutes per user. Report generation is separately capped at 5 reports per hour per user (the isolated prose call is slightly more expensive). Reports download the `.tex` directly and hand it to Overleaf via an inline form POST (`snip` parameter), so PDF compilation happens on Overleaf's infrastructure — no LaTeX install required locally or in production.
 
 ---
 
@@ -444,7 +444,7 @@ With custom SMTP, Supabase's built-in email rate limit no longer applies.
 
 ### 10.5 Guest Read-Only Access
 
-Admins can generate a guest link that gives read-only access without requiring an account. Guests can view all dashboards, charts, compare, data, and analysis pages, and use the AI chat. They cannot create, edit, or delete anything.
+Admins can generate a guest link that gives read-only access without requiring an account. Guests can view all dashboards, charts, compare, and data pages, and use the AI chat (including generating reports). They cannot create, edit, or delete anything.
 
 1. Set `GUEST_VIEW_TOKEN` to a random string in your environment (local `.env.local` and Vercel).
 2. In the dashboard, click your profile icon and select **Copy Guest Link**.
@@ -458,7 +458,7 @@ To revoke access, change the `GUEST_VIEW_TOKEN` value and redeploy. All existing
 |------|----------|-----------------|------------|--------------------------|
 | Admin | Everything | Deployments, devices | Deployments, readings, devices | Yes |
 | User | Everything | Deployments, devices | No (shown "contact admin") | No |
-| Guest (token link) | Dashboards, charts, compare, data, analysis, AI chat | No | No | No |
+| Guest (token link) | Dashboards, charts, compare, data, AI chat (including report generation) | No | No | No |
 
 ---
 
@@ -489,7 +489,7 @@ All variables go in `web/.env.local` for local development and in Vercel's proje
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon/public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only, keep secret) |
 | `CRON_SECRET` | Random string to protect the `/api/keepalive` and `/api/weather` routes |
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis REST URL and token. Required in production — rate limiters fail closed without these. Vercel auto-sets them when you link an Upstash database to the project. Not required locally. |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Upstash Redis REST URL and token. Required in production — rate limiters fail closed without these, and the report generation pipeline uses Redis to stash bundles + generated `.tex` (30-min TTL). Vercel auto-sets them when you link an Upstash database to the project. Not required locally; the report store falls back to an in-memory map in dev. |
 
 ### Optional
 
@@ -545,8 +545,10 @@ Use this checklist to confirm each piece is working:
 | Can't log in | Verify your Supabase Auth user exists and is confirmed. Try typing the email in all lowercase. |
 | Dashboard is empty | Confirm there are rows in the `readings` table, your env vars are set, and the device is registered and active in Manage Devices. |
 | Charts or Compare page is empty | Re-run `supabase/schema.sql`. The RPC functions may be missing. Check that `EXECUTE` is granted to `authenticated`. |
-| Analysis page stuck loading | Check the browser console for CDN errors. The first load downloads Pyodide (10-30 seconds). |
 | AI chat not responding | Confirm `GOOGLE_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are set. You must be logged in. |
+| Report modal never opens | Chat asks for a date range first; reply with one (e.g. "last 7 days"). Check browser console for a failed `__QUESTION__` parse. If `prepare_report` itself errored, it's almost always because the `get_report_bundle` RPC isn't in your database — re-run `supabase/schema.sql`. |
+| "Open in Overleaf" says file not found | Overleaf used to be called with `snip_uri` pointing at your server, which fails on localhost. The current flow POSTs the raw `.tex` inline via `snip`. If you see this on a recent deployment, confirm `web/src/components/ReportArtifactCard.tsx` is using the `snip` approach. |
+| Report prose looks sparse or missing | Gemini may have failed, timed out (15s budget), or tripped the forbidden-phrase filter (any causal / forward-looking / hardware speculation nulls that field). The template falls back to deterministic bullet summaries so the report always renders. Regenerate once — transient Flash failures usually clear. |
 | Cron route returns 401 | The `CRON_SECRET` in your request must match the one in your environment. Include it as `Authorization: Bearer YOUR_SECRET`. |
 | Weather shows dashes | The deployment needs a valid ZIP code. Confirm `WEATHER_API_KEY` is set. Try triggering `/api/weather` manually with curl. |
 | No alert emails | Both `RESEND_API_KEY` and `ALERT_EMAIL_TO` must be set. A custom sender address requires domain verification in Resend. |
