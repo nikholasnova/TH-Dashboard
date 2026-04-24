@@ -4,6 +4,7 @@ import {
   DeviceStats,
   ChartSample,
   Reading,
+  ReportBundle,
   celsiusToFahrenheit,
   celsiusDeltaToFahrenheit,
   getServerClient,
@@ -245,6 +246,67 @@ export async function executeGetReportData(): Promise<{
   };
 }
 
+export async function executeGetReportBundle(params: {
+  start: string;
+  end: string;
+  device_ids?: string[];
+}): Promise<ReportBundle> {
+  const supabase = getServerClient();
+  const { data, error } = await supabase.rpc('get_report_bundle', {
+    p_start: params.start,
+    p_end: params.end,
+    p_device_ids: params.device_ids && params.device_ids.length > 0 ? params.device_ids : null,
+  });
+  if (error) {
+    throw new Error(`RPC get_report_bundle failed: ${error.message} (code: ${error.code})`);
+  }
+  const bundle = (Array.isArray(data) ? data[0] : data) as ReportBundle;
+  return bundle;
+}
+
+function convTemp(v: number | null | undefined): number | null {
+  return v === null || v === undefined ? null : celsiusToFahrenheit(v);
+}
+
+function convTempDelta(v: number | null | undefined): number | null {
+  return v === null || v === undefined ? null : celsiusDeltaToFahrenheit(v);
+}
+
+export function convertReportBundleToF(bundle: ReportBundle): ReportBundle {
+  return {
+    ...bundle,
+    per_deployment_stats: bundle.per_deployment_stats.map((s) => ({
+      ...s,
+      temp_avg: convTemp(s.temp_avg),
+      temp_median: convTemp(s.temp_median),
+      temp_min: convTemp(s.temp_min),
+      temp_max: convTemp(s.temp_max),
+      temp_stddev: convTempDelta(s.temp_stddev),
+    })),
+    overall_stats: {
+      ...bundle.overall_stats,
+      temp_avg: convTemp(bundle.overall_stats.temp_avg),
+      temp_median: convTemp(bundle.overall_stats.temp_median),
+      temp_min: convTemp(bundle.overall_stats.temp_min),
+      temp_max: convTemp(bundle.overall_stats.temp_max),
+      temp_stddev: convTempDelta(bundle.overall_stats.temp_stddev),
+    },
+    hourly_averages: bundle.hourly_averages.map((h) => ({
+      ...h,
+      temp_avg: convTemp(h.temp_avg),
+    })),
+    daily_comparison: bundle.daily_comparison.map((d) => ({
+      ...d,
+      sensor_temp: convTemp(d.sensor_temp),
+      weather_temp: convTemp(d.weather_temp),
+    })),
+    outliers: bundle.outliers.map((o) => ({
+      ...o,
+      value: o.metric === 'temperature' ? (convTemp(o.value) ?? o.value) : o.value,
+    })),
+  };
+}
+
 export async function executeGetWeather(params: {
   zip_code?: string;
   device_id?: string;
@@ -342,6 +404,10 @@ export async function executeTool(
         total_readings: reportData.total_readings,
         ...(reportData.note ? { note: reportData.note } : {}),
       };
+    }
+    case 'get_report_bundle': {
+      const bundle = await executeGetReportBundle(params as Parameters<typeof executeGetReportBundle>[0]);
+      return convertReportBundleToF(bundle);
     }
     case 'get_weather': {
       const weatherReadings = await executeGetWeather(params as Parameters<typeof executeGetWeather>[0]);

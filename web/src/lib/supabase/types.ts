@@ -85,3 +85,69 @@ export interface DeploymentStats {
   reading_count: number | null;
 }
 
+export interface ReportBundleStats {
+  temp_avg: number | null;
+  temp_median: number | null;
+  temp_min: number | null;
+  temp_max: number | null;
+  temp_stddev: number | null;
+  humidity_avg: number | null;
+  humidity_median: number | null;
+  humidity_min: number | null;
+  humidity_max: number | null;
+  humidity_stddev: number | null;
+  n: number;
+}
+
+export interface ReportBundle {
+  window: { start: string; end: string; days: number };
+  deployments: Array<{
+    id: number;
+    device_id: string;
+    name: string;
+    location: string;
+    zip_code: string | null;
+    started_at: string;
+    ended_at: string | null;
+    reading_count: number;
+  }>;
+  per_deployment_stats: Array<
+    ReportBundleStats & {
+      deployment_id: number;
+      deployment_name: string;
+      device_id: string;
+    }
+  >;
+  overall_stats: ReportBundleStats;
+  hourly_averages: Array<{
+    hour: number;
+    temp_avg: number | null;
+    humidity_avg: number | null;
+    n: number;
+  }>;
+  daily_comparison: Array<{
+    day: string;
+    sensor_temp: number | null;
+    weather_temp: number | null;
+    temp_error_pct: number | null;
+    sensor_humidity: number | null;
+    weather_humidity: number | null;
+    humidity_error_pct: number | null;
+  }>;
+  pearson_temp_humidity: number | null;
+  outliers: Array<{
+    day: string;
+    metric: 'temperature' | 'humidity';
+    value: number;
+    bound: 'above' | 'below';
+  }>;
+  gaps: Array<{
+    start: string;
+    end: string;
+    hours: number;
+  }>;
+  has_weather_data: boolean;
+  has_sensor_data: boolean;
+  device_count: number;
+}
+

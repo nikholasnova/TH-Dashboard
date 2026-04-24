@@ -813,6 +813,277 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.get_dashboard_live(TEXT[], TIMESTAMPTZ, INT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_dashboard_live(TEXT[], TIMESTAMPTZ, INT) TO authenticated, service_role;
 
+-- =========================================================================
+-- Report bundle: everything needed to generate a data report in one round trip.
+-- Phoenix TZ for hour-of-day bucketing. Temperatures remain in Celsius here;
+-- the TS executor converts to Fahrenheit for display.
+-- =========================================================================
+CREATE OR REPLACE FUNCTION get_report_bundle(
+  p_start TIMESTAMPTZ,
+  p_end TIMESTAMPTZ,
+  p_device_ids TEXT[] DEFAULT NULL
+) RETURNS JSONB
+LANGUAGE sql STABLE
+SET search_path = public
+AS $$
+  WITH
+  sensor_readings AS (
+    SELECT device_id, temperature, humidity, created_at
+    FROM readings
+    WHERE source = 'sensor'
+      AND created_at BETWEEN p_start AND p_end
+      AND (p_device_ids IS NULL OR device_id = ANY(p_device_ids))
+  ),
+  weather_readings AS (
+    SELECT device_id, temperature, humidity, created_at
+    FROM readings
+    WHERE source = 'weather'
+      AND created_at BETWEEN p_start AND p_end
+      AND (
+        p_device_ids IS NULL
+        OR device_id = ANY(ARRAY(SELECT 'weather_' || unnest(p_device_ids)))
+      )
+  ),
+  scoped_deployments AS (
+    SELECT
+      d.id, d.device_id, d.name, d.location, d.zip_code,
+      d.started_at, d.ended_at,
+      (
+        SELECT COUNT(*)
+        FROM sensor_readings sr
+        WHERE sr.device_id = d.device_id
+          AND sr.created_at >= d.started_at
+          AND (d.ended_at IS NULL OR sr.created_at <= d.ended_at)
+      ) AS reading_count
+    FROM deployments d
+    WHERE (p_device_ids IS NULL OR d.device_id = ANY(p_device_ids))
+      AND d.started_at <= p_end
+      AND (d.ended_at IS NULL OR d.ended_at >= p_start)
+    ORDER BY d.started_at ASC
+  ),
+  per_deployment AS (
+    SELECT
+      d.id AS deployment_id,
+      d.name AS deployment_name,
+      d.device_id,
+      AVG(r.temperature)::DOUBLE PRECISION AS temp_avg,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY r.temperature)::DOUBLE PRECISION AS temp_median,
+      MIN(r.temperature)::DOUBLE PRECISION AS temp_min,
+      MAX(r.temperature)::DOUBLE PRECISION AS temp_max,
+      STDDEV_POP(r.temperature)::DOUBLE PRECISION AS temp_stddev,
+      AVG(r.humidity)::DOUBLE PRECISION AS humidity_avg,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY r.humidity)::DOUBLE PRECISION AS humidity_median,
+      MIN(r.humidity)::DOUBLE PRECISION AS humidity_min,
+      MAX(r.humidity)::DOUBLE PRECISION AS humidity_max,
+      STDDEV_POP(r.humidity)::DOUBLE PRECISION AS humidity_stddev,
+      COUNT(r.*)::BIGINT AS n
+    FROM scoped_deployments d
+    LEFT JOIN sensor_readings r
+      ON r.device_id = d.device_id
+      AND r.created_at >= d.started_at
+      AND (d.ended_at IS NULL OR r.created_at <= d.ended_at)
+    GROUP BY d.id, d.name, d.device_id
+  ),
+  overall AS (
+    SELECT
+      AVG(temperature)::DOUBLE PRECISION AS temp_avg,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY temperature)::DOUBLE PRECISION AS temp_median,
+      MIN(temperature)::DOUBLE PRECISION AS temp_min,
+      MAX(temperature)::DOUBLE PRECISION AS temp_max,
+      STDDEV_POP(temperature)::DOUBLE PRECISION AS temp_stddev,
+      AVG(humidity)::DOUBLE PRECISION AS humidity_avg,
+      PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY humidity)::DOUBLE PRECISION AS humidity_median,
+      MIN(humidity)::DOUBLE PRECISION AS humidity_min,
+      MAX(humidity)::DOUBLE PRECISION AS humidity_max,
+      STDDEV_POP(humidity)::DOUBLE PRECISION AS humidity_stddev,
+      COUNT(*)::BIGINT AS n
+    FROM sensor_readings
+  ),
+  hourly AS (
+    SELECT
+      EXTRACT(HOUR FROM (created_at AT TIME ZONE 'America/Phoenix'))::INT AS hour,
+      AVG(temperature)::DOUBLE PRECISION AS temp_avg,
+      AVG(humidity)::DOUBLE PRECISION AS humidity_avg,
+      COUNT(*)::BIGINT AS n
+    FROM sensor_readings
+    GROUP BY hour
+  ),
+  daily_sensor AS (
+    SELECT
+      (created_at AT TIME ZONE 'America/Phoenix')::DATE AS day,
+      AVG(temperature)::DOUBLE PRECISION AS temp_avg,
+      AVG(humidity)::DOUBLE PRECISION AS humidity_avg
+    FROM sensor_readings
+    GROUP BY 1
+  ),
+  daily_weather AS (
+    SELECT
+      (created_at AT TIME ZONE 'America/Phoenix')::DATE AS day,
+      AVG(temperature)::DOUBLE PRECISION AS temp_avg,
+      AVG(humidity)::DOUBLE PRECISION AS humidity_avg
+    FROM weather_readings
+    GROUP BY 1
+  ),
+  daily_comp AS (
+    SELECT
+      s.day,
+      s.temp_avg AS sensor_temp,
+      w.temp_avg AS weather_temp,
+      CASE
+        WHEN w.temp_avg IS NOT NULL AND w.temp_avg <> 0
+          THEN ((s.temp_avg - w.temp_avg) / w.temp_avg) * 100
+        ELSE NULL
+      END AS temp_error_pct,
+      s.humidity_avg AS sensor_humidity,
+      w.humidity_avg AS weather_humidity,
+      CASE
+        WHEN w.humidity_avg IS NOT NULL AND w.humidity_avg <> 0
+          THEN ((s.humidity_avg - w.humidity_avg) / w.humidity_avg) * 100
+        ELSE NULL
+      END AS humidity_error_pct
+    FROM daily_sensor s
+    LEFT JOIN daily_weather w ON w.day = s.day
+  ),
+  outlier_bounds AS (
+    SELECT
+      PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY temp_avg)::DOUBLE PRECISION AS temp_q1,
+      PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY temp_avg)::DOUBLE PRECISION AS temp_q3,
+      PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY humidity_avg)::DOUBLE PRECISION AS humidity_q1,
+      PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY humidity_avg)::DOUBLE PRECISION AS humidity_q3
+    FROM daily_sensor
+  ),
+  outliers_temp AS (
+    SELECT
+      s.day,
+      'temperature'::TEXT AS metric,
+      s.temp_avg AS value,
+      CASE
+        WHEN s.temp_avg < b.temp_q1 - 1.5 * (b.temp_q3 - b.temp_q1) THEN 'below'
+        ELSE 'above'
+      END AS bound
+    FROM daily_sensor s, outlier_bounds b
+    WHERE b.temp_q3 IS NOT NULL
+      AND b.temp_q3 <> b.temp_q1
+      AND (
+        s.temp_avg < b.temp_q1 - 1.5 * (b.temp_q3 - b.temp_q1)
+        OR s.temp_avg > b.temp_q3 + 1.5 * (b.temp_q3 - b.temp_q1)
+      )
+  ),
+  outliers_humidity AS (
+    SELECT
+      s.day,
+      'humidity'::TEXT AS metric,
+      s.humidity_avg AS value,
+      CASE
+        WHEN s.humidity_avg < b.humidity_q1 - 1.5 * (b.humidity_q3 - b.humidity_q1) THEN 'below'
+        ELSE 'above'
+      END AS bound
+    FROM daily_sensor s, outlier_bounds b
+    WHERE b.humidity_q3 IS NOT NULL
+      AND b.humidity_q3 <> b.humidity_q1
+      AND (
+        s.humidity_avg < b.humidity_q1 - 1.5 * (b.humidity_q3 - b.humidity_q1)
+        OR s.humidity_avg > b.humidity_q3 + 1.5 * (b.humidity_q3 - b.humidity_q1)
+      )
+  ),
+  outliers_all AS (
+    SELECT * FROM outliers_temp
+    UNION ALL
+    SELECT * FROM outliers_humidity
+  ),
+  ordered_sensor AS (
+    SELECT
+      device_id,
+      created_at,
+      LAG(created_at) OVER (PARTITION BY device_id ORDER BY created_at) AS prev_at
+    FROM sensor_readings
+  ),
+  raw_gaps AS (
+    SELECT
+      device_id,
+      prev_at AS gap_start,
+      created_at AS gap_end,
+      (EXTRACT(EPOCH FROM (created_at - prev_at)) / 3600.0)::DOUBLE PRECISION AS hours
+    FROM ordered_sensor
+    WHERE prev_at IS NOT NULL
+      AND created_at - prev_at > INTERVAL '3 hours'
+  ),
+  gaps_in_deployment AS (
+    SELECT DISTINCT g.gap_start, g.gap_end, g.hours
+    FROM raw_gaps g
+    JOIN scoped_deployments d
+      ON g.device_id = d.device_id
+     AND g.gap_start >= d.started_at
+     AND g.gap_end <= COALESCE(d.ended_at, NOW())
+  ),
+  pearson AS (
+    SELECT CORR(temperature, humidity)::DOUBLE PRECISION AS r
+    FROM sensor_readings
+    WHERE temperature IS NOT NULL AND humidity IS NOT NULL
+  )
+  SELECT jsonb_build_object(
+    'window', jsonb_build_object(
+      'start', p_start,
+      'end', p_end,
+      'days', (EXTRACT(EPOCH FROM (p_end - p_start)) / 86400.0)::DOUBLE PRECISION
+    ),
+    'deployments', COALESCE(
+      (SELECT jsonb_agg(
+        jsonb_build_object(
+          'id', sd.id,
+          'device_id', sd.device_id,
+          'name', sd.name,
+          'location', sd.location,
+          'zip_code', sd.zip_code,
+          'started_at', sd.started_at,
+          'ended_at', sd.ended_at,
+          'reading_count', sd.reading_count
+        )
+        ORDER BY sd.started_at
+      ) FROM scoped_deployments sd),
+      '[]'::jsonb
+    ),
+    'per_deployment_stats', COALESCE(
+      (SELECT jsonb_agg(to_jsonb(pd.*)) FROM per_deployment pd),
+      '[]'::jsonb
+    ),
+    'overall_stats', COALESCE(
+      (SELECT to_jsonb(o.*) FROM overall o),
+      '{}'::jsonb
+    ),
+    'hourly_averages', COALESCE(
+      (SELECT jsonb_agg(to_jsonb(h.*) ORDER BY h.hour) FROM hourly h),
+      '[]'::jsonb
+    ),
+    'daily_comparison', COALESCE(
+      (SELECT jsonb_agg(to_jsonb(dc.*) ORDER BY dc.day) FROM daily_comp dc),
+      '[]'::jsonb
+    ),
+    'pearson_temp_humidity', (SELECT r FROM pearson),
+    'outliers', COALESCE(
+      (SELECT jsonb_agg(to_jsonb(o.*) ORDER BY o.day, o.metric) FROM outliers_all o),
+      '[]'::jsonb
+    ),
+    'gaps', COALESCE(
+      (SELECT jsonb_agg(
+        jsonb_build_object(
+          'start', g.gap_start,
+          'end', g.gap_end,
+          'hours', g.hours
+        )
+        ORDER BY g.gap_start
+      ) FROM gaps_in_deployment g),
+      '[]'::jsonb
+    ),
+    'has_weather_data', EXISTS(SELECT 1 FROM weather_readings),
+    'has_sensor_data', EXISTS(SELECT 1 FROM sensor_readings),
+    'device_count', (SELECT COUNT(DISTINCT device_id)::INT FROM sensor_readings)
+  );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.get_report_bundle(TIMESTAMPTZ, TIMESTAMPTZ, TEXT[]) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_report_bundle(TIMESTAMPTZ, TIMESTAMPTZ, TEXT[]) TO authenticated, service_role;
+
 -- ============================================================
 -- User roles (admin / user)
 -- ============================================================

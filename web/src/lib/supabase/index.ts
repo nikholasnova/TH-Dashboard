@@ -10,6 +10,8 @@ export type {
   DeploymentStats,
   Device,
   DeviceAlertState,
+  ReportBundle,
+  ReportBundleStats,
 } from './types';
 
 export {

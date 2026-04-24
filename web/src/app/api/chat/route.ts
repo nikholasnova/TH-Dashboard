@@ -25,6 +25,7 @@ AVAILABLE TOOLS:
 - get_device_stats: Get overall stats per device for any time range — not deployment-scoped. Great for broad analysis.
 - get_chart_data: Get time-bucketed averages for trend analysis (e.g. hourly or daily averages)
 - get_report_data: Get ALL deployments with full statistics in one call. Use this first when generating reports or comprehensive analyses.
+- get_report_bundle: Get a full report-ready data bundle for an explicit time window. Returns deployments, per-deployment and overall stats, hourly-of-day averages (Phoenix TZ), daily sensor-vs-weather comparison, Pearson correlation, IQR outliers, and gap detection — all in one call. Prefer this over get_report_data whenever the user specifies a time window.
 - get_weather: Get the latest stored weather readings from the database, filtered by zip code or weather device ID. Use this for weather-specific queries.
 
 EFFICIENCY RULES (critical — follow these strictly):
@@ -191,6 +192,24 @@ const getReportDataDecl: FunctionDeclaration = {
   },
 };
 
+const getReportBundleDecl: FunctionDeclaration = {
+  name: 'get_report_bundle',
+  description: 'Get a full report-ready data bundle for an explicit time window. Returns deployments, per-deployment and overall stats, hourly-of-day averages (in Arizona/Phoenix time), daily sensor-vs-weather comparison, Pearson correlation between temp and humidity, IQR outliers on daily averages, and detected gaps (>3h of missing sensor readings inside an active deployment). Temperatures are in Fahrenheit. One call replaces multiple stat/chart queries.',
+  parameters: {
+    type: SchemaType.OBJECT,
+    properties: {
+      start: { type: SchemaType.STRING, description: 'Start of time window (ISO 8601 UTC datetime)' },
+      end: { type: SchemaType.STRING, description: 'End of time window (ISO 8601 UTC datetime)' },
+      device_ids: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+        description: 'Optional filter: only include these sensor device IDs (e.g. ["node1"]). Omit for all sensors.',
+      },
+    },
+    required: ['start', 'end'],
+  },
+};
+
 const getWeatherDecl: FunctionDeclaration = {
   name: 'get_weather',
   description: 'Get the latest stored weather readings from the database. Weather data is fetched periodically from WeatherAPI.com and stored with source=\'weather\'. Returns temperature (C and F), humidity, zip code, and observation time. Use this when a user asks about current weather conditions for a zip code or location.',
@@ -251,6 +270,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_device_stats: 'Analyzing device data',
   get_chart_data: 'Analyzing trends',
   get_report_data: 'Gathering all deployment data',
+  get_report_bundle: 'Building report bundle',
   get_weather: 'Fetching weather data',
 };
 
@@ -431,7 +451,7 @@ export async function POST(req: Request) {
       model: 'gemini-2.5-flash',
       systemInstruction: systemPrompt,
       tools: [{
-        functionDeclarations: [getDeploymentsDecl, getDeploymentStatsDecl, getReadingsDecl, getDeviceStatsDecl, getChartDataDecl, getReportDataDecl, getWeatherDecl],
+        functionDeclarations: [getDeploymentsDecl, getDeploymentStatsDecl, getReadingsDecl, getDeviceStatsDecl, getChartDataDecl, getReportDataDecl, getReportBundleDecl, getWeatherDecl],
       }],
     });
 
