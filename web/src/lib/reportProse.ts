@@ -43,6 +43,40 @@ const FEW_SHOT_EXAMPLAR = `Example tone (not the data you are given — this is 
 
 "The sensor averaged +5.7% error on temperature and -13.5% error on humidity relative to the reference station. The largest single-day deviation was +11.9% on Feb 21."`;
 
+function round(n: number | null | undefined, digits: number): number | null {
+  if (n === null || n === undefined || !Number.isFinite(n)) return null;
+  const factor = Math.pow(10, digits);
+  return Math.round(n * factor) / factor;
+}
+
+function roundStats(s: {
+  temp_avg: number | null;
+  temp_median: number | null;
+  temp_min: number | null;
+  temp_max: number | null;
+  temp_stddev: number | null;
+  humidity_avg: number | null;
+  humidity_median: number | null;
+  humidity_min: number | null;
+  humidity_max: number | null;
+  humidity_stddev: number | null;
+  n: number;
+}) {
+  return {
+    temp_avg: round(s.temp_avg, 1),
+    temp_median: round(s.temp_median, 1),
+    temp_min: round(s.temp_min, 1),
+    temp_max: round(s.temp_max, 1),
+    temp_stddev: round(s.temp_stddev, 2),
+    humidity_avg: round(s.humidity_avg, 1),
+    humidity_median: round(s.humidity_median, 1),
+    humidity_min: round(s.humidity_min, 1),
+    humidity_max: round(s.humidity_max, 1),
+    humidity_stddev: round(s.humidity_stddev, 2),
+    n: s.n,
+  };
+}
+
 function buildCompactBundle(bundle: ReportBundle): Record<string, unknown> {
   const tempsHourly = bundle.hourly_averages
     .filter((h) => h.temp_avg !== null)
@@ -101,6 +135,11 @@ function buildCompactBundle(bundle: ReportBundle): Record<string, unknown> {
           : 'stable'
       : null;
 
+  const roundHourly = (p: { hour: number; value: number } | null) =>
+    p ? { hour: p.hour, value: round(p.value, 1) } : null;
+  const roundErr = (e: { day: string; err: number } | null) =>
+    e ? { day: e.day, err: round(e.err, 1) } : null;
+
   return {
     window_days: Math.round(bundle.window.days),
     deployment_count: bundle.deployments.length,
@@ -108,27 +147,29 @@ function buildCompactBundle(bundle: ReportBundle): Record<string, unknown> {
     total_readings: bundle.overall_stats.n,
     has_weather_data: bundle.has_weather_data,
     gap_count: bundle.gaps.length,
-    gap_total_hours: bundle.gaps.reduce((s, g) => s + g.hours, 0),
-    overall_stats: bundle.overall_stats,
-    pearson_temp_humidity: bundle.pearson_temp_humidity,
-    hourly_peak_temp: hourlyTempMax,
-    hourly_trough_temp: hourlyTempMin,
-    hourly_peak_humidity: hourlyHumMax,
-    hourly_trough_humidity: hourlyHumMin,
+    gap_total_hours: round(bundle.gaps.reduce((s, g) => s + g.hours, 0), 1),
+    overall_stats: roundStats(bundle.overall_stats),
+    pearson_temp_humidity: round(bundle.pearson_temp_humidity, 2),
+    hourly_peak_temp: roundHourly(hourlyTempMax),
+    hourly_trough_temp: roundHourly(hourlyTempMin),
+    hourly_peak_humidity: roundHourly(hourlyHumMax),
+    hourly_trough_humidity: roundHourly(hourlyHumMin),
     diurnal_temp_swing:
-      hourlyTempMax && hourlyTempMin ? hourlyTempMax.value - hourlyTempMin.value : null,
+      hourlyTempMax && hourlyTempMin
+        ? round(hourlyTempMax.value - hourlyTempMin.value, 1)
+        : null,
     outliers: bundle.outliers.map((o) => ({
       day: o.day,
       metric: o.metric,
-      value: o.value,
+      value: round(o.value, o.metric === 'temperature' ? 1 : 1),
       bound: o.bound,
     })),
     daily_comparison_summary: {
       n: bundle.daily_comparison.length,
-      avg_temp_error_pct: avgTempErr,
-      avg_humidity_error_pct: avgHumErr,
-      max_temp_error: maxTempErr,
-      max_humidity_error: maxHumErr,
+      avg_temp_error_pct: round(avgTempErr, 1),
+      avg_humidity_error_pct: round(avgHumErr, 1),
+      max_temp_error: roundErr(maxTempErr),
+      max_humidity_error: roundErr(maxHumErr),
       temp_error_trend: tempSlopeSign,
       humidity_error_trend: humSlopeSign,
     },
