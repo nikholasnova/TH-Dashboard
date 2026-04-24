@@ -149,7 +149,7 @@ function buildPreamble(opts: ReportOptions): string {
 \\usepackage{tikz}
 \\usepackage{pgfplots}
 \\pgfplotsset{compat=1.18}
-\\usepgfplotslibrary{dateplot}
+\\usepgfplotslibrary{dateplot, fillbetween}
 \\usetikzlibrary{patterns}
 \\usepackage{xcolor}
 \\usepackage[most]{tcolorbox}
@@ -159,6 +159,12 @@ function buildPreamble(opts: ReportOptions): string {
 \\setlength{\\parindent}{0pt}
 \\definecolor{callout}{HTML}{F5F5F5}
 \\definecolor{calloutrule}{HTML}{B0B0B0}
+\\definecolor{devcolor1}{HTML}{4C72B0}
+\\definecolor{devcolor2}{HTML}{C44E52}
+\\definecolor{devcolor3}{HTML}{55A868}
+\\definecolor{devcolor4}{HTML}{8172B2}
+\\definecolor{devcolor5}{HTML}{CCB974}
+\\definecolor{devcolor6}{HTML}{64B5CD}
 \\title{${latexEscape(opts.title)}}
 \\author{${latexEscape(opts.author)} \\\\ ${latexEscape(opts.institution)}}
 \\date{\\today}
@@ -288,6 +294,22 @@ ${narrative}
 ${outlierBlock}`;
 }
 
+// Returns: { displayName, colorName } per device_id used in per_device_* arrays.
+// Falls back to cycling devcolor1..6 when devices_info is missing/invalid.
+function buildDeviceLookup(bundle: ReportBundle): Map<string, { display: string; colorName: string }> {
+  const map = new Map<string, { display: string; colorName: string }>();
+  const usedIdsSet = new Set<string>();
+  (bundle.per_device_hourly ?? []).forEach((h) => usedIdsSet.add(h.device_id));
+  (bundle.per_device_daily ?? []).forEach((d) => usedIdsSet.add(d.device_id));
+  const usedIds = Array.from(usedIdsSet).sort();
+  usedIds.forEach((id, i) => {
+    const record = (bundle.devices_info ?? []).find((d) => d.id === id);
+    const display = record?.display_name ?? id;
+    map.set(id, { display, colorName: `devcolor${(i % 6) + 1}` });
+  });
+  return map;
+}
+
 function buildDiurnalChart(bundle: ReportBundle): string {
   if (bundle.hourly_averages.length === 0) return '';
 
@@ -332,10 +354,84 @@ function buildDiurnalChart(bundle: ReportBundle): string {
 `;
 }
 
+function buildMultiDeviceDiurnalChart(bundle: ReportBundle): string {
+  const perDev = bundle.per_device_hourly ?? [];
+  if (perDev.length === 0) return buildDiurnalChart(bundle);
+
+  const devices = buildDeviceLookup(bundle);
+  const byDevice = new Map<string, Array<{ hour: number; temp: number | null; hum: number | null }>>();
+  for (const [id] of devices) byDevice.set(id, []);
+  for (const h of perDev) {
+    if (!byDevice.has(h.device_id)) continue;
+    byDevice.get(h.device_id)!.push({
+      hour: h.hour,
+      temp: h.temp_avg,
+      hum: h.humidity_avg,
+    });
+  }
+  for (const arr of byDevice.values()) arr.sort((a, b) => a.hour - b.hour);
+
+  const tempPlots: string[] = [];
+  const humPlots: string[] = [];
+  for (const [id, meta] of devices) {
+    const rows = byDevice.get(id) ?? [];
+    const tempCoords = rows
+      .filter((r) => r.temp !== null)
+      .map((r) => `(${r.hour}, ${(r.temp as number).toFixed(2)})`)
+      .join(' ');
+    const humCoords = rows
+      .filter((r) => r.hum !== null)
+      .map((r) => `(${r.hour}, ${(r.hum as number).toFixed(2)})`)
+      .join(' ');
+    tempPlots.push(
+      `\\addplot[color=${meta.colorName}, mark=*, mark size=1.1pt, thick] coordinates {${tempCoords}};`,
+    );
+    tempPlots.push(`\\addlegendentry{${latexEscape(meta.display)} temp}`);
+    humPlots.push(
+      `\\addplot[color=${meta.colorName}, mark=triangle, mark size=1.3pt, dashed] coordinates {${humCoords}};`,
+    );
+    humPlots.push(`\\addlegendentry{${latexEscape(meta.display)} hum}`);
+  }
+
+  return `\\begin{center}
+\\begin{tikzpicture}
+\\begin{axis}[
+  width=0.95\\textwidth, height=8cm,
+  xlabel={Hour of Day (Arizona local time)},
+  xmin=0, xmax=23,
+  xtick={0,2,4,6,8,10,12,14,16,18,20,22},
+  xticklabels={12a,2a,4a,6a,8a,10a,12p,2p,4p,6p,8p,10p},
+  axis y line*=left,
+  ylabel={Temperature (°F)},
+  ymajorgrids=true,
+  legend style={at={(0.5,-0.2)}, anchor=north, legend columns=3, font=\\small, draw=calloutrule, fill=callout},
+  legend cell align=left,
+]
+${tempPlots.join('\n')}
+\\end{axis}
+\\begin{axis}[
+  width=0.95\\textwidth, height=8cm,
+  xmin=0, xmax=23,
+  axis y line*=right,
+  axis x line=none,
+  ylabel={Humidity (\\%)},
+  legend style={at={(0.5,-0.32)}, anchor=north, legend columns=3, font=\\small, draw=calloutrule, fill=callout},
+  legend cell align=left,
+]
+${humPlots.join('\n')}
+\\end{axis}
+\\end{tikzpicture}
+\\end{center}
+`;
+}
+
 function buildDiurnal(bundle: ReportBundle, prose: ReportProse): string {
   if (bundle.hourly_averages.length === 0) return '';
 
-  const chart = buildDiurnalChart(bundle);
+  const multiDevice =
+    bundle.device_count > 1 &&
+    (bundle.per_device_hourly?.length ?? 0) > 0;
+  const chart = multiDevice ? buildMultiDeviceDiurnalChart(bundle) : buildDiurnalChart(bundle);
 
   const tempPoints = bundle.hourly_averages.filter((h) => h.temp_avg !== null);
   let tempMax = tempPoints[0];
@@ -367,6 +463,200 @@ function buildDiurnal(bundle: ReportBundle, prose: ReportProse): string {
   return `\\section*{Diurnal Patterns}
 ${chart}
 ${narrative}
+`;
+}
+
+function buildDailyRange(bundle: ReportBundle): string {
+  const perDev = bundle.per_device_daily ?? [];
+  if (perDev.length === 0) return '';
+
+  const devices = buildDeviceLookup(bundle);
+  const byDevice = new Map<string, typeof perDev>();
+  for (const [id] of devices) byDevice.set(id, []);
+  for (const d of perDev) {
+    if (!byDevice.has(d.device_id)) continue;
+    byDevice.get(d.device_id)!.push(d);
+  }
+  for (const arr of byDevice.values()) {
+    arr.sort((a, b) => a.day.localeCompare(b.day));
+  }
+
+  function seriesFor(field: 'temp' | 'humidity'): string[] {
+    const parts: string[] = [];
+    for (const [id, meta] of devices) {
+      const rows = byDevice.get(id) ?? [];
+      type DailyRow = (typeof perDev)[number];
+      const minKey: keyof DailyRow = field === 'temp' ? 'temp_min' : 'humidity_min';
+      const avgKey: keyof DailyRow = field === 'temp' ? 'temp_avg' : 'humidity_avg';
+      const maxKey: keyof DailyRow = field === 'temp' ? 'temp_max' : 'humidity_max';
+
+      const minCoords = rows
+        .filter((r) => r[minKey] !== null)
+        .map((r) => `(${pgfplotsDateCoord(r.day)}, ${(r[minKey] as number).toFixed(2)})`)
+        .join(' ');
+      const maxCoords = rows
+        .filter((r) => r[maxKey] !== null)
+        .map((r) => `(${pgfplotsDateCoord(r.day)}, ${(r[maxKey] as number).toFixed(2)})`)
+        .join(' ');
+      const avgCoords = rows
+        .filter((r) => r[avgKey] !== null)
+        .map((r) => `(${pgfplotsDateCoord(r.day)}, ${(r[avgKey] as number).toFixed(2)})`)
+        .join(' ');
+
+      const safeId = id.replace(/[^a-z0-9]/gi, '');
+      parts.push(`\\addplot[name path=${safeId}min${field}, draw=none] coordinates {${minCoords}};`);
+      parts.push(`\\addplot[name path=${safeId}max${field}, draw=none] coordinates {${maxCoords}};`);
+      parts.push(
+        `\\addplot[${meta.colorName}, opacity=0.18] fill between[of=${safeId}min${field} and ${safeId}max${field}];`,
+      );
+      parts.push(
+        `\\addplot[color=${meta.colorName}, mark=*, mark size=1.1pt, thick] coordinates {${avgCoords}};`,
+      );
+      parts.push(`\\addlegendentry{${latexEscape(meta.display)}}`);
+      // Placeholders so the legend entry lines up with the mean line only
+      parts.push(`\\addlegendimage{empty legend}\\addlegendentry{}`);
+      parts.push(`\\addlegendimage{empty legend}\\addlegendentry{}`);
+    }
+    return parts;
+  }
+
+  const tempSeries = seriesFor('temp').join('\n');
+  const humSeries = seriesFor('humidity').join('\n');
+
+  const tempChart = `\\begin{center}
+\\begin{tikzpicture}
+\\begin{axis}[
+  width=0.95\\textwidth, height=7cm,
+  date coordinates in=x,
+  xticklabel={\\month/\\day},
+  xticklabel style={rotate=45, anchor=north east, font=\\tiny},
+  xlabel={Date}, ylabel={Temperature (°F)},
+  ymajorgrids=true,
+  title={Daily temperature range},
+  legend style={at={(0.5,-0.28)}, anchor=north, legend columns=${devices.size}, font=\\small, draw=calloutrule, fill=callout},
+  legend cell align=left,
+]
+${tempSeries}
+\\end{axis}
+\\end{tikzpicture}
+\\end{center}`;
+
+  const humChart = `\\begin{center}
+\\begin{tikzpicture}
+\\begin{axis}[
+  width=0.95\\textwidth, height=7cm,
+  date coordinates in=x,
+  xticklabel={\\month/\\day},
+  xticklabel style={rotate=45, anchor=north east, font=\\tiny},
+  xlabel={Date}, ylabel={Humidity (\\%)},
+  ymajorgrids=true,
+  title={Daily humidity range},
+  legend style={at={(0.5,-0.28)}, anchor=north, legend columns=${devices.size}, font=\\small, draw=calloutrule, fill=callout},
+  legend cell align=left,
+]
+${humSeries}
+\\end{axis}
+\\end{tikzpicture}
+\\end{center}`;
+
+  const fallback = `Daily mean lines are shown per device, with the shaded band spanning the minimum and maximum reading recorded each day.`;
+
+  return `\\section*{Daily Range}
+${tempChart}
+
+${humChart}
+
+${fallback}
+`;
+}
+
+function buildDistribution(bundle: ReportBundle): string {
+  const perDev = bundle.per_device_hourly ?? [];
+  if (perDev.length === 0) return '';
+
+  const devices = buildDeviceLookup(bundle);
+
+  function bin(values: number[], binSize: number): Map<number, number> {
+    const m = new Map<number, number>();
+    for (const v of values) {
+      const start = Math.floor(v / binSize) * binSize;
+      m.set(start, (m.get(start) ?? 0) + 1);
+    }
+    return m;
+  }
+
+  function histSeries(field: 'temp' | 'humidity', binSize: number): { series: string[]; legendCols: number } {
+    const series: string[] = [];
+    for (const [id, meta] of devices) {
+      const values = perDev
+        .filter((h) => h.device_id === id)
+        .map((h) => (field === 'temp' ? h.temp_avg : h.humidity_avg))
+        .filter((v): v is number => v !== null);
+      if (values.length === 0) continue;
+      const bins = bin(values, binSize);
+      const coords = Array.from(bins.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([start, count]) => `(${start}, ${count})`)
+        .join(' ');
+      series.push(
+        `\\addplot+[ybar interval, fill=${meta.colorName}, fill opacity=0.45, draw=${meta.colorName}, draw opacity=0.8] coordinates {${coords}};`,
+      );
+      series.push(`\\addlegendentry{${latexEscape(meta.display)}}`);
+    }
+    return { series, legendCols: Math.min(devices.size, 3) };
+  }
+
+  const tempHist = histSeries('temp', 5);
+  const humHist = histSeries('humidity', 5);
+
+  if (tempHist.series.length === 0 && humHist.series.length === 0) return '';
+
+  const tempChart =
+    tempHist.series.length === 0
+      ? ''
+      : `\\begin{center}
+\\begin{tikzpicture}
+\\begin{axis}[
+  width=0.95\\textwidth, height=6.5cm,
+  xlabel={Temperature (°F)},
+  ylabel={Hourly-average count},
+  ymajorgrids=true,
+  title={Temperature distribution},
+  legend style={at={(0.98,0.98)}, anchor=north east, font=\\small, draw=calloutrule, fill=callout},
+  legend cell align=left,
+]
+${tempHist.series.join('\n')}
+\\end{axis}
+\\end{tikzpicture}
+\\end{center}`;
+
+  const humChart =
+    humHist.series.length === 0
+      ? ''
+      : `\\begin{center}
+\\begin{tikzpicture}
+\\begin{axis}[
+  width=0.95\\textwidth, height=6.5cm,
+  xlabel={Humidity (\\%)},
+  ylabel={Hourly-average count},
+  ymajorgrids=true,
+  title={Humidity distribution},
+  legend style={at={(0.98,0.98)}, anchor=north east, font=\\small, draw=calloutrule, fill=callout},
+  legend cell align=left,
+]
+${humHist.series.join('\n')}
+\\end{axis}
+\\end{tikzpicture}
+\\end{center}`;
+
+  const caption = `Each bar counts the number of hour-of-day averages that fell within a 5°F (or 5\\%) bin during the reporting window, with one series per device.`;
+
+  return `\\section*{Distribution}
+${tempChart}
+
+${humChart}
+
+${caption}
 `;
 }
 
@@ -723,6 +1013,8 @@ export function buildTexSource(
   parts.push(buildDataCollection(bundle, opts, safeProse));
   parts.push(buildStatisticalSummary(bundle, safeProse));
   parts.push(buildDiurnal(bundle, safeProse));
+  parts.push(buildDailyRange(bundle));
+  parts.push(buildDistribution(bundle));
   parts.push(buildAccuracy(bundle, opts, safeProse));
   parts.push(buildKeyFindings(bundle, opts, safeProse));
   parts.push(buildAppendixHourly(bundle));

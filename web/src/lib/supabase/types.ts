@@ -149,5 +149,28 @@ export interface ReportBundle {
   has_weather_data: boolean;
   has_sensor_data: boolean;
   device_count: number;
+  per_device_hourly: Array<{
+    device_id: string;
+    hour: number;
+    temp_avg: number | null;
+    humidity_avg: number | null;
+    n: number;
+  }>;
+  per_device_daily: Array<{
+    device_id: string;
+    day: string;
+    temp_min: number | null;
+    temp_avg: number | null;
+    temp_max: number | null;
+    humidity_min: number | null;
+    humidity_avg: number | null;
+    humidity_max: number | null;
+    n: number;
+  }>;
+  devices_info: Array<{
+    id: string;
+    display_name: string;
+    color: string;
+  }>;
 }
 

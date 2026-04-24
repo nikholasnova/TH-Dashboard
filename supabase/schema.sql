@@ -1020,6 +1020,38 @@ AS $$
     SELECT CORR(temperature, humidity)::DOUBLE PRECISION AS r
     FROM sensor_readings
     WHERE temperature IS NOT NULL AND humidity IS NOT NULL
+  ),
+  per_device_hourly AS (
+    SELECT
+      device_id,
+      EXTRACT(HOUR FROM (created_at AT TIME ZONE 'America/Phoenix'))::INT AS hour,
+      AVG(temperature)::DOUBLE PRECISION AS temp_avg,
+      AVG(humidity)::DOUBLE PRECISION AS humidity_avg,
+      COUNT(*)::BIGINT AS n
+    FROM sensor_readings
+    GROUP BY device_id, hour
+  ),
+  per_device_daily AS (
+    SELECT
+      device_id,
+      (created_at AT TIME ZONE 'America/Phoenix')::DATE AS day,
+      MIN(temperature)::DOUBLE PRECISION AS temp_min,
+      AVG(temperature)::DOUBLE PRECISION AS temp_avg,
+      MAX(temperature)::DOUBLE PRECISION AS temp_max,
+      MIN(humidity)::DOUBLE PRECISION AS humidity_min,
+      AVG(humidity)::DOUBLE PRECISION AS humidity_avg,
+      MAX(humidity)::DOUBLE PRECISION AS humidity_max,
+      COUNT(*)::BIGINT AS n
+    FROM sensor_readings
+    GROUP BY device_id, day
+  ),
+  devices_info AS (
+    SELECT
+      d.id,
+      d.display_name,
+      d.color
+    FROM devices d
+    WHERE d.id IN (SELECT DISTINCT device_id FROM sensor_readings)
   )
   SELECT jsonb_build_object(
     'window', jsonb_build_object(
@@ -1077,7 +1109,19 @@ AS $$
     ),
     'has_weather_data', EXISTS(SELECT 1 FROM weather_readings),
     'has_sensor_data', EXISTS(SELECT 1 FROM sensor_readings),
-    'device_count', (SELECT COUNT(DISTINCT device_id)::INT FROM sensor_readings)
+    'device_count', (SELECT COUNT(DISTINCT device_id)::INT FROM sensor_readings),
+    'per_device_hourly', COALESCE(
+      (SELECT jsonb_agg(to_jsonb(p.*) ORDER BY p.device_id, p.hour) FROM per_device_hourly p),
+      '[]'::jsonb
+    ),
+    'per_device_daily', COALESCE(
+      (SELECT jsonb_agg(to_jsonb(p.*) ORDER BY p.device_id, p.day) FROM per_device_daily p),
+      '[]'::jsonb
+    ),
+    'devices_info', COALESCE(
+      (SELECT jsonb_agg(to_jsonb(di.*) ORDER BY di.id) FROM devices_info di),
+      '[]'::jsonb
+    )
   );
 $$;
 

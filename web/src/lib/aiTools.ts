@@ -313,6 +313,16 @@ export function convertReportBundleToF(bundle: ReportBundle): ReportBundle {
       ...o,
       value: o.metric === 'temperature' ? (convTemp(o.value) ?? o.value) : o.value,
     })),
+    per_device_hourly: bundle.per_device_hourly.map((h) => ({
+      ...h,
+      temp_avg: convTemp(h.temp_avg),
+    })),
+    per_device_daily: bundle.per_device_daily.map((d) => ({
+      ...d,
+      temp_min: convTemp(d.temp_min),
+      temp_avg: convTemp(d.temp_avg),
+      temp_max: convTemp(d.temp_max),
+    })),
   };
 }
 
