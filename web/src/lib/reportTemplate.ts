@@ -21,22 +21,29 @@ export interface ReportProse {
 
 export function latexEscape(raw: string): string {
   if (!raw) return '';
-  return raw
-    .replace(/\\/g, '\\textbackslash{}')
-    .replace(/&/g, '\\&')
-    .replace(/%/g, '\\%')
-    .replace(/\$/g, '\\$')
-    .replace(/#/g, '\\#')
-    .replace(/_/g, '\\_')
-    .replace(/\{/g, '\\{')
-    .replace(/\}/g, '\\}')
-    .replace(/~/g, '\\textasciitilde{}')
-    .replace(/\^/g, '\\textasciicircum{}')
+  // First pass: multi-char Unicode substitutions.
+  const step1 = raw
     .replace(/—/g, '---')
     .replace(/–/g, '--')
-    .replace(/“|”/g, "''")
-    .replace(/‘|’/g, "'")
+    .replace(/[“”]/g, "''")
+    .replace(/[‘’]/g, "'")
     .replace(/…/g, '\\ldots{}');
+  // Second pass: single-pass character escape. Using a single regex with a
+  // callback prevents the replacement text (e.g. "\textbackslash{}") from
+  // being re-matched by a subsequent pass — which was corrupting any input
+  // containing a backslash into `\textbackslash\{\}`.
+  return step1.replace(/[\\&%$#_{}~^]/g, (ch) => {
+    switch (ch) {
+      case '\\':
+        return '\\textbackslash{}';
+      case '~':
+        return '\\textasciitilde{}';
+      case '^':
+        return '\\textasciicircum{}';
+      default:
+        return `\\${ch}`;
+    }
+  });
 }
 
 function fmt(n: number | null | undefined, digits = 1, suffix = ''): string {
@@ -50,11 +57,23 @@ function fmtSigned(n: number | null | undefined, digits = 1, suffix = ''): strin
   return `${sign}${n.toFixed(digits)}${suffix}`;
 }
 
+// Parse a calendar date string (YYYY-MM-DD) as a local date so we don't
+// shift a day when rendering through toLocaleDateString with a timezone.
+// Date strings from the Postgres (date AT TIME ZONE 'America/Phoenix') cast
+// are already Phoenix-local; treating them as UTC midnight drags them back
+// an hour boundary and turns Apr 12 into Apr 11.
+function parseCalendarDate(iso: string): Date {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  }
+  return new Date(iso);
+}
+
 function fmtDate(iso: string): string {
-  const d = new Date(iso);
+  const d = parseCalendarDate(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('en-US', {
-    timeZone: 'America/Phoenix',
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -62,10 +81,9 @@ function fmtDate(iso: string): string {
 }
 
 function fmtShortDate(iso: string): string {
-  const d = new Date(iso);
+  const d = parseCalendarDate(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('en-US', {
-    timeZone: 'America/Phoenix',
     month: 'short',
     day: 'numeric',
   });
@@ -584,9 +602,12 @@ function buildKeyFindings(bundle: ReportBundle, opts: ReportOptions, prose: Repo
 
   if (bullets.length === 0) return '';
 
+  // AI-produced bullets are already LaTeX-escaped by filterBullets; deterministic
+  // fallback bullets are authored here with hand-written LaTeX ($\sigma$, \%, etc).
+  // Either way, do NOT re-escape — doing so corrupts backslash commands.
   return `\\section*{Key Findings}
 \\begin{itemize}
-${bullets.map((b) => `  \\item ${b.startsWith('\\') ? b : latexEscape(b)}`).join('\n')}
+${bullets.map((b) => `  \\item ${b}`).join('\n')}
 \\end{itemize}
 `;
 }
