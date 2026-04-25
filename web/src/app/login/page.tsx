@@ -26,11 +26,17 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordSet, setPasswordSet] = useState(false);
 
-  // User needs to set password if they arrived via invite hash OR
-  // they have a session but haven't set a password yet
+  // Only show the set-password screen when the user actually arrived via a
+  // Supabase invite or recovery link AND hasn't already finished that flow.
+  // Triggering on "session without password_set" alone is wrong: pre-existing
+  // users created before this flag won't have it but already have real
+  // passwords, and the form would silently overwrite them.
   const needsPassword =
     !loggedInViaPassword &&
-    (hasInviteHash || (!loading && session && !session.user?.user_metadata?.password_set));
+    hasInviteHash &&
+    !loading &&
+    !!session &&
+    !session.user?.user_metadata?.password_set;
 
   // When landing with an invite hash, manually extract tokens
   // and establish the session (Supabase singleton may have missed them)

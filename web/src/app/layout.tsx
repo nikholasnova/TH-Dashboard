@@ -6,7 +6,6 @@ import { DevicesProvider } from "@/contexts/DevicesContext";
 import { ChatShell } from "@/components/ChatShell";
 import { ChatPageContextProvider } from "@/lib/chatContext";
 import { PostHogProviderWrapper } from "@/components/PostHogProvider";
-import { GuestProvider } from "@/contexts/GuestContext";
 
 const newsreader = Newsreader({
   variable: "--font-newsreader",
@@ -52,18 +51,16 @@ export default function RootLayout({
         <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-[var(--glass-bg)] focus:text-[var(--foreground)]">
           Skip to main content
         </a>
-        <GuestProvider>
-          <AuthProvider>
-            <PostHogProviderWrapper>
-              <DevicesProvider>
-                <ChatPageContextProvider>
-                  {children}
-                  <ChatShell />
-                </ChatPageContextProvider>
-              </DevicesProvider>
-            </PostHogProviderWrapper>
-          </AuthProvider>
-        </GuestProvider>
+        <AuthProvider>
+          <PostHogProviderWrapper>
+            <DevicesProvider>
+              <ChatPageContextProvider>
+                {children}
+                <ChatShell />
+              </ChatPageContextProvider>
+            </DevicesProvider>
+          </PostHogProviderWrapper>
+        </AuthProvider>
       </body>
     </html>
   );

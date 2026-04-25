@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { getAllReadingsRange, getChartSamples, celsiusToFahrenheit, getDeployments, Deployment } from '@/lib/supabase';
-import { guestGetAllReadingsRange, guestGetChartSamples, guestGetDeployments } from '@/lib/supabase/guestQueries';
 import { useDevices } from '@/contexts/DevicesContext';
-import { useGuest } from '@/contexts/GuestContext';
 import { csvSafe, downloadCsv } from '@/lib/csv';
 import { MODAL_INPUT_CLASS } from '@/lib/styles';
 import { Modal } from './Modal';
@@ -31,7 +29,6 @@ const BUCKET_OPTIONS = [
 
 export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, defaultDeviceId }: ExportModalProps) {
   const { devices } = useDevices();
-  const { isGuest } = useGuest();
 
   const [deploymentList, setDeploymentList] = useState<Deployment[]>([]);
   const [selectedDeploymentId, setSelectedDeploymentId] = useState<string>('');
@@ -54,9 +51,8 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
     setSelectedDeploymentId('');
     setExportError(null);
     setIsExporting(false);
-    const fetchDeps = isGuest ? guestGetDeployments : getDeployments;
-    fetchDeps().then(setDeploymentList).catch(() => {});
-  }, [isOpen, defaultStart, defaultEnd, defaultDeviceId, isGuest]);
+    getDeployments().then(setDeploymentList).catch(() => {});
+  }, [isOpen, defaultStart, defaultEnd, defaultDeviceId]);
 
   useEffect(() => {
     if (!selectedDeployment) return;
@@ -81,8 +77,7 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
 
       let csv: string;
       if (dataMode === 'raw') {
-        const fetchRange = isGuest ? guestGetAllReadingsRange : getAllReadingsRange;
-        let readings = await fetchRange({ start: isoStart, end: isoEnd, device_id: deviceId });
+        let readings = await getAllReadingsRange({ start: isoStart, end: isoEnd, device_id: deviceId });
         if (!includeWeather) {
           readings = readings.filter(r => !r.device_id.startsWith('weather_'));
         }
@@ -101,8 +96,7 @@ export function ExportModal({ isOpen, onClose, defaultStart, defaultEnd, default
         ]);
         csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
       } else {
-        const fetchSamples = isGuest ? guestGetChartSamples : getChartSamples;
-        let samples = await fetchSamples({ start: isoStart, end: isoEnd, bucketSeconds, device_id: deviceId });
+        let samples = await getChartSamples({ start: isoStart, end: isoEnd, bucketSeconds, device_id: deviceId });
         if (!includeWeather) {
           samples = samples.filter(s => !s.device_id.startsWith('weather_'));
         }

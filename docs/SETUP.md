@@ -313,7 +313,7 @@ Make sure your latest code is pushed (do not commit `secrets.h` or `.env.local` 
 
 ### 6.3 Rate Limiting + Report Storage (Upstash Redis — Required for Production)
 
-`/api/chat`, `/api/guest-data`, `/api/guest-token`, `/api/nl-filter`, and `/api/reports/generate` all use Upstash Redis. The chat/guest/NL routes use it for rate limiting and fail closed in production if Upstash is not configured. The report pipeline additionally uses Redis to cache the data bundle (30 min TTL) between the chat-side `prepare_report` tool call and the client-side modal submission, and to stash the generated `.tex` (30 min TTL) for `Download .tex` / `Open in Overleaf`. Provisioning is free:
+`/api/chat`, `/api/nl-filter`, and `/api/reports/generate` all use Upstash Redis. The chat/NL routes use it for rate limiting and fail closed in production if Upstash is not configured. The report pipeline additionally uses Redis to cache the data bundle (30 min TTL) between the chat-side `prepare_report` tool call and the client-side modal submission, and to stash the generated `.tex` (30 min TTL) for `Download .tex` / `Open in Overleaf`. Provisioning is free:
 
 1. In your Vercel project, open **Storage** > **Create** > **Upstash Redis** and pick the **Free** plan.
 2. Link the database to this project. Vercel auto-injects `KV_REST_API_URL` and `KV_REST_API_TOKEN` into all environments.
@@ -442,23 +442,12 @@ To bypass the 2-email-per-hour Supabase limit and improve deliverability:
 
 With custom SMTP, Supabase's built-in email rate limit no longer applies.
 
-### 10.5 Guest Read-Only Access
-
-Admins can generate a guest link that gives read-only access without requiring an account. Guests can view all dashboards, charts, compare, and data pages, and use the AI chat (including generating reports). They cannot create, edit, or delete anything.
-
-1. Set `GUEST_VIEW_TOKEN` to a random string in your environment (local `.env.local` and Vercel).
-2. In the dashboard, click your profile icon and select **Copy Guest Link**.
-3. Share the link with instructors or observers.
-
-To revoke access, change the `GUEST_VIEW_TOKEN` value and redeploy. All existing guest links become invalid immediately.
-
-### 10.6 Roles
+### 10.5 Roles
 
 | Role | Can view | Can create/edit | Can delete | Can manage users/devices |
 |------|----------|-----------------|------------|--------------------------|
 | Admin | Everything | Deployments, devices | Deployments, readings, devices | Yes |
-| User | Everything | Deployments, devices | No (shown "contact admin") | No |
-| Guest (token link) | Dashboards, charts, compare, data, AI chat (including report generation) | No | No | No |
+| User | Everything | Own deployments | No | No |
 
 ---
 
@@ -504,7 +493,6 @@ All variables go in `web/.env.local` for local development and in Vercel's proje
 | `ALERT_STALE_MINUTES` | Minutes without data before alerting (default: `10`) |
 | `ENABLE_RECOVERY_ALERTS` | `true` or `false` (default: `true`) |
 | `ALERT_DASHBOARD_URL` | URL included in alert emails |
-| `GUEST_VIEW_TOKEN` | Random string for guest read-only access links (see section 10.5) |
 | `NEXT_PUBLIC_POSTHOG_KEY` | PostHog project API key (for analytics, optional) |
 | `NEXT_PUBLIC_POSTHOG_HOST` | PostHog host or proxy domain (default: `https://us.i.posthog.com`) |
 

@@ -5,6 +5,15 @@ import { getPostHogClient } from '@/lib/posthog-server';
 
 const USERS_PAGE_SIZE = 50;
 const MAX_USERS_PAGE = 20;
+const MAX_EMAIL_LENGTH = 254;
+
+function normalizeInviteEmail(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const email = raw.trim().toLowerCase();
+  if (!email || email.length > MAX_EMAIL_LENGTH) return null;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+  return email;
+}
 
 async function recordRoleChange(
   supabase: ReturnType<typeof getServerClient>,
@@ -22,6 +31,34 @@ async function recordRoleChange(
     action,
   });
   if (error) console.error('role audit insert failed:', error);
+}
+
+async function ensureDefaultUserRole(
+  supabase: ReturnType<typeof getServerClient>,
+  actorId: string,
+  targetId: string,
+) {
+  const { data: existingRole, error: selectError } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', targetId)
+    .maybeSingle();
+  if (selectError) {
+    console.error('role lookup before invite failed:', selectError);
+    return;
+  }
+  if (existingRole?.role) return;
+
+  const { error: insertError } = await supabase.from('user_roles').insert({
+    user_id: targetId,
+    role: 'user',
+  });
+  if (insertError) {
+    console.error('role insert after invite failed:', insertError);
+    return;
+  }
+
+  await recordRoleChange(supabase, actorId, targetId, null, 'user', 'invite');
 }
 
 export async function GET(request: NextRequest) {
@@ -70,11 +107,12 @@ export async function POST(request: NextRequest) {
   const auth = await requireAdmin();
   if (auth.response) return auth.response;
 
-  const body = await request.json();
-  const { email, linkOnly } = body;
+  const body = await request.json().catch(() => null);
+  const email = normalizeInviteEmail((body as { email?: unknown } | null)?.email);
+  const linkOnly = Boolean((body as { linkOnly?: unknown } | null)?.linkOnly);
 
-  if (!email || typeof email !== 'string') {
-    return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+  if (!email) {
+    return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
   }
 
   const supabase = getServerClient();
@@ -89,13 +127,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to generate invite link' }, { status: 400 });
     }
 
-    if (data.user) {
-      await supabase.from('user_roles').upsert({
-        user_id: data.user.id,
-        role: 'user',
-      });
-      await recordRoleChange(supabase, auth.user.id, data.user.id, null, 'user', 'invite');
-    }
+    if (data.user) await ensureDefaultUserRole(supabase, auth.user.id, data.user.id);
 
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || request.headers.get('origin') || '';
     const redirectUrl = `${siteUrl}/login`;
@@ -117,13 +149,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to send invite' }, { status: 400 });
   }
 
-  if (data.user) {
-    await supabase.from('user_roles').upsert({
-      user_id: data.user.id,
-      role: 'user',
-    });
-    await recordRoleChange(supabase, auth.user.id, data.user.id, null, 'user', 'invite');
-  }
+  if (data.user) await ensureDefaultUserRole(supabase, auth.user.id, data.user.id);
 
   const phClient = getPostHogClient();
   phClient?.capture({

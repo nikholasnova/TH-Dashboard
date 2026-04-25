@@ -2,16 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { usePathname } from 'next/navigation';
 import posthog from 'posthog-js';
 import { useSession } from './AuthProvider';
-import { useGuest } from '@/contexts/GuestContext';
 import { AIChat } from './AIChat';
 
 export function ChatShell() {
   const [isOpen, setIsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const { user, loading } = useSession();
-  const { isGuest } = useGuest();
+  const pathname = usePathname();
+  const isAuthRoute = pathname?.startsWith('/login');
 
   const handleOpen = () => {
     setIsOpen(true);
@@ -36,7 +37,7 @@ export function ChatShell() {
     return () => { document.body.style.overflow = ''; };
   }, [isOpen, isFullscreen]);
 
-  if (loading || (!user && !isGuest)) return null;
+  if (loading || !user || isAuthRoute) return null;
 
   const containerClass = [
     'fixed z-50 flex flex-col transition-[width,height,inset,right,max-height] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',

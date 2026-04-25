@@ -20,6 +20,12 @@ ALTER TABLE readings ENABLE ROW LEVEL SECURITY;
 -- (the policy's WITH CHECK references them).
 DROP POLICY IF EXISTS "Allow anonymous insert" ON readings;
 DROP POLICY IF EXISTS "Allow anonymous insert validated" ON readings;
+-- Ghost policies that gave anon read/update/delete access in some early prod
+-- states. The anon key is shipped to the browser so any wide-open anon SELECT
+-- on readings would expose all sensor data; drop them defensively.
+DROP POLICY IF EXISTS "Allow anonymous select" ON readings;
+DROP POLICY IF EXISTS "Allow anonymous update" ON readings;
+DROP POLICY IF EXISTS "Allow anonymous delete" ON readings;
 
 DROP POLICY IF EXISTS "Allow authenticated select" ON readings;
 CREATE POLICY "Allow authenticated select" ON readings
@@ -51,6 +57,11 @@ CREATE TABLE IF NOT EXISTS deployments (
 CREATE INDEX IF NOT EXISTS idx_deployments_device ON deployments (device_id);
 CREATE INDEX IF NOT EXISTS idx_deployments_location ON deployments (location);
 CREATE INDEX IF NOT EXISTS idx_deployments_time ON deployments (started_at, ended_at);
+ALTER TABLE deployments
+  ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE deployments
+  ALTER COLUMN owner_id SET DEFAULT auth.uid();
+CREATE INDEX IF NOT EXISTS idx_deployments_owner ON deployments (owner_id);
 
 ALTER TABLE deployments ENABLE ROW LEVEL SECURITY;
 
@@ -62,6 +73,8 @@ DROP POLICY IF EXISTS "Allow admin delete" ON deployments;
 DROP POLICY IF EXISTS "Admins can insert deployments" ON deployments;
 DROP POLICY IF EXISTS "Admins can update deployments" ON deployments;
 DROP POLICY IF EXISTS "Admins can delete deployments" ON deployments;
+DROP POLICY IF EXISTS "Signed-in can insert own deployments" ON deployments;
+DROP POLICY IF EXISTS "Owners or admins can update deployments" ON deployments;
 -- Ghost anon policies that existed in some early prod states — drop them if present.
 DROP POLICY IF EXISTS "Allow anonymous select" ON deployments;
 DROP POLICY IF EXISTS "Allow anonymous insert" ON deployments;
@@ -72,22 +85,27 @@ CREATE POLICY "Allow authenticated select" ON deployments
   FOR SELECT TO authenticated
   USING (auth.uid() IS NOT NULL);
 
--- Writes require admin role (looked up in user_roles, not from JWT claim, so
--- role changes take effect immediately without waiting for JWT refresh).
-CREATE POLICY "Admins can insert deployments" ON deployments
+-- Signed-in users may create deployment metadata they own. Updates are limited
+-- to the owner or an admin; deletes remain admin-only because deletion cascades
+-- into sensor readings.
+CREATE POLICY "Signed-in can insert own deployments" ON deployments
   FOR INSERT TO authenticated
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
-  ));
+  WITH CHECK (owner_id = auth.uid());
 
-CREATE POLICY "Admins can update deployments" ON deployments
+CREATE POLICY "Owners or admins can update deployments" ON deployments
   FOR UPDATE TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
-  ))
-  WITH CHECK (EXISTS (
-    SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
-  ));
+  USING (
+    owner_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+    )
+  )
+  WITH CHECK (
+    owner_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM user_roles WHERE user_id = auth.uid() AND role = 'admin'
+    )
+  );
 
 CREATE POLICY "Admins can delete deployments" ON deployments
   FOR DELETE TO authenticated
@@ -372,6 +390,7 @@ RETURNS TABLE (
   location TEXT,
   notes TEXT,
   zip_code TEXT,
+  owner_id UUID,
   started_at TIMESTAMPTZ,
   ended_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ,
@@ -382,7 +401,7 @@ SET search_path = public
 AS $$
   SELECT
     d.id, d.device_id, d.name, d.location, d.notes, d.zip_code,
-    d.started_at, d.ended_at, d.created_at,
+    d.owner_id, d.started_at, d.ended_at, d.created_at,
     COUNT(r.id) AS reading_count
   FROM public.deployments d
   LEFT JOIN public.readings r
@@ -670,6 +689,138 @@ FROM deployments d
 WHERE NOT EXISTS (SELECT 1 FROM devices dv WHERE dv.id = d.device_id)
   AND d.device_id NOT LIKE 'weather_%'
 ON CONFLICT (id) DO NOTHING;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'deployments_device_id_format'
+      AND conrelid = 'public.deployments'::regclass
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM deployments
+      WHERE device_id !~ '^[a-z0-9_-]{1,32}$'
+         OR device_id LIKE 'weather_%'
+    ) THEN
+      RAISE NOTICE 'Skipping deployments_device_id_format: invalid existing deployment device_id values found';
+    ELSE
+      ALTER TABLE deployments
+        ADD CONSTRAINT deployments_device_id_format
+        CHECK (device_id ~ '^[a-z0-9_-]{1,32}$' AND device_id NOT LIKE 'weather_%');
+    END IF;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'deployments_text_bounds'
+      AND conrelid = 'public.deployments'::regclass
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM deployments
+      WHERE btrim(name) = ''
+         OR length(name) > 200
+         OR btrim(location) = ''
+         OR length(location) > 200
+         OR length(COALESCE(notes, '')) > 2000
+    ) THEN
+      RAISE NOTICE 'Skipping deployments_text_bounds: invalid existing deployment text values found';
+    ELSE
+      ALTER TABLE deployments
+        ADD CONSTRAINT deployments_text_bounds
+        CHECK (
+          btrim(name) <> ''
+          AND length(name) <= 200
+          AND btrim(location) <> ''
+          AND length(location) <= 200
+          AND length(COALESCE(notes, '')) <= 2000
+        );
+    END IF;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'deployments_zip_code_format'
+      AND conrelid = 'public.deployments'::regclass
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM deployments
+      WHERE zip_code IS NOT NULL
+        AND zip_code !~ '^[0-9]{5}(-[0-9]{4})?$'
+    ) THEN
+      RAISE NOTICE 'Skipping deployments_zip_code_format: invalid existing ZIP codes found';
+    ELSE
+      ALTER TABLE deployments
+        ADD CONSTRAINT deployments_zip_code_format
+        CHECK (zip_code IS NULL OR zip_code ~ '^[0-9]{5}(-[0-9]{4})?$');
+    END IF;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'deployments_time_order'
+      AND conrelid = 'public.deployments'::regclass
+  ) THEN
+    IF EXISTS (
+      SELECT 1 FROM deployments
+      WHERE ended_at IS NOT NULL AND ended_at <= started_at
+    ) THEN
+      RAISE NOTICE 'Skipping deployments_time_order: invalid existing deployment time windows found';
+    ELSE
+      ALTER TABLE deployments
+        ADD CONSTRAINT deployments_time_order
+        CHECK (ended_at IS NULL OR ended_at > started_at);
+    END IF;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'deployments_device_id_fkey'
+      AND conrelid = 'public.deployments'::regclass
+  ) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM deployments d
+      LEFT JOIN devices dv ON dv.id = d.device_id
+      WHERE dv.id IS NULL
+    ) THEN
+      RAISE NOTICE 'Skipping deployments_device_id_fkey: orphan deployment device IDs found';
+    ELSE
+      ALTER TABLE deployments
+        ADD CONSTRAINT deployments_device_id_fkey
+        FOREIGN KEY (device_id) REFERENCES devices(id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT;
+    END IF;
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION validate_deployment_device()
+RETURNS TRIGGER LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' AND NOT EXISTS (
+    SELECT 1 FROM devices
+    WHERE id = NEW.device_id AND is_active = true
+  ) THEN
+    RAISE EXCEPTION 'deployment device_id must be an active registered device';
+  END IF;
+
+  IF TG_OP = 'UPDATE' AND NEW.device_id IS DISTINCT FROM OLD.device_id THEN
+    RAISE EXCEPTION 'deployment device_id cannot be changed after creation';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prevent_deployment_device_change ON deployments;
+DROP TRIGGER IF EXISTS trg_validate_deployment_device ON deployments;
+CREATE TRIGGER trg_validate_deployment_device
+  BEFORE INSERT OR UPDATE ON deployments
+  FOR EACH ROW EXECUTE FUNCTION validate_deployment_device();
+
+DROP FUNCTION IF EXISTS prevent_deployment_device_change();
 
 -- =========================================================================
 -- App settings: feature flags stored in DB.
@@ -1177,12 +1328,46 @@ REVOKE EXECUTE ON FUNCTION public.custom_access_token_hook FROM authenticated, a
 -- Defined here because WITH CHECK references source / deployment_id /
 -- zip_code / observed_at, which are added by ALTER TABLE above.
 -- ============================================================
+CREATE OR REPLACE FUNCTION public.is_registered_sensor_device(p_device_id TEXT)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.devices d
+    WHERE d.id = p_device_id
+      AND d.is_active = true
+      AND p_device_id NOT LIKE 'weather_%'
+  )
+  OR (
+    p_device_id NOT LIKE 'weather_%'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.devices d
+      WHERE d.id = p_device_id
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.app_settings s
+      WHERE s.key = 'device_auto_register'
+        AND s.value = 'true'
+    )
+  );
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.is_registered_sensor_device(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_registered_sensor_device(TEXT) TO anon, authenticated, service_role;
+
 CREATE POLICY "Allow anonymous insert validated" ON readings
   FOR INSERT
   TO anon
   WITH CHECK (
     device_id ~ '^[a-z0-9_-]{1,32}$'
     AND device_id NOT LIKE 'weather_%'
+    AND public.is_registered_sensor_device(device_id)
     AND temperature >= -50 AND temperature <= 100
     AND humidity >= 0 AND humidity <= 100
     AND source = 'sensor'

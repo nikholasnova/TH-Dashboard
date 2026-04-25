@@ -63,6 +63,7 @@ export function DeploymentModal({
   onDeploymentChange,
 }: DeploymentModalProps) {
   const { devices } = useDevices();
+  const { role, user } = useSession();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isDeviceConnected = isDeviceConnectedProp ?? Boolean(reading);
   const isViewingSpecific = !!existingDeployment;
@@ -75,6 +76,10 @@ export function DeploymentModal({
   const [editFormData, setEditFormData] = useState<EditFormData>({ name: '', location: '', notes: '', zip_code: '', started_at: '', ended_at: '' });
   const isCreateZipValid = isValidOptionalUsZipCode(formData.zip_code);
   const isEditZipValid = isValidOptionalUsZipCode(editFormData.zip_code);
+  const canEditCurrentDeployment = !currentDeployment
+    || role === 'admin'
+    || currentDeployment.owner_id === user?.id;
+  const canDeleteCurrentDeployment = role === 'admin';
 
   const fetchDeployment = useCallback(async () => {
     setIsLoading(true);
@@ -125,6 +130,10 @@ export function DeploymentModal({
 
   const handleEndDeployment = async () => {
     if (!currentDeployment) return;
+    if (!canEditCurrentDeployment) {
+      setActionError('Only the deployment owner or an admin can change this deployment.');
+      return;
+    }
     setActionError(null);
     setIsSaving(true);
     const ended = await endDeployment(currentDeployment.id);
@@ -190,6 +199,10 @@ export function DeploymentModal({
 
   const handleSaveEdit = async () => {
     if (!currentDeployment) return;
+    if (!canEditCurrentDeployment) {
+      setActionError('Only the deployment owner or an admin can change this deployment.');
+      return;
+    }
     if (!editFormData.name.trim() || !editFormData.location.trim()) return;
     if (!editFormData.started_at || !isEditTimeValid) return;
     if (!isEditZipValid) return;
@@ -218,11 +231,9 @@ export function DeploymentModal({
     setIsSaving(false);
   };
 
-  const { role } = useSession();
-
   const handleDeleteDeployment = async () => {
     if (!currentDeployment) return;
-    if (role !== 'admin') {
+    if (!canDeleteCurrentDeployment) {
       setActionError('Only admins can delete deployments. Contact your admin.');
       return;
     }
@@ -434,7 +445,7 @@ export function DeploymentModal({
                     )}
 
                     <div className="flex flex-wrap gap-3 mt-4">
-                      {!currentDeployment.ended_at && (
+                      {!currentDeployment.ended_at && canEditCurrentDeployment && (
                         <button
                           onClick={handleEndDeployment}
                           disabled={isSaving}
@@ -443,23 +454,27 @@ export function DeploymentModal({
                           {isSaving ? 'Ending...' : 'End Deployment'}
                         </button>
                       )}
-                      <button
-                        onClick={() => {
-                          setActionError(null);
-                          setIsEditing(true);
-                        }}
-                        disabled={isSaving}
-                        className="px-4 py-2 text-sm font-medium text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(true)}
-                        disabled={isSaving}
-                        className="px-4 py-2 text-sm font-medium text-[var(--error)] hover:text-[var(--error)] transition-colors"
-                      >
-                        Delete
-                      </button>
+                      {canEditCurrentDeployment && (
+                        <button
+                          onClick={() => {
+                            setActionError(null);
+                            setIsEditing(true);
+                          }}
+                          disabled={isSaving}
+                          className="px-4 py-2 text-sm font-medium text-[var(--foreground-muted)] hover:text-[var(--foreground)] transition-colors"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {canDeleteCurrentDeployment && (
+                        <button
+                          onClick={() => setShowDeleteConfirm(true)}
+                          disabled={isSaving}
+                          className="px-4 py-2 text-sm font-medium text-[var(--error)] hover:text-[var(--error)] transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
 
                     {showDeleteConfirm && (

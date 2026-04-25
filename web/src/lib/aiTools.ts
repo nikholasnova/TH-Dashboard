@@ -21,11 +21,94 @@ export interface ToolContext {
 }
 
 const TIMEZONE = 'America/Phoenix';
+const DEVICE_ID_RE = /^[a-z0-9_-]{1,32}$/;
+const MAX_DEVICE_FILTERS = 20;
+const MAX_STATS_RANGE_DAYS = 365;
+const MAX_CHART_RANGE_DAYS = 90;
+const MAX_DAILY_CHART_RANGE_DAYS = 365;
 
 function safeInt(value: unknown, fallback: number, min: number, max: number): number {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
   return Math.min(Math.max(Math.round(n), min), max);
+}
+
+function parseDateRange(startRaw: unknown, endRaw: unknown, maxDays: number): { start: string; end: string } {
+  if (typeof startRaw !== 'string' || typeof endRaw !== 'string') {
+    throw new Error('start and end must be ISO 8601 strings.');
+  }
+  const start = new Date(startRaw);
+  const end = new Date(endRaw);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    throw new Error('start and end must be valid ISO 8601 timestamps.');
+  }
+  if (end.getTime() <= start.getTime()) {
+    throw new Error('end must be later than start.');
+  }
+  const rangeDays = (end.getTime() - start.getTime()) / 86400000;
+  if (rangeDays > maxDays) {
+    throw new Error(`Time range too large. Max ${maxDays} days for this tool.`);
+  }
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function normalizeDeviceId(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  return DEVICE_ID_RE.test(trimmed) ? trimmed : null;
+}
+
+async function getRegisteredDeviceIds(supabase: ReturnType<typeof getServerClient>): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from('devices')
+    .select('id')
+    .eq('is_active', true);
+  if (error) {
+    throw new Error(`Failed to validate device IDs: ${error.message}`);
+  }
+  return new Set((data ?? []).map((d: { id: string }) => d.id));
+}
+
+async function validateDeviceId(
+  supabase: ReturnType<typeof getServerClient>,
+  raw: unknown,
+  options: { allowWeather?: boolean } = {},
+): Promise<string | undefined> {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  const id = normalizeDeviceId(raw);
+  if (!id) throw new Error('Invalid device_id.');
+
+  const registered = await getRegisteredDeviceIds(supabase);
+  const isWeather = id.startsWith('weather_');
+  const sensorId = isWeather ? id.replace(/^weather_/, '') : id;
+  if ((isWeather && !options.allowWeather) || !registered.has(sensorId)) {
+    throw new Error(`Unknown device_id: ${id}`);
+  }
+  return id;
+}
+
+async function validateSensorDeviceIds(
+  supabase: ReturnType<typeof getServerClient>,
+  raw: unknown,
+): Promise<string[] | undefined> {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) throw new Error('device_ids must be an array.');
+
+  const ids = Array.from(new Set(raw.map(normalizeDeviceId).filter((id): id is string => Boolean(id))));
+  if (ids.length === 0) return undefined;
+  if (ids.length > MAX_DEVICE_FILTERS) {
+    throw new Error(`Too many device_ids. Max ${MAX_DEVICE_FILTERS}.`);
+  }
+  if (ids.some((id) => id.startsWith('weather_'))) {
+    throw new Error('device_ids must contain sensor device IDs, not weather IDs.');
+  }
+
+  const registered = await getRegisteredDeviceIds(supabase);
+  const unknown = ids.filter((id) => !registered.has(id));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown device_id: ${unknown[0]}`);
+  }
+  return ids;
 }
 
 function convertStatsToF<T extends { temp_avg: number | null; temp_min: number | null; temp_max: number | null; temp_stddev: number | null }>(
@@ -61,9 +144,10 @@ export async function executeGetDeployments(params: {
   zip_code?: string;
 }): Promise<DeploymentWithCount[]> {
   const supabase = getServerClient();
+  const deviceId = await validateDeviceId(supabase, params.device_id, { allowWeather: false });
 
   const { data, error } = await supabase.rpc('get_deployments_with_counts', {
-    p_device_id: params.device_id || null,
+    p_device_id: deviceId || null,
     p_active_only: params.active_only || false,
   });
 
@@ -98,10 +182,17 @@ export async function executeGetDeploymentStats(params: {
 }): Promise<{ stats: DeploymentStats[]; truncated: boolean }> {
   const supabase = getServerClient();
 
-  if (params.deployment_ids.length === 0) return { stats: [], truncated: false };
+  const ids = Array.isArray(params.deployment_ids)
+    ? params.deployment_ids
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+        .map((id) => Math.trunc(id))
+    : [];
 
-  const truncated = params.deployment_ids.length > MAX_DEPLOYMENT_IDS;
-  const cappedIds = params.deployment_ids.slice(0, MAX_DEPLOYMENT_IDS);
+  if (ids.length === 0) return { stats: [], truncated: false };
+
+  const truncated = ids.length > MAX_DEPLOYMENT_IDS;
+  const cappedIds = ids.slice(0, MAX_DEPLOYMENT_IDS);
 
   const { data, error } = await supabase.rpc('get_deployment_stats', {
     deployment_ids: cappedIds,
@@ -124,19 +215,23 @@ export async function executeGetReadings(params: {
   ascending?: boolean;
 }): Promise<Reading[]> {
   const supabase = getServerClient();
+  const deploymentId = safeInt(params.deployment_id, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (deploymentId <= 0) {
+    throw new Error('deployment_id must be a positive integer.');
+  }
 
   const { data: deployment, error: dError } = await supabase
     .from('deployments')
     .select('*')
-    .eq('id', params.deployment_id)
+    .eq('id', deploymentId)
     .single();
 
   if (dError) {
-    throw new Error(`Failed to fetch deployment ${params.deployment_id}: ${dError.message}`);
+    throw new Error(`Failed to fetch deployment ${deploymentId}: ${dError.message}`);
   }
 
   if (!deployment) {
-    throw new Error(`Deployment ${params.deployment_id} not found`);
+    throw new Error(`Deployment ${deploymentId} not found`);
   }
 
   const orderField: OrderByField = VALID_ORDER_BY.includes(params.order_by as OrderByField)
@@ -161,7 +256,7 @@ export async function executeGetReadings(params: {
   const { data, error } = await query;
 
   if (error) {
-    throw new Error(`Failed to fetch readings for deployment ${params.deployment_id}: ${error.message}`);
+    throw new Error(`Failed to fetch readings for deployment ${deploymentId}: ${error.message}`);
   }
 
   return data || [];
@@ -174,13 +269,19 @@ export async function executeGetDeviceStats(params: {
 }): Promise<DeviceStats[]> {
   const supabase = getServerClient();
 
-  const end = params.end || new Date().toISOString();
-  const start = params.start || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const defaultEnd = new Date();
+  const defaultStart = new Date(defaultEnd.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const { start, end } = parseDateRange(
+    params.start || defaultStart.toISOString(),
+    params.end || defaultEnd.toISOString(),
+    MAX_STATS_RANGE_DAYS,
+  );
+  const deviceId = await validateDeviceId(supabase, params.device_id, { allowWeather: true });
 
   const { data, error } = await supabase.rpc('get_device_stats', {
     p_start: start,
     p_end: end,
-    p_device_id: params.device_id || null,
+    p_device_id: deviceId || null,
   });
 
   if (error) {
@@ -197,12 +298,16 @@ export async function executeGetChartData(params: {
   device_id?: string;
 }): Promise<ChartSample[]> {
   const supabase = getServerClient();
+  const bucketMinutes = safeInt(params.bucket_minutes, 60, 1, 1440);
+  const maxDays = bucketMinutes >= 1440 ? MAX_DAILY_CHART_RANGE_DAYS : MAX_CHART_RANGE_DAYS;
+  const { start, end } = parseDateRange(params.start, params.end, maxDays);
+  const deviceId = await validateDeviceId(supabase, params.device_id, { allowWeather: true });
 
   const { data, error } = await supabase.rpc('get_chart_samples', {
-    p_start: params.start,
-    p_end: params.end,
-    p_bucket_minutes: safeInt(params.bucket_minutes, 60, 1, 1440),
-    p_device_id: params.device_id || null,
+    p_start: start,
+    p_end: end,
+    p_bucket_minutes: bucketMinutes,
+    p_device_id: deviceId || null,
   });
 
   if (error) {
@@ -261,10 +366,12 @@ export async function executeGetReportBundle(params: {
   device_ids?: string[];
 }): Promise<ReportBundle> {
   const supabase = getServerClient();
+  const { start, end } = parseDateRange(params.start, params.end, MAX_STATS_RANGE_DAYS);
+  const deviceIds = await validateSensorDeviceIds(supabase, params.device_ids);
   const { data, error } = await supabase.rpc('get_report_bundle', {
-    p_start: params.start,
-    p_end: params.end,
-    p_device_ids: params.device_ids && params.device_ids.length > 0 ? params.device_ids : null,
+    p_start: start,
+    p_end: end,
+    p_device_ids: deviceIds && deviceIds.length > 0 ? deviceIds : null,
   });
   if (error) {
     throw new Error(`RPC get_report_bundle failed: ${error.message} (code: ${error.code})`);
@@ -391,6 +498,10 @@ export async function executePrepareReport(
   params: { start: string; end: string; device_ids?: string[] },
   ctx: ToolContext,
 ): Promise<PrepareReportResult> {
+  if (!ctx.user?.id) {
+    return { status: 'error', error: 'Report generation requires an authenticated user.' };
+  }
+
   const startDate = new Date(params.start);
   const endDate = new Date(params.end);
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
@@ -423,7 +534,7 @@ export async function executePrepareReport(
   }
 
   const contextId = crypto.randomUUID();
-  const stored = await storeBundle(contextId, convertReportBundleToF(bundle));
+  const stored = await storeBundle(contextId, ctx.user.id, convertReportBundleToF(bundle));
   if (!stored) {
     return {
       status: 'error',
@@ -491,7 +602,8 @@ export async function executeGetWeather(params: {
   }
 
   if (params.device_id) {
-    query = query.eq('device_id', params.device_id);
+    const deviceId = await validateDeviceId(supabase, params.device_id, { allowWeather: true });
+    query = query.eq('device_id', deviceId);
   }
 
   const limit = safeInt(params.limit, 1, 1, 100);

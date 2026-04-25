@@ -6,7 +6,6 @@ import { DeploymentModal } from '@/components/DeploymentModal';
 import { DeviceManager } from '@/components/DeviceManager';
 import { UserManager } from '@/components/UserManager';
 import { Reading, Deployment, ChartSample, DeviceStats, DeviceAlertState, getActiveDeployments, getDashboardLive, getDeviceStats, getDeviceAlertStates } from '@/lib/supabase';
-import { guestGetDashboardLive, guestGetDeviceStats, guestGetActiveDeployments, guestGetDeviceAlertStates } from '@/lib/supabase/guestQueries';
 import { DashboardStats } from '@/components/DashboardStats';
 
 import { useSetChatPageContext } from '@/lib/chatContext';
@@ -15,7 +14,6 @@ import { useDevices } from '@/contexts/DevicesContext';
 import { PageLayout } from '@/components/PageLayout';
 import { ViewportScaler } from '@/components/ViewportScaler';
 import { useSession } from '@/components/AuthProvider';
-import { useGuest } from '@/contexts/GuestContext';
 
 function gridColsFor(count: number): string {
   if (count <= 1) return 'grid-cols-1';
@@ -57,7 +55,6 @@ export default function Dashboard() {
   const [showDeviceManager, setShowDeviceManager] = useState(false);
   const [showUserManager, setShowUserManager] = useState(false);
   const { role } = useSession();
-  const { isGuest } = useGuest();
 
   const cacheRef = useRef({ deviceData, stats, lastRefresh });
   useEffect(() => {
@@ -79,12 +76,9 @@ export default function Dashboard() {
     const now = new Date().toISOString();
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const fetchLive = isGuest ? guestGetDashboardLive : getDashboardLive;
-    const fetchStats = isGuest ? guestGetDeviceStats : getDeviceStats;
-
     const [liveResult, statsResult] = await Promise.allSettled([
-      fetchLive(ids, sixHoursAgo, 15),
-      fetchStats({ start: twentyFourHoursAgo, end: now }),
+      getDashboardLive(ids, sixHoursAgo, 15),
+      getDeviceStats({ start: twentyFourHoursAgo, end: now }),
     ]);
 
     if (liveResult.status === 'fulfilled') {
@@ -108,7 +102,7 @@ export default function Dashboard() {
       setStats(statsResult.value);
       setStatsLoading(false);
     }
-  }, [devices, isGuest]);
+  }, [devices]);
 
   const fetchInitialData = useCallback(async () => {
     const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
@@ -116,16 +110,11 @@ export default function Dashboard() {
     const now = new Date().toISOString();
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const fetchLive = isGuest ? guestGetDashboardLive : getDashboardLive;
-    const fetchStats = isGuest ? guestGetDeviceStats : getDeviceStats;
-    const fetchDeps = isGuest ? guestGetActiveDeployments : getActiveDeployments;
-    const fetchAlerts = isGuest ? guestGetDeviceAlertStates : getDeviceAlertStates;
-
     const [liveResult, statsResult, deploymentsResult, alertResult] = await Promise.allSettled([
-      fetchLive(ids, sixHoursAgo, 15),
-      fetchStats({ start: twentyFourHoursAgo, end: now }),
-      fetchDeps(ids),
-      fetchAlerts(ids),
+      getDashboardLive(ids, sixHoursAgo, 15),
+      getDeviceStats({ start: twentyFourHoursAgo, end: now }),
+      getActiveDeployments(ids),
+      getDeviceAlertStates(ids),
     ]);
 
     const live = liveResult.status === 'fulfilled' ? liveResult.value : null;
@@ -151,7 +140,7 @@ export default function Dashboard() {
       setStatsLoading(false);
     }
     setIsLoading(false);
-  }, [devices, isGuest]);
+  }, [devices]);
 
   useEffect(() => {
     if (devicesLoading) return;
@@ -169,8 +158,7 @@ export default function Dashboard() {
 
   const handleDeploymentChange = useCallback(async () => {
     const ids = devices.map(d => d.id);
-    const fetchDeps = isGuest ? guestGetActiveDeployments : getActiveDeployments;
-    const deployments = await fetchDeps(ids);
+    const deployments = await getActiveDeployments(ids);
     setDeviceData(prev => {
       const next = { ...prev };
       for (const id of Object.keys(deployments)) {
@@ -178,7 +166,7 @@ export default function Dashboard() {
       }
       return next;
     });
-  }, [devices, isGuest]);
+  }, [devices]);
 
   const selectedReading = selectedDevice ? deviceData[selectedDevice.id]?.reading : null;
   const selectedDeviceConnected =
@@ -187,7 +175,7 @@ export default function Dashboard() {
       : false;
 
   return (
-    <PageLayout title="Dashboard" onManageNodes={isGuest ? undefined : () => setShowDeviceManager(true)}>
+    <PageLayout title="Dashboard" onManageNodes={() => setShowDeviceManager(true)}>
       <ViewportScaler ready={!isLoading}>
       {isLoading ? (
         <div className="flex items-center justify-center py-32">
@@ -198,7 +186,6 @@ export default function Dashboard() {
         </div>
       ) : (
       <>
-      {!isGuest && (
       <div className="hidden sm:flex justify-end mb-12 gap-2">
         {role === 'admin' && (
           <button
@@ -222,7 +209,6 @@ export default function Dashboard() {
           Manage Nodes
         </button>
       </div>
-      )}
 
       {!alertDismissed && (() => {
         const problems = alertStates.filter(a => a.status !== 'ok');
@@ -255,14 +241,12 @@ export default function Dashboard() {
         <div className="py-12">
           <h2 className="text-xl font-semibold text-[var(--fg)] mb-2">No devices configured yet</h2>
           <p className="text-sm text-[var(--fg-muted)] mb-4">Register a sensor node to start streaming readings.</p>
-          {!isGuest && (
-            <button
-              onClick={() => setShowDeviceManager(true)}
-              className="btn-glass px-4 py-2 text-sm"
-            >
-              Add your first node
-            </button>
-          )}
+          <button
+            onClick={() => setShowDeviceManager(true)}
+            className="btn-glass px-4 py-2 text-sm"
+          >
+            Add your first node
+          </button>
         </div>
       ) : (
         <div className={`grid ${gridColsFor(devices.length)} gap-6 sm:gap-8`}>
@@ -274,7 +258,7 @@ export default function Dashboard() {
                 reading={deviceData[device.id]?.reading}
                 activeDeployment={deviceData[device.id]?.deployment}
                 isLoading={isLoading}
-                onClick={isGuest ? undefined : () => setSelectedDevice({ id: device.id, name: device.display_name })}
+                onClick={() => setSelectedDevice({ id: device.id, name: device.display_name })}
                 onRefresh={() => void fetchLiveAndStats()}
                 lastRefresh={lastRefresh}
                 weatherReading={deviceData[device.id]?.weather}

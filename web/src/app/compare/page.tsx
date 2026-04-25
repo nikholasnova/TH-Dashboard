@@ -3,8 +3,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { PageLayout } from '@/components/PageLayout';
 import { DeviceStats, getDeviceStats } from '@/lib/supabase';
-import { useGuest } from '@/contexts/GuestContext';
-import { guestGetDeviceStats } from '@/lib/supabase/guestQueries';
 import { computePercentError, getScopedCompareDeviceIds } from '@/lib/weatherCompare';
 import { formatValue, formatPercent, safeC2F, safeDeltaC2F } from '@/lib/format';
 import { useDevices } from '@/contexts/DevicesContext';
@@ -54,7 +52,6 @@ export default function ComparePage() {
   }, []);
 
   const { devices, isLoading: devicesLoading } = useDevices();
-  const { isGuest } = useGuest();
   const timeRange = useTimeRange();
   const { deployments } = useDeployments();
   const {
@@ -80,14 +77,12 @@ export default function ComparePage() {
     if (isCustom && !isCustomValid) return;
     if (!hasDataRef2.current) setIsLoading(true);
 
-    const fetchStats = isGuest ? guestGetDeviceStats : getDeviceStats;
-
     try {
       const { start, end, deployment: dep } = await getRangeBounds();
       const fetchForDeviceIds = async (deviceIds: string[]) => {
         const uniqueIds = Array.from(new Set(deviceIds));
         const statsByDevice = await Promise.all(
-          uniqueIds.map((deviceId) => fetchStats({ start, end, device_id: deviceId }))
+          uniqueIds.map((deviceId) => getDeviceStats({ start, end, device_id: deviceId }))
         );
         return statsByDevice.flat();
       };
@@ -99,21 +94,21 @@ export default function ComparePage() {
           const scoped = getScopedCompareDeviceIds({ deploymentDeviceId: dep.device_id });
           const data = scoped
             ? await fetchForDeviceIds(scoped)
-            : await fetchStats({ start, end, device_id: dep.device_id });
+            : await getDeviceStats({ start, end, device_id: dep.device_id });
           setStats(data);
         }
       } else {
         const scoped = getScopedCompareDeviceIds({ deviceFilter });
         const data = scoped
           ? await fetchForDeviceIds(scoped)
-          : await fetchStats({ start, end, device_id: undefined });
+          : await getDeviceStats({ start, end, device_id: undefined });
         setStats(data);
       }
     } finally {
       setIsLoading(false);
       hasDataRef2.current = true;
     }
-  }, [deploymentFilter, deviceFilter, getRangeBounds, isCustom, isCustomValid, isGuest]);
+  }, [deploymentFilter, deviceFilter, getRangeBounds, isCustom, isCustomValid]);
 
   useEffect(() => {
     if (devicesLoading) return;

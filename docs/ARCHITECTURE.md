@@ -65,7 +65,8 @@ Nodes are dynamically registered in the `devices` table. The dashboard, keepaliv
 - Soft dedup on 15-minute buckets in route code; DB unique index on `(device_id, quarter_hour(created_at UTC))` as fallback for `source = weather`
 
 **`deployments`**
-- Placement window metadata: `device_id`, `name`, `location`, `zip_code`, `notes`, `started_at`, `ended_at`
+- Placement window metadata: `device_id`, `name`, `location`, `zip_code`, `notes`, `owner_id`, `started_at`, `ended_at`
+- DB constraints validate device ID format, text lengths, ZIP format, time ordering, and a foreign key to registered devices. A trigger rejects inserts for inactive/unregistered devices and blocks changing `device_id` after creation.
 - Optional unique-active constraint per `device_id` where `ended_at IS NULL`
 - Overlap exclusion constraint prevents conflicting time windows per device
 
@@ -91,7 +92,7 @@ RLS enabled on all tables.
 | Table | `anon` | `authenticated` | `service_role` |
 |-------|--------|-----------------|----------------|
 | `readings` | INSERT (validated: device_id regex `^[a-z0-9_-]{1,32}$`, no `weather_` prefix, temp -50..100, humidity 0..100, `source='sensor'`, `deployment_id/zip_code/observed_at` must be null) | SELECT | DELETE |
-| `deployments` | — | SELECT; INSERT/UPDATE/DELETE admin-only (checked against `user_roles`, not JWT) | — |
+| `deployments` | — | SELECT; INSERT own rows; UPDATE own rows or admin; DELETE admin-only | — |
 | `devices` | — | SELECT; INSERT/UPDATE/DELETE admin-only (checked against `user_roles`) | — |
 | `app_settings` | — | SELECT; UPDATE admin-only | — |
 | `device_alert_state` | — | SELECT | (service_role bypasses RLS; keepalive upserts via service_role) |
@@ -186,9 +187,7 @@ erDiagram
 
 All pages require Supabase Auth session (`AuthGate`). The root layout wraps the app in `ThemeProvider` > `AuthProvider` > `PostHogProviderWrapper` > `DevicesProvider` > `ChatPageContextProvider`, making the device list, analytics, and chat context available everywhere.
 
-Auth supports two roles: `admin` and `user`. Roles are stored in a `user_roles` table and injected into the JWT via a Custom Access Token Hook. Both roles can read all data. Admins can delete deployments and readings; users cannot — enforced at the RLS and RPC layer via a direct `user_roles` lookup on `auth.uid()` (so role changes take effect immediately rather than waiting for JWT refresh). Admin-only UI includes user management and device management. A middleware layer (`middleware.ts`) refreshes sessions and redirects unauthenticated users to `/login`. Every admin-driven role change (invite, promote, demote, delete) writes a row to `role_change_audit`.
-
-Guest read-only access is supported via a token-based link (`/view?token=...`). Guests bypass Supabase auth entirely -- the middleware validates a `guest_token` cookie against `GUEST_VIEW_TOKEN`. Guest data requests are proxied through `/api/guest-data`, which validates the cookie and fetches via the service-role client. Guests have hardened rate limits (5 req/10s for data, 5 msg/15min for chat). All write operations are blocked: guests have no Supabase session, and the UI hides all create/edit/delete controls.
+Auth supports two roles: `admin` and `user`. Roles are stored in a `user_roles` table and injected into the JWT via a Custom Access Token Hook. Both roles can read all data. Users can create deployment metadata and edit deployments they own; admins can edit any deployment. Admins alone can delete deployments/readings and manage devices/users — enforced at the RLS, RPC, and server-route layer via a direct `user_roles` lookup on `auth.uid()` (so role changes take effect immediately rather than waiting for JWT refresh). A middleware layer (`middleware.ts`) refreshes sessions and redirects unauthenticated users to `/login`. Every admin-driven role change (invite, promote, demote, delete) writes a row to `role_change_audit`.
 
 Optional PostHog integration provides product analytics (autocapture, session replay, error tracking) when `NEXT_PUBLIC_POSTHOG_KEY` is configured. Traffic routes through a managed reverse proxy to bypass ad blockers. PostHog is not required — if the env var is unset, the provider renders children without instrumentation.
 
@@ -217,11 +216,11 @@ Optional PostHog integration provides product analytics (autocapture, session re
 
 ### 5.4 Deployments (`/deployments`)
 
-- CRUD for deployment metadata with device/location/status filters.
+- Create/update deployment metadata with device/location/status filters. Users may edit only their own deployments; admins may edit any deployment.
 - Device filter populated from the `devices` table.
 - Optional ZIP code (`12345` or `12345-6789`) for weather lookups.
-- Deletion removes associated readings in the deployment time window.
-- Clean Up Data modal: scoped deletion of readings by device + time range with password re-entry confirmation. Uses `delete_readings_range` RPC.
+- Admin-only deletion removes associated readings in the deployment time window.
+- Admin-only Clean Up Data modal: scoped deletion of readings by device + time range with password re-entry confirmation. Uses `delete_readings_range` RPC.
 
 ### 5.5 Report Generation (chat-driven, `/api/reports/*`)
 
@@ -253,9 +252,10 @@ Replaced an earlier in-browser Pyodide analysis page. The flow is entirely chat-
 - `get_device_stats` has optional `start`/`end` (defaults to last 30 days) to reduce unnecessary tool calls.
 - `get_readings` supports `order_by` (`created_at`, `temperature`, `humidity`) and `ascending` params for finding extreme values across full datasets.
 - System prompt includes efficiency rules prioritizing single-call patterns (e.g., one `get_device_stats` call for device comparisons).
-- Streaming via `TransformStream` with `__STATUS__` markers for tool-call progress and `__QUESTION__<json>` markers that the client parses to open the report-options modal.
+- Streaming via `TransformStream` with server-emitted `__STATUS__` markers for tool-call progress and `__QUESTION__<json>` markers that the client parses to open the report-options modal. Model-emitted copies of those marker tokens are filtered before they reach the client.
 - Client-side word drip renders streamed text at ~48 words/sec for smooth token-by-token display.
-- Rate limiting via Upstash Redis (free plan). Per-bucket limits: `/api/chat` auth'd = 30/15min/user, `/api/chat` guest = 5/15min/IP, `/api/guest-data` = 5/10s/IP, `/api/nl-filter` = 20/15min/user, `/api/guest-token` = 5/10min/IP, `/api/reports/generate` = 5/hour/user. Fails closed in production if Upstash env vars are missing.
+- Client-supplied chat history is treated as untrusted transcript text rather than Gemini model-role history, so a browser cannot fabricate prior assistant/system messages.
+- Rate limiting via Upstash Redis (free plan). Per-bucket limits: `/api/chat` = 30/15min/user, `/api/nl-filter` = 20/15min/user, `/api/reports/generate` = 5/hour/user. Fails closed in production if Upstash env vars are missing.
 - Page context injected into system prompt from `ChatPageContextProvider`.
 - Returns Fahrenheit fields and `America/Phoenix` local time.
 - Accessed via floating `ChatShell` component with open/close animation, auto-scroll, and scroll-for-more indicator.
@@ -281,14 +281,12 @@ Replaced an earlier in-browser Pyodide analysis page. The flow is entirely chat-
 
 | Route | Method | Auth | Purpose |
 |-------|--------|------|---------|
-| `/api/chat` | POST | Supabase session or guest token | AI chat with Gemini 2.5 Flash. Accepts `{ message, history }`. Streams response with `__STATUS__` markers for tool-call progress. Rate-limited to 30 req/15 min per user, 5 req/15 min per guest IP. |
+| `/api/chat` | POST | Supabase session | AI chat with Gemini 2.5 Flash. Accepts `{ message, history }`. Streams response with server-emitted `__STATUS__` markers for tool-call progress. Rate-limited to 30 req/15 min per user. |
 | `/api/keepalive` | GET | `CRON_SECRET` header | Device health monitor. Classifies devices as ok/missing/stale/anomaly. Sends email alerts on state transitions via Resend. Returns per-device status summary. |
 | `/api/weather` | GET | `CRON_SECRET` header | Weather ingestion cron. Fetches current conditions from WeatherAPI.com for each active deployment ZIP. Writes `source=weather` rows. Idempotent per 15-min UTC bucket. Returns fetch/insert/skip counts. |
-| `/api/guest-data` | POST | Guest token cookie | Read-only data proxy for guest users. Accepts `{ action, params }` with an allowlisted set of read-only actions. Fetches via service-role client. Rate-limited to 5 req/10s per IP. |
-| `/api/guest` | GET/POST | Admin (GET) / Public (POST) | Guest link management. GET generates a shareable guest URL (admin-only). POST validates a token and sets guest cookies. |
 | `/api/users` | GET/POST/PATCH/DELETE | Admin only (Supabase session) | User management. GET lists all users with roles. POST invites by email or generates a copy-able invite link (`linkOnly: true`). PATCH updates user role. DELETE removes a user. All mutations require admin role. |
 | `/api/reports/generate` | POST | Supabase session | Accepts `{ context_id, answers }` where `context_id` references a bundle cached by `prepare_report`. Re-fetches a device-scoped bundle if the user narrowed selection, runs the isolated Gemini prose call, assembles the `.tex`, stores it in Redis for 30 min, returns `{ report_id, filename, byte_size }`. Rate-limited to 5/hour/user. |
-| `/api/reports/[id]/tex` | GET | None (ID is a 128-bit capability token) | Serves the generated `.tex` with `text/x-latex` + permissive CORS. Consumed by the client for Download and by the Overleaf inline-form POST. 404 after the 30-min TTL. |
+| `/api/reports/[id]/tex` | GET | Supabase session (ownership check) | Serves the generated `.tex` with `text/x-latex`. Consumed by the client for Download and by the Overleaf inline-form POST. 404 after the 30-min TTL or when the report belongs to another user. |
 | `/api/reports/[id]/meta` | GET | Supabase session (ownership check) | Returns `{ filename, byte_size, start, end }` so `ReportArtifactCard` can render file size without loading the full tex. |
 
 ## 6) Data Semantics
@@ -331,10 +329,10 @@ Replaced an earlier in-browser Pyodide analysis page. The flow is entirely chat-
 
 | Boundary | Mechanism |
 |----------|-----------|
-| Device | Anon key, INSERT-only into `readings`, validated at the RLS layer (regex + range + null enforcement on server-set columns). Belt-and-suspenders trigger also rejects `weather_*` inserts from anon. |
-| Browser | Anon client for the Supabase SDK (auth flow, session refresh). Post-login reads go through the user's JWT (`authenticated` role). Mutations for `devices` / `deployments` go through server routes (`/api/devices`, `/api/deployments`) that call `requireAdmin` before touching the DB. |
-| Server | Service role on server only. Admin-gated routes (`/api/users`, `/api/devices`, `/api/deployments`, `/api/guest` GET) call `requireAdmin` which looks up `user_roles` for the current user (robust to stale JWTs). Cron routes (`/api/keepalive`, `/api/weather`) check `CRON_SECRET` via timing-safe compare and `claim_cron_run` before running. All writable routes rate-limited via Upstash (fails closed in prod). |
-| Browser transport | Security headers set in `next.config.ts`: HSTS, `X-Frame-Options: DENY`, `Referrer-Policy`, and `Content-Security-Policy-Report-Only` (due to be flipped to enforced once one week of clean violation reports passes). |
+| Device | Anon key, INSERT-only into `readings`, validated at the RLS layer (active registered sensor device by default; brand-new IDs only if admin-enabled auto-registration is on; regex + range + null enforcement on server-set columns). Belt-and-suspenders trigger also rejects `weather_*` inserts from anon. |
+| Browser | Anon client for the Supabase SDK (auth flow, session refresh). Post-login reads go through the user's JWT (`authenticated` role). Mutations for `devices` / `deployments` go through server routes; deployment create/update checks authenticated user ownership, while device mutations require admin. |
+| Server | Service role on server only. Admin-gated routes (`/api/users`, `/api/devices`, deployment delete) call `requireAdmin` which looks up `user_roles` for the current user (robust to stale JWTs). Cron routes (`/api/keepalive`, `/api/weather`) check `CRON_SECRET` via timing-safe compare and `claim_cron_run` before running. All writable routes rate-limited via Upstash (fails closed in prod). |
+| Browser transport | Security headers set in `next.config.ts`: HSTS, `X-Frame-Options: DENY`, `Referrer-Policy`, and an enforcing `Content-Security-Policy`. |
 
 ## 10) Source Files
 
@@ -353,5 +351,4 @@ Replaced an earlier in-browser Pyodide analysis page. The flow is entirely chat-
 | Dashboard extras | `web/src/components/DashboardStats.tsx` |
 | User management | `web/src/app/api/users/route.ts`, `web/src/components/UserManager.tsx` |
 | Auth / roles | `web/src/components/AuthProvider.tsx`, `web/src/lib/serverAuth.ts`, `web/src/middleware.ts` |
-| Guest access | `web/src/app/api/guest/route.ts`, `web/src/app/api/guest-data/route.ts`, `web/src/lib/supabase/guestQueries.ts`, `web/src/contexts/GuestContext.tsx` |
 | Analytics (optional) | `web/src/components/PostHogProvider.tsx`, `web/src/lib/posthog-server.ts` |

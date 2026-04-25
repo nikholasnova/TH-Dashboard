@@ -74,13 +74,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'context_id is required' }, { status: 400 });
   }
 
-  const bundle = await getBundle(contextId);
-  if (!bundle) {
+  const context = await getBundle(contextId);
+  if (!context || context.user_id !== user.id) {
     return NextResponse.json(
       { error: 'Report context expired or not found. Ask the assistant to generate a new report.' },
       { status: 404 },
     );
   }
+
+  const bundle = context.bundle;
 
   if (!bundle.has_sensor_data) {
     return NextResponse.json(

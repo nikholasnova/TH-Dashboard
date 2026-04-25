@@ -1,9 +1,8 @@
 'use client';
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode } from 'react';
 import Link from 'next/link';
 import { useSession } from './AuthProvider';
-import { useGuest } from '@/contexts/GuestContext';
 import { LoadingSpinner } from './LoadingSpinner';
 
 interface AuthGateProps {
@@ -12,13 +11,6 @@ interface AuthGateProps {
 
 export function AuthGate({ children }: AuthGateProps) {
   const { session, loading } = useSession();
-  const { isGuest, clearGuest } = useGuest();
-
-  useEffect(() => {
-    if (session && isGuest) {
-      clearGuest();
-    }
-  }, [session, isGuest, clearGuest]);
 
   if (loading) {
     return (
@@ -29,10 +21,6 @@ export function AuthGate({ children }: AuthGateProps) {
   }
 
   if (session) {
-    return <>{children}</>;
-  }
-
-  if (isGuest) {
     return <>{children}</>;
   }
 

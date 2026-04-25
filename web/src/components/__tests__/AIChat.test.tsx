@@ -79,4 +79,37 @@ describe('AIChat', () => {
       await screen.findByText('Too many requests — please wait a moment and try again.')
     ).toBeInTheDocument();
   });
+
+  it('blocks markdown images and unsafe links in assistant responses', async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          '[safe link](https://example.com/report) [bad link](javascript:alert(1)) ![tracking pixel](https://attacker.example/pixel.png)'
+        ));
+        controller.close();
+      },
+    });
+
+    const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
+      async () => new Response(stream, { status: 200 })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<AIChat />);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByPlaceholderText('Ask about your data...'), 'show links');
+    await user.click(screen.getByRole('button', { name: 'Ask' }));
+
+    const safeLink = await screen.findByRole('link', { name: 'safe link' });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ask' })).toBeInTheDocument());
+
+    expect(safeLink).toHaveAttribute('href', 'https://example.com/report');
+    expect(safeLink).toHaveAttribute('target', '_blank');
+    expect(safeLink).toHaveAttribute('rel', expect.stringContaining('noopener'));
+
+    expect(screen.queryByRole('link', { name: 'bad link' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
 });

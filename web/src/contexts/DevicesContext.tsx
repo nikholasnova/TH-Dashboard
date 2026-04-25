@@ -4,8 +4,6 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef, ty
 import type { Device } from '@/lib/supabase';
 import { getDevices } from '@/lib/supabase';
 import { useSession } from '@/components/AuthProvider';
-import { useGuest } from '@/contexts/GuestContext';
-import { guestGetDevices } from '@/lib/supabase/guestQueries';
 
 const FALLBACK_DEVICES: Device[] = [
   { id: 'node1', display_name: 'Node 1', color: '#9FB0C7', is_active: true, monitor_enabled: true, sort_order: 1, created_at: '', updated_at: '' },
@@ -34,7 +32,6 @@ async function fetchAllDevices() {
 
 export function DevicesProvider({ children }: { children: ReactNode }) {
   const { session } = useSession();
-  const { isGuest } = useGuest();
   const [devices, setDevices] = useState<Device[]>(FALLBACK_DEVICES);
   const [allDevices, setAllDevices] = useState<Device[]>(FALLBACK_DEVICES);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,17 +39,10 @@ export function DevicesProvider({ children }: { children: ReactNode }) {
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    if (!session && !isGuest && hasLoadedRef.current) return;
+    if (!session && hasLoadedRef.current) return;
     const version = ++fetchVersionRef.current;
 
-    const load = isGuest
-      ? guestGetDevices(false).then((all) => ({
-          active: all.filter((d) => d.is_active),
-          all,
-        }))
-      : fetchAllDevices();
-
-    load.then(({ active, all }) => {
+    fetchAllDevices().then(({ active, all }) => {
       if (fetchVersionRef.current !== version) return;
       setDevices(active);
       setAllDevices(all);
@@ -62,20 +52,15 @@ export function DevicesProvider({ children }: { children: ReactNode }) {
       if (fetchVersionRef.current !== version) return;
       setIsLoading(false);
     });
-  }, [session, isGuest]);
+  }, [session]);
 
   const refresh = useCallback(async () => {
     const version = ++fetchVersionRef.current;
-    const { active, all } = isGuest
-      ? await guestGetDevices(false).then((a) => ({
-          active: a.filter((d) => d.is_active),
-          all: a,
-        }))
-      : await fetchAllDevices();
+    const { active, all } = await fetchAllDevices();
     if (fetchVersionRef.current !== version) return;
     setDevices(active);
     setAllDevices(all);
-  }, [isGuest]);
+  }, []);
 
   return (
     <DevicesContext.Provider value={{ devices, allDevices, isLoading, refresh }}>

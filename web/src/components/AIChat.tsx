@@ -5,8 +5,6 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getDeployments } from '@/lib/supabase';
-import { guestGetDeployments } from '@/lib/supabase/guestQueries';
-import { useGuest } from '@/contexts/GuestContext';
 import { useChatPageContext } from '@/lib/chatContext';
 import { BounceDots } from './LoadingSpinner';
 import { ReportOptionsModal, type ReportQuestionPayload } from './ReportOptionsModal';
@@ -78,7 +76,40 @@ function simpleMarkdownToHtml(md: string): string {
 
 const REMARK_PLUGINS = [remarkGfm];
 
+function sanitizeMarkdownHref(raw: string | undefined): string | undefined {
+  const href = raw?.trim();
+  if (!href) return undefined;
+  if (href.startsWith('//')) return undefined;
+  if (href.startsWith('/') || href.startsWith('#') || href.startsWith('?')) return href;
+
+  try {
+    const url = new URL(href);
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return url.toString();
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
+}
+
 const MD_COMPONENTS = {
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => {
+    const safeHref = sanitizeMarkdownHref(href);
+    if (!safeHref) return <span>{children}</span>;
+    const external = /^https?:\/\//i.test(safeHref);
+    return (
+      <a
+        href={safeHref}
+        target={external ? '_blank' : undefined}
+        rel={external ? 'noreferrer noopener nofollow ugc' : undefined}
+      >
+        {children}
+      </a>
+    );
+  },
+  img: () => null,
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="overflow-x-auto my-2">
       <table className="text-xs border-collapse w-full">{children}</table>
@@ -221,7 +252,6 @@ const MessageList = memo(function MessageList({
 
 export function AIChat() {
   const pageContext = useChatPageContext();
-  const { isGuest } = useGuest();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -241,15 +271,14 @@ export function AIChat() {
   useEffect(() => {
     async function loadDeployments() {
       try {
-        const fetchDeps = isGuest ? guestGetDeployments : getDeployments;
-        const deps = await fetchDeps({ status: 'active' });
+        const deps = await getDeployments({ status: 'active' });
         setDeploymentNames(deps.map(d => ({ name: d.name, location: d.location })));
       } catch {
         setDeploymentNames([]);
       }
     }
     loadDeployments();
-  }, [isGuest]);
+  }, []);
 
   // Track whether content extends below the visible scroll area
   const updateScrollHint = useCallback(() => {

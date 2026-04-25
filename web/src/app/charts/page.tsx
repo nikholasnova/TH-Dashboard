@@ -8,8 +8,6 @@ import {
   getChartSamples,
   celsiusToFahrenheit,
 } from '@/lib/supabase';
-import { useGuest } from '@/contexts/GuestContext';
-import { guestGetChartSamples } from '@/lib/supabase/guestQueries';
 import { useSetChatPageContext } from '@/lib/chatContext';
 import { formatRangeLabel } from '@/lib/timeRangeFormat';
 import { ActiveDeploymentChip } from '@/components/ActiveDeploymentChip';
@@ -157,7 +155,6 @@ export default function ChartsPage() {
   }, []);
 
   const { devices } = useDevices();
-  const { isGuest } = useGuest();
   const timeRange = useTimeRange();
   const { deployments } = useDeployments();
   const {
@@ -199,8 +196,7 @@ export default function ChartsPage() {
       const { start, end, scopedDeviceId } = await getRangeBounds();
       const rangeMs = new Date(end).getTime() - new Date(start).getTime();
       const bucketSeconds = pickBucketSeconds(rangeMs);
-      const fetchSamples = isGuest ? guestGetChartSamples : getChartSamples;
-      const data = await fetchSamples({
+      const data = await getChartSamples({
         start,
         end,
         bucketSeconds,
@@ -212,7 +208,7 @@ export default function ChartsPage() {
       setIsLoading(false);
       setIsFetching(false);
     }
-  }, [getRangeBounds, isCustom, isCustomValid, isGuest]);
+  }, [getRangeBounds, isCustom, isCustomValid]);
 
   useEffect(() => {
     void fetchData();

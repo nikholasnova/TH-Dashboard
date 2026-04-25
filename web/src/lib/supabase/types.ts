@@ -38,6 +38,7 @@ export interface Deployment {
   location: string;
   notes: string | null;
   zip_code: string | null;
+  owner_id: string | null;
   started_at: string;
   ended_at: string | null;
   created_at: string;
@@ -173,4 +174,3 @@ export interface ReportBundle {
     color: string;
   }>;
 }
-

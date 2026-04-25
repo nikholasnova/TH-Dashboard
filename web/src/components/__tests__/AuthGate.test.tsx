@@ -10,10 +10,6 @@ vi.mock('../AuthProvider', () => {
   };
 });
 
-vi.mock('@/contexts/GuestContext', () => ({
-  useGuest: () => ({ isGuest: false }),
-}));
-
 vi.mock('next/link', () => {
   return {
     default: ({ href, children }: { href: string; children: ReactNode }) => (

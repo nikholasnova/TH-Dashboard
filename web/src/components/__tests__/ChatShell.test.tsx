@@ -8,8 +8,9 @@ vi.mock('../AuthProvider', () => ({
   useSession: vi.fn(),
 }));
 
-vi.mock('@/contexts/GuestContext', () => ({
-  useGuest: () => ({ isGuest: false }),
+const mockedUsePathname = vi.fn(() => '/');
+vi.mock('next/navigation', () => ({
+  usePathname: () => mockedUsePathname(),
 }));
 
 vi.mock('../AIChat', () => ({
@@ -45,6 +46,18 @@ describe('ChatShell', () => {
 
   it('renders nothing when unauthenticated', () => {
     mockedUseSession.mockReturnValue({ session: null, user: null, loading: false, role: 'user' });
+    const { container } = render(<ChatShell />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('renders nothing on the login route even when a session exists', () => {
+    mockedUseSession.mockReturnValue({
+      session: {} as never,
+      user: { id: 'user-1' } as never,
+      loading: false,
+      role: 'user',
+    });
+    mockedUsePathname.mockReturnValueOnce('/login');
     const { container } = render(<ChatShell />);
     expect(container).toBeEmptyDOMElement();
   });

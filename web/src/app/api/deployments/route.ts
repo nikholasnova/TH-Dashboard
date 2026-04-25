@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/supabase/server';
-import { requireAdmin, enforceOrigin } from '@/lib/serverAuth';
+import { getServerUser, requireAdmin, enforceOrigin } from '@/lib/serverAuth';
 import { normalizeUsZipCode } from '@/lib/weatherZip';
 
 const DEVICE_ID_RE = /^[a-z0-9_-]{1,32}$/;
@@ -91,11 +91,29 @@ function validatePatch(body: unknown): string | { id: number; patch: DeploymentP
   return { id: Math.trunc(idNum), patch };
 }
 
+async function getUserRole(
+  supabase: ReturnType<typeof getServerClient>,
+  userId: string,
+): Promise<'admin' | 'user'> {
+  const { data, error } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) {
+    console.error('deployment role lookup failed:', error);
+    return 'user';
+  }
+  return data?.role === 'admin' ? 'admin' : 'user';
+}
+
 export async function POST(request: NextRequest) {
   const originErr = enforceOrigin(request);
   if (originErr) return originErr;
-  const auth = await requireAdmin();
-  if (auth.response) return auth.response;
+  const user = await getServerUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const body = await request.json().catch(() => null);
   const validated = validateCreate(body);
@@ -106,7 +124,7 @@ export async function POST(request: NextRequest) {
   const supabase = getServerClient();
   const { data, error } = await supabase
     .from('deployments')
-    .insert(validated)
+    .insert({ ...validated, owner_id: user.id })
     .select()
     .single();
 
@@ -120,8 +138,10 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const originErr = enforceOrigin(request);
   if (originErr) return originErr;
-  const auth = await requireAdmin();
-  if (auth.response) return auth.response;
+  const user = await getServerUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const body = await request.json().catch(() => null);
   const validated = validatePatch(body);
@@ -130,6 +150,27 @@ export async function PATCH(request: NextRequest) {
   }
 
   const supabase = getServerClient();
+  const { data: existing, error: existingError } = await supabase
+    .from('deployments')
+    .select('owner_id')
+    .eq('id', validated.id)
+    .maybeSingle();
+
+  if (existingError) {
+    console.error('deployment owner lookup failed:', existingError);
+    return NextResponse.json({ error: 'Failed to update deployment' }, { status: 500 });
+  }
+  if (!existing) {
+    return NextResponse.json({ error: 'Deployment not found' }, { status: 404 });
+  }
+
+  if (existing.owner_id !== user.id) {
+    const role = await getUserRole(supabase, user.id);
+    if (role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+  }
+
   const { data, error } = await supabase
     .from('deployments')
     .update(validated.patch)

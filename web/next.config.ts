@@ -1,34 +1,14 @@
 import type { NextConfig } from "next";
 
-// PostHog is loaded via a managed reverse proxy (NEXT_PUBLIC_POSTHOG_HOST,
-// currently https://novachuk.dev). Both the SDK bundle and all capture
-// endpoints route through that domain, so it has to be in the allowlist.
-// The us.i.posthog.com / us-assets.i.posthog.com entries are left as fallbacks
-// in case someone unsets the proxy env var.
-const csp = [
-  "default-src 'self'",
-  "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net https://us-assets.i.posthog.com https://novachuk.dev",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://cdn.jsdelivr.net https://novachuk.dev",
-  "worker-src 'self' blob:",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "object-src 'none'",
-  "upgrade-insecure-requests",
-].join("; ");
-
+// CSP is set per-request in middleware.ts so each response gets a fresh
+// nonce that replaces 'unsafe-inline' on script-src. Static security
+// headers (HSTS, frame, MIME sniff, referrer, permissions) stay here.
 const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
-  // Report-only for now: watch browser console for violations for ~1 week,
-  // then switch this to "Content-Security-Policy" to enforce.
-  { key: "Content-Security-Policy-Report-Only", value: csp },
 ];
 
 const nextConfig: NextConfig = {

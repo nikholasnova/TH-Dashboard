@@ -6,6 +6,10 @@ import type { NLFilterResponse } from '@/components/DataExplorer/filterTypes';
 
 export const maxDuration = 20;
 
+const RANGE_PRESETS = new Set(['1h', '24h', '7d', '30d', 'all', 'custom']);
+const SOURCES = new Set(['sensor', 'weather', 'both']);
+const MAX_NL_CUSTOM_RANGE_DAYS = 366;
+
 function buildSystemPrompt(devices: { id: string; display_name: string }[]): string {
   const deviceList = devices.map((d) => `${d.id} (${d.display_name})`).join(', ');
   const now = new Date().toISOString();
@@ -47,6 +51,77 @@ function parseJson(text: string): NLFilterResponse {
   const match = trimmed.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('No JSON object found in response');
   return JSON.parse(match[0]);
+}
+
+function finiteNumber(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function normalizeIsoDate(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const d = new Date(v);
+  if (!Number.isFinite(d.getTime())) return null;
+  return d.toISOString();
+}
+
+function sanitizeFilter(
+  raw: NLFilterResponse,
+  devices: { id: string; display_name: string }[],
+): NLFilterResponse {
+  const allowedDeviceIds = new Set(devices.map((d) => d.id));
+  const filter: NLFilterResponse = {};
+
+  if (Array.isArray(raw.deviceIds)) {
+    const ids = Array.from(new Set(
+      raw.deviceIds
+        .filter((id): id is string => typeof id === 'string')
+        .map((id) => id.trim())
+        .filter((id) => allowedDeviceIds.has(id)),
+    ));
+    if (ids.length > 0) filter.deviceIds = ids;
+  }
+
+  if (typeof raw.rangePreset === 'string' && RANGE_PRESETS.has(raw.rangePreset)) {
+    filter.rangePreset = raw.rangePreset;
+  }
+
+  if (filter.rangePreset === 'custom') {
+    const customStart = normalizeIsoDate(raw.customStart);
+    const customEnd = normalizeIsoDate(raw.customEnd);
+    if (customStart && customEnd) {
+      const startMs = new Date(customStart).getTime();
+      const endMs = new Date(customEnd).getTime();
+      const days = (endMs - startMs) / 86400000;
+      if (endMs > startMs && days <= MAX_NL_CUSTOM_RANGE_DAYS) {
+        filter.customStart = customStart;
+        filter.customEnd = customEnd;
+      } else {
+        delete filter.rangePreset;
+      }
+    } else {
+      delete filter.rangePreset;
+    }
+  }
+
+  const minTempF = finiteNumber(raw.minTempF);
+  const maxTempF = finiteNumber(raw.maxTempF);
+  if (minTempF !== null && minTempF >= -100 && minTempF <= 250) filter.minTempF = minTempF;
+  if (maxTempF !== null && maxTempF >= -100 && maxTempF <= 250) filter.maxTempF = maxTempF;
+
+  const minHumidity = finiteNumber(raw.minHumidity);
+  const maxHumidity = finiteNumber(raw.maxHumidity);
+  if (minHumidity !== null && minHumidity >= 0 && minHumidity <= 100) filter.minHumidity = minHumidity;
+  if (maxHumidity !== null && maxHumidity >= 0 && maxHumidity <= 100) filter.maxHumidity = maxHumidity;
+
+  if (typeof raw.source === 'string' && SOURCES.has(raw.source)) {
+    filter.source = raw.source;
+  }
+
+  if (typeof raw.anomaliesOnly === 'boolean') {
+    filter.anomaliesOnly = raw.anomaliesOnly;
+  }
+
+  return filter;
 }
 
 export async function POST(req: Request) {
@@ -102,7 +177,7 @@ export async function POST(req: Request) {
     const result = await model.generateContent(query);
     const text = result.response.text();
     const parsed = parseJson(text);
-    return Response.json({ filter: parsed });
+    return Response.json({ filter: sanitizeFilter(parsed, devices) });
   } catch (e) {
     console.error('NL filter error:', e);
     return Response.json({ error: 'Could not parse query' }, { status: 500 });

@@ -241,4 +241,54 @@ describe('aiTools executeTool', () => {
       'Invalid US zip code'
     );
   });
+
+  it('rejects unknown device filters before running chart RPCs', async () => {
+    const devicesQuery: Record<string, unknown> = {};
+    devicesQuery.select = vi.fn(() => devicesQuery);
+    devicesQuery.eq = vi.fn(async () => ({
+      data: [{ id: 'node1' }],
+      error: null,
+    }));
+    const rpc = vi.fn();
+
+    vi.mocked(createClient).mockReturnValue({
+      from: vi.fn((table: string) => {
+        if (table === 'devices') return devicesQuery;
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+      rpc,
+    } as never);
+
+    await expect(executeTool('get_chart_data', {
+      start: '2026-01-01T00:00:00.000Z',
+      end: '2026-01-02T00:00:00.000Z',
+      bucket_minutes: 60,
+      device_id: 'node999',
+    })).rejects.toThrow('Unknown device_id: node999');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('limits high-resolution chart ranges', async () => {
+    const rpc = vi.fn();
+    vi.mocked(createClient).mockReturnValue({ rpc } as never);
+
+    await expect(executeTool('get_chart_data', {
+      start: '2026-01-01T00:00:00.000Z',
+      end: '2026-05-01T00:00:00.000Z',
+      bucket_minutes: 60,
+    })).rejects.toThrow('Max 90 days');
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('rejects weather device IDs in report bundle filters', async () => {
+    const rpc = vi.fn();
+    vi.mocked(createClient).mockReturnValue({ rpc } as never);
+
+    await expect(executeTool('get_report_bundle', {
+      start: '2026-01-01T00:00:00.000Z',
+      end: '2026-01-02T00:00:00.000Z',
+      device_ids: ['weather_node1'],
+    })).rejects.toThrow('sensor device IDs');
+    expect(rpc).not.toHaveBeenCalled();
+  });
 });

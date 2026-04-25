@@ -5,7 +5,6 @@ import { PageLayout } from '@/components/PageLayout';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useDevices } from '@/contexts/DevicesContext';
 import { useSession } from '@/components/AuthProvider';
-import { useGuest } from '@/contexts/GuestContext';
 import {
   celsiusToFahrenheit,
   deleteReadingById,
@@ -45,8 +44,7 @@ function buildReadingsCsv(readings: Reading[]) {
 export default function DataPage() {
   const { devices } = useDevices();
   const { role } = useSession();
-  const { isGuest } = useGuest();
-  const canDelete = !isGuest && role === 'admin';
+  const canDelete = role === 'admin';
 
   const [filter, setFilter] = useState<FilterState>(DEFAULT_FILTER);
   const [readings, setReadings] = useState<Reading[]>([]);

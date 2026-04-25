@@ -83,15 +83,31 @@ export interface ReportMeta {
   end: string;
 }
 
-export async function storeBundle(contextId: string, bundle: ReportBundle): Promise<boolean> {
-  return storeString(`report:bundle:${contextId}`, JSON.stringify(bundle));
+export interface ReportBundleContext {
+  user_id: string;
+  bundle: ReportBundle;
 }
 
-export async function getBundle(contextId: string): Promise<ReportBundle | null> {
+export async function storeBundle(
+  contextId: string,
+  userId: string,
+  bundle: ReportBundle,
+): Promise<boolean> {
+  return storeString(`report:bundle:${contextId}`, JSON.stringify({
+    user_id: userId,
+    bundle,
+  }));
+}
+
+export async function getBundle(contextId: string): Promise<ReportBundleContext | null> {
   const raw = await fetchString(`report:bundle:${contextId}`);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as ReportBundle;
+    const parsed = JSON.parse(raw) as Partial<ReportBundleContext>;
+    if (!parsed || typeof parsed.user_id !== 'string' || !parsed.bundle) {
+      return null;
+    }
+    return parsed as ReportBundleContext;
   } catch {
     return null;
   }
