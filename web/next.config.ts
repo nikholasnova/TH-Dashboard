@@ -8,7 +8,10 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), browsing-topics=()" },
+  // FLoC's interest-cohort and its Topics-API successor browsing-topics each
+  // log "Unrecognized feature" in browsers that don't implement them. Skip both;
+  // Topics API requires sites to opt in via JS, so it's off for us by default.
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
 const nextConfig: NextConfig = {
