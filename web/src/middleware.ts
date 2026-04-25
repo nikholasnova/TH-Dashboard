@@ -3,52 +3,33 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// strict-dynamic + a per-request nonce replaces 'unsafe-inline' for script-src.
-// Modern browsers ignore the host allowlist when strict-dynamic is set; the hosts
-// stay as a fallback for older browsers that ignore strict-dynamic.
-// 'unsafe-eval' is only added in development because React's dev build uses eval()
-// for callstack reconstruction; the production build never calls eval().
-function buildCsp(nonce: string): string {
-  const scriptSrcExtras =
-    process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'";
-  return [
-    "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval'${scriptSrcExtras} https://cdn.jsdelivr.net https://us-assets.i.posthog.com https://novachuk.dev`,
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://cdn.jsdelivr.net https://novachuk.dev",
-    "worker-src 'self' blob:",
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self' https://www.overleaf.com",
-    "object-src 'none'",
-    "upgrade-insecure-requests",
-  ].join('; ');
-}
-
-function generateNonce(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  let binary = '';
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary);
-}
+// CSP for the dashboard. 'unsafe-inline' on script-src is required because
+// Next.js statically prerenders some pages and bakes inline RSC streaming
+// scripts into the HTML — those inline scripts cannot receive a per-request
+// nonce, and 'strict-dynamic' would override any host allowlist while
+// blocking them. A proper nonce-based CSP requires forcing every page into
+// dynamic rendering and reading headers() in the root layout; tracked as a
+// follow-up. 'unsafe-eval' is dev-only for React's callstack reconstruction.
+const CSP = [
+  "default-src 'self'",
+  `script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'${
+    process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'"
+  } https://cdn.jsdelivr.net https://us-assets.i.posthog.com https://novachuk.dev`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://cdn.jsdelivr.net https://novachuk.dev",
+  "worker-src 'self' blob:",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self' https://www.overleaf.com",
+  "object-src 'none'",
+  "upgrade-insecure-requests",
+].join('; ');
 
 export async function middleware(request: NextRequest) {
-  const nonce = generateNonce();
-  const csp = buildCsp(nonce);
-
-  // x-nonce on the request lets Next.js apply the nonce to its inline scripts;
-  // server components can read it via headers() to pass to <Script> elements.
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-nonce', nonce);
-  requestHeaders.set('content-security-policy', csp);
-
-  let supabaseResponse = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
-  supabaseResponse.headers.set('content-security-policy', csp);
+  let supabaseResponse = NextResponse.next({ request });
+  supabaseResponse.headers.set('content-security-policy', CSP);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -62,10 +43,8 @@ export async function middleware(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = NextResponse.next({
-            request: { headers: requestHeaders },
-          });
-          supabaseResponse.headers.set('content-security-policy', csp);
+          supabaseResponse = NextResponse.next({ request });
+          supabaseResponse.headers.set('content-security-policy', CSP);
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
@@ -85,7 +64,7 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     const redirect = NextResponse.redirect(url);
-    redirect.headers.set('content-security-policy', csp);
+    redirect.headers.set('content-security-policy', CSP);
     return redirect;
   }
 
