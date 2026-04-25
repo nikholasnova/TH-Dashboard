@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Newsreader, Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
 import "./globals.css";
@@ -7,6 +8,16 @@ import { DevicesProvider } from "@/contexts/DevicesContext";
 import { ChatShell } from "@/components/ChatShell";
 import { ChatPageContextProvider } from "@/lib/chatContext";
 import { PostHogProviderWrapper } from "@/components/PostHogProvider";
+
+// Server component that defers rendering to request time so the CSP nonce
+// set by middleware lands on Next.js's inline scripts. Wrapping in <Suspense>
+// (in RootLayout below) lets the static shell stream while only this gate
+// waits for the request — much snappier client-side navigation than
+// `await connection()` directly inside the layout.
+async function DynamicNonceGate({ children }: { children: React.ReactNode }) {
+  await connection();
+  return <>{children}</>;
+}
 
 // preload: false avoids "preloaded but not used" warnings on cold loads where
 // the framer-motion intro animation pushes first text paint past Chrome's
@@ -45,17 +56,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // Opt the entire route tree into dynamic rendering so the per-request
-  // CSP nonce set by middleware reaches every inline script. Without this,
-  // Next.js prerenders the HTML shell once and the baked __next_f.push
-  // scripts never receive the nonce.
-  await connection();
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -64,16 +69,20 @@ export default async function RootLayout({
         <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-4 focus:bg-[var(--glass-bg)] focus:text-[var(--foreground)]">
           Skip to main content
         </a>
-        <AuthProvider>
-          <PostHogProviderWrapper>
-            <DevicesProvider>
-              <ChatPageContextProvider>
-                {children}
-                <ChatShell />
-              </ChatPageContextProvider>
-            </DevicesProvider>
-          </PostHogProviderWrapper>
-        </AuthProvider>
+        <Suspense fallback={null}>
+          <DynamicNonceGate>
+            <AuthProvider>
+              <PostHogProviderWrapper>
+                <DevicesProvider>
+                  <ChatPageContextProvider>
+                    {children}
+                    <ChatShell />
+                  </ChatPageContextProvider>
+                </DevicesProvider>
+              </PostHogProviderWrapper>
+            </AuthProvider>
+          </DynamicNonceGate>
+        </Suspense>
       </body>
     </html>
   );
