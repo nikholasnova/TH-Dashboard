@@ -3,33 +3,52 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 export const runtime = 'nodejs';
 
-// CSP for the dashboard. 'unsafe-inline' on script-src is required because
-// Next.js statically prerenders some pages and bakes inline RSC streaming
-// scripts into the HTML — those inline scripts cannot receive a per-request
-// nonce, and 'strict-dynamic' would override any host allowlist while
-// blocking them. A proper nonce-based CSP requires forcing every page into
-// dynamic rendering and reading headers() in the root layout; tracked as a
-// follow-up. 'unsafe-eval' is dev-only for React's callstack reconstruction.
-const CSP = [
-  "default-src 'self'",
-  `script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'${
-    process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'"
-  } https://cdn.jsdelivr.net https://us-assets.i.posthog.com https://novachuk.dev`,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://cdn.jsdelivr.net https://novachuk.dev",
-  "worker-src 'self' blob:",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self' https://www.overleaf.com",
-  "object-src 'none'",
-  "upgrade-insecure-requests",
-].join('; ');
+// 'strict-dynamic' + a per-request nonce replaces 'unsafe-inline' on script-src.
+// The host allowlist is a fallback for browsers that don't honor strict-dynamic;
+// modern browsers ignore it once strict-dynamic is set. 'unsafe-eval' is dev-only
+// because React's dev build uses eval() for callstack reconstruction; the prod
+// build never calls eval().
+function buildCsp(nonce: string): string {
+  const scriptSrcExtras =
+    process.env.NODE_ENV === 'production' ? '' : " 'unsafe-eval'";
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'wasm-unsafe-eval'${scriptSrcExtras} https://cdn.jsdelivr.net https://us-assets.i.posthog.com https://novachuk.dev`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' https://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com https://cdn.jsdelivr.net https://novachuk.dev",
+    "worker-src 'self' blob:",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self' https://www.overleaf.com",
+    "object-src 'none'",
+    "upgrade-insecure-requests",
+  ].join('; ');
+}
+
+function generateNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let binary = '';
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+}
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
-  supabaseResponse.headers.set('content-security-policy', CSP);
+  const nonce = generateNonce();
+  const csp = buildCsp(nonce);
+
+  // x-nonce on the request lets Next.js stamp the nonce on its inline scripts.
+  // The root layout's `await connection()` ensures pages render dynamically
+  // so this nonce reaches the rendered HTML on every request.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+
+  let supabaseResponse = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+  supabaseResponse.headers.set('content-security-policy', csp);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,8 +62,10 @@ export async function middleware(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
-          supabaseResponse = NextResponse.next({ request });
-          supabaseResponse.headers.set('content-security-policy', CSP);
+          supabaseResponse = NextResponse.next({
+            request: { headers: requestHeaders },
+          });
+          supabaseResponse.headers.set('content-security-policy', csp);
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           );
@@ -64,7 +85,7 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     const redirect = NextResponse.redirect(url);
-    redirect.headers.set('content-security-policy', CSP);
+    redirect.headers.set('content-security-policy', csp);
     return redirect;
   }
 

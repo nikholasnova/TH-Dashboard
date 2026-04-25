@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Newsreader, Geist_Mono } from "next/font/google";
+import { connection } from "next/server";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { DevicesProvider } from "@/contexts/DevicesContext";
@@ -38,11 +39,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Opt the entire route tree into dynamic rendering so the per-request
+  // CSP nonce set by middleware reaches every inline script. Without this,
+  // Next.js prerenders the HTML shell once and the baked __next_f.push
+  // scripts never receive the nonce.
+  await connection();
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body
