@@ -8,16 +8,22 @@ import { ChatShell } from "@/components/ChatShell";
 import { ChatPageContextProvider } from "@/lib/chatContext";
 import { PostHogProviderWrapper } from "@/components/PostHogProvider";
 
+// preload: false avoids "preloaded but not used" warnings on cold loads where
+// the framer-motion intro animation pushes first text paint past Chrome's
+// preload-use deadline. Fonts still load via the CSS variable, just without
+// a <link rel="preload">.
 const newsreader = Newsreader({
   variable: "--font-newsreader",
   subsets: ["latin"],
   axes: ["opsz"],
+  preload: false,
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
+  preload: false,
 });
 
 export const viewport: Viewport = {
