@@ -35,6 +35,7 @@ const deployment = {
   location: 'Backyard',
   notes: null,
   zip_code: null,
+  owner_id: null,
   started_at: '2024-01-01T00:00:00Z',
   ended_at: null,
   created_at: '2024-01-01T00:00:00Z',

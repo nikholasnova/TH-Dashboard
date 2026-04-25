@@ -29,6 +29,7 @@ function makeDeployment(overrides: Partial<{
   location: string;
   notes: string | null;
   zip_code: string | null;
+  owner_id: string | null;
   started_at: string;
   ended_at: string | null;
   created_at: string;
@@ -40,6 +41,7 @@ function makeDeployment(overrides: Partial<{
     location: 'Yard',
     notes: null,
     zip_code: '85142',
+    owner_id: null,
     started_at: '2026-02-01T00:00:00.000Z',
     ended_at: null,
     created_at: '2026-02-01T00:00:00.000Z',

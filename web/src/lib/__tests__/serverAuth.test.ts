@@ -97,7 +97,8 @@ describe('serverAuth', () => {
 
       const result = await requireAdmin();
       expect(result.user).toBeNull();
-      expect(result.response.status).toBe(403);
+      expect(result.response).not.toBeNull();
+      expect(result.response!.status).toBe(403);
     });
 
     it('accepts users with an admin database role', async () => {
@@ -115,16 +116,18 @@ describe('serverAuth', () => {
 
   describe('enforceOrigin', () => {
     it('blocks production mutating requests without the configured origin', () => {
-      const originalEnv = { ...process.env };
-      process.env.NODE_ENV = 'production';
-      process.env.NEXT_PUBLIC_SITE_URL = 'https://app.example.com';
-      const res = enforceOrigin(new Request('https://app.example.com/api/users', {
-        method: 'POST',
-        headers: { origin: 'https://evil.example' },
-      }));
+      vi.stubEnv('NODE_ENV', 'production');
+      vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://app.example.com');
+      try {
+        const res = enforceOrigin(new Request('https://app.example.com/api/users', {
+          method: 'POST',
+          headers: { origin: 'https://evil.example' },
+        }));
 
-      expect(res?.status).toBe(403);
-      process.env = originalEnv;
+        expect(res?.status).toBe(403);
+      } finally {
+        vi.unstubAllEnvs();
+      }
     });
   });
 });
